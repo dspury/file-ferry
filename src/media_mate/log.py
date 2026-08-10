@@ -31,7 +31,7 @@ from media_mate.models import (
     VerificationSnapshotRecord,
 )
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 7
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -67,11 +67,20 @@ CREATE TABLE IF NOT EXISTS probes (
     width INTEGER,
     height INTEGER,
     frame_rate REAL,
+    r_frame_rate REAL,
+    is_vfr INTEGER NOT NULL DEFAULT 0,
     color_space TEXT,
+    color_transfer TEXT,
+    color_primaries TEXT,
     bit_depth INTEGER,
-    duration REAL,
+    sample_aspect_ratio TEXT,
+    timecode TEXT,
+    audio_codec TEXT,
     audio_channels INTEGER,
     audio_sample_rate INTEGER,
+    audio_bit_depth INTEGER,
+    duration REAL,
+    modification_time TEXT,
     probed_at TEXT NOT NULL
 );
 
@@ -245,6 +254,27 @@ class LogStore:
         if "manifest_path" not in proj_columns:
             conn.execute("ALTER TABLE projects ADD COLUMN manifest_path TEXT")
 
+        # Version 7 brought probes in line with the full MediaProbe surface
+        # (issue #42). Nine fields were captured at probe time but never
+        # persisted, so existing databases need additive ALTER TABLE columns.
+        # All columns are nullable (or default-safe for the bool `is_vfr`),
+        # so historical rows are unaffected.
+        probe_columns = {row["name"] for row in conn.execute("PRAGMA table_info(probes)")}
+        _v7_probe_columns: dict[str, str] = {
+            "r_frame_rate": "REAL",
+            "is_vfr": "INTEGER NOT NULL DEFAULT 0",
+            "color_transfer": "TEXT",
+            "color_primaries": "TEXT",
+            "sample_aspect_ratio": "TEXT",
+            "timecode": "TEXT",
+            "audio_codec": "TEXT",
+            "audio_bit_depth": "INTEGER",
+            "modification_time": "TEXT",
+        }
+        for name, decl in _v7_probe_columns.items():
+            if name not in probe_columns:
+                conn.execute(f"ALTER TABLE probes ADD COLUMN {name} {decl}")
+
     # ------------------------------------------------------------------
     # Runs
     # ------------------------------------------------------------------
@@ -345,10 +375,13 @@ class LogStore:
         """Insert a probe row; return its id."""
         with self._connect() as conn:
             cur = conn.execute(
-                "INSERT INTO probes (file_id, run_id, codec, container, width, height, "
-                "frame_rate, color_space, bit_depth, duration, audio_channels, "
-                "audio_sample_rate, probed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "
-                "?, ?, ?)",
+                "INSERT INTO probes ("
+                "file_id, run_id, codec, container, width, height, "
+                "frame_rate, r_frame_rate, is_vfr, color_space, color_transfer, "
+                "color_primaries, bit_depth, sample_aspect_ratio, timecode, "
+                "audio_codec, audio_channels, audio_sample_rate, audio_bit_depth, "
+                "duration, modification_time, probed_at"
+                ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     record.file_id,
                     record.run_id,
@@ -357,11 +390,20 @@ class LogStore:
                     record.width,
                     record.height,
                     record.frame_rate,
+                    record.r_frame_rate,
+                    int(record.is_vfr),
                     record.color_space,
+                    record.color_transfer,
+                    record.color_primaries,
                     record.bit_depth,
-                    record.duration,
+                    record.sample_aspect_ratio,
+                    record.timecode,
+                    record.audio_codec,
                     record.audio_channels,
                     record.audio_sample_rate,
+                    record.audio_bit_depth,
+                    record.duration,
+                    _iso(record.modification_time) if record.modification_time else None,
                     _iso(record.probed_at),
                 ),
             )
@@ -414,7 +456,7 @@ class LogStore:
                     record.bin_count,
                     record.timeline_count,
                     record.resolve_version,
-                    _iso(record.created_at),
+                    record.created_at,
                 ),
             )
             assert cur.lastrowid is not None
@@ -511,11 +553,20 @@ class LogStore:
                         width=row["width"],
                         height=row["height"],
                         frame_rate=row["frame_rate"],
+                        r_frame_rate=row["r_frame_rate"],
+                        is_vfr=bool(row["is_vfr"]),
                         color_space=row["color_space"],
+                        color_transfer=row["color_transfer"],
+                        color_primaries=row["color_primaries"],
                         bit_depth=row["bit_depth"],
-                        duration=row["duration"],
+                        sample_aspect_ratio=row["sample_aspect_ratio"],
+                        timecode=row["timecode"],
+                        audio_codec=row["audio_codec"],
                         audio_channels=row["audio_channels"],
                         audio_sample_rate=row["audio_sample_rate"],
+                        audio_bit_depth=row["audio_bit_depth"],
+                        duration=row["duration"],
+                        modification_time=_parse_dt(row["modification_time"]),
                         probed_at=_parse_dt(row["probed_at"]) or datetime.now(UTC),
                     )
         return result

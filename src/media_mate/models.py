@@ -319,11 +319,23 @@ class ProbeRecord(BaseModel):
     width: int | None
     height: int | None
     frame_rate: float | None
+    # Real frame rate — used to detect VFR sources (issue #8).
+    r_frame_rate: float | None = None
+    is_vfr: bool = False
     color_space: str | None
+    color_transfer: str | None = None
+    color_primaries: str | None = None
     bit_depth: int | None
-    duration: float | None
+    # Pixel aspect ratio as a string ("16:9", "2:1"), per ffprobe output.
+    sample_aspect_ratio: str | None = None
+    # SMPTE timecode extracted from the source, if present.
+    timecode: str | None = None
+    audio_codec: str | None = None
     audio_channels: int | None
     audio_sample_rate: int | None
+    audio_bit_depth: int | None = None
+    duration: float | None
+    modification_time: datetime | None = None
     probed_at: datetime
 
 

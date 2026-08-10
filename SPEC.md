@@ -75,7 +75,7 @@ JSON-serializable, queryable in SQLite.
 
 ### 5.2 Organize
 
-Auto-organize a folder of media into a structured layout based on configurable rules. Default rule: `<root>/<source_relpath>/<filename><ext>` — the source's subfolder structure is preserved under the destination root (mirrors how DITs think about cards/scenes/takes). Rules live in a config file (`media-mate.toml`) and can be overridden per-project (e.g. `{root}/{codec_family}/{resolution_bucket}/{filename}{ext}`). Sources are copied by default so raw camera media stays untouched; `--move` (or `mode = "move"` in config) relocates instead.
+Auto-organize a folder of media into a structured layout based on configurable rules. Default rule: `<root>/<source_relpath>/<filename><ext>` — the source's subfolder structure is preserved under the destination root (mirrors how DITs think about cards/scenes/takes). Rules live in a config file (`media-mate.toml`) and can be overridden per-project (e.g. `{root}/{codec_family}/{resolution_bucket}/{filename}{ext}`). Sources are copied by default via `shutil.copy2` (full byte-for-byte copy, preserving mtime/flags) so raw camera media stays untouched and a downstream edit to the destination cannot silently mutate the source inode; `--move` (or `mode = "move"` in config) relocates instead. Hardlinks were considered for same-device copies to avoid wasted I/O but were explicitly rejected: a hardlink aliases the destination to the source inode, so editing the "copy" would corrupt the raw. Correctness over a marginal speedup.
 
 **Note:** `--dry-run` is supported — preview the organization plan before touching any files.
 
@@ -92,8 +92,6 @@ Generate edit-friendly proxies (default: ProRes 422 Proxy at 1080p, aspect-prese
 - **SAR / anamorphic** — `setsar` applied after scale to restore correct display aspect ratio
 - **Audio codec** — PCM bit depth matched to source audio (`pcm_s16le` for 8–15-bit audio, `pcm_s32le` for 16+ bit)
 - **All audio tracks** — `-map 0:a` captures every audio track, not just the first
-
-On same-device organize operations, hardlinks are used instead of full copies to avoid wasted I/O.
 
 Supports MOV, MXF, MP4, and any ffmpeg-readable format. **RAW codecs (R3D/BRAW/ARI) are recognized by container but require vendor SDKs for decode — stock ffmpeg cannot decode them.**
 
@@ -713,10 +711,10 @@ The following issues are acknowledged and targeted for v0.3. Each requires a spe
 
 **Severity:** Partial.
 **Recommendation:** Two parts:
-1. **Hardlink on same device** — when source and dest are on the same volume, use `os.link()` instead of `shutil.copy2()`. Zero I/O overhead, originals stay immutable. Implemented in organize. This is the 80% solution.
+1. **Hardlink on same device** — when source and dest are on the same volume, use `os.link()` instead of `shutil.copy2()`. Zero I/O overhead, originals stay immutable. *Rejected during v0.2.2 audit (#2 in that batch): a hardlink aliases the destination to the source inode, so editing the "copy" corrupts the raw. `shutil.copy2` is used unconditionally in `organize.py` instead. This is the 80% solution.*
 2. **Device-aware parallelism** — closed as won't-fix for v0.3. Adds significant complexity for marginal gain on a single-operator CLI.
-**Versioning impact:** None (hardlink is an optimization, not a behavior change).
-**Status:** Hardlink: worth doing now. Parallelism: wont-fix.
+**Versioning impact:** None (hardlink decision is a code path correction, not a behavior change at the user-facing level).
+**Status:** Hardlink: rejected (correctness > marginal I/O speedup). Parallelism: wont-fix.
 
 ### #20 — Resolve: empty project
 

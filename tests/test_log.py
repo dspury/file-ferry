@@ -213,6 +213,43 @@ class TestProjects:
         )
         assert pid > 0
 
+    def test_insert_project_stores_created_at_as_iso_string(self, store: LogStore) -> None:
+        """Regression for #41: created_at must be serialized via _iso(), not raw.
+
+        On Python 3.12+ sqlite3 emits a DeprecationWarning when a datetime
+        is bound directly to a parameter; passing an ISO string silences it
+        and matches the convention used by every other LogStore insert.
+        """
+        run_id = store.start_run("media-mate resolve create ./raw")
+        pid = store.insert_project(
+            ProjectRecord(
+                name="Episode-13",
+                path="/tmp/Episode-13.drp",
+                run_id=run_id,
+                resolution="1080",
+                frame_rate="24",
+                color_space="Rec.709",
+                bin_count=1,
+                timeline_count=1,
+                resolve_version="20.0",
+                created_at=datetime.now(UTC),
+            )
+        )
+        with store._connect() as conn:
+            row = conn.execute(
+                "SELECT created_at FROM projects WHERE id = ?", (pid,)
+            ).fetchone()
+        assert row is not None
+        stored = row["created_at"]
+        # Must be a string, not a datetime — sqlite's default text_factory
+        # stringifies datetimes too, so we additionally require the canonical
+        # _iso() form (capital-T separator, not datetime.__str__'s space).
+        assert isinstance(stored, str)
+        assert "T" in stored, f"expected ISO-8601 'T' separator, got {stored!r}"
+        # Round-trip via fromisoformat and confirm the suffix is UTC.
+        parsed = datetime.fromisoformat(stored)
+        assert parsed.tzinfo is not None
+
 
 class TestVerifications:
     def test_insert_verification(self, store: LogStore) -> None:

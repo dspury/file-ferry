@@ -414,7 +414,7 @@ class LogStore:
                     record.bin_count,
                     record.timeline_count,
                     record.resolve_version,
-                    record.created_at,
+                    _iso(record.created_at),
                 ),
             )
             assert cur.lastrowid is not None

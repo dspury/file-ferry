@@ -7,7 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, PropertyMock, patch
 
-from media_mate.config import load_config
+from media_mate.config import load_config, save_config
 from media_mate.models import ChecksumAlgo, MediaMateConfig, OrganizeResult
 from media_mate.tui import (
     HomeScreen,
@@ -21,7 +21,6 @@ from media_mate.tui import (
     _format_size,
     compute_output_tree,
     list_external_drives,
-    save_config,
 )
 
 

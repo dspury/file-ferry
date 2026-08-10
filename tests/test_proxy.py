@@ -12,10 +12,10 @@ import pytest
 
 from media_mate.log import LogStore
 from media_mate.models import MediaMateConfig, MediaProbe, ProxyRequest
+from media_mate.probe import _format_errors
 from media_mate.proxy import (
     ProxyError,
     _ffmpeg_cmd,
-    _format_errors,
     _profile_for,
     find_ffmpeg,
     generate_proxies,

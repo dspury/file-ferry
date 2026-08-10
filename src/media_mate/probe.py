@@ -399,7 +399,14 @@ def probe_path(
 
 
 def _format_errors(errors: list[tuple[Path, str]], limit: int = 5) -> str:
-    """Format an error summary for the run log."""
+    """Format an error summary for the run log.
+
+    Returns an empty string when `errors` is empty (callers always check
+    first and prefer `None` for the SUCCESS branch — this helper is only
+    invoked on PARTIAL/FAILED).
+    """
+    if not errors:
+        return ""
     head = "; ".join(f"{p.name}: {r}" for p, r in errors[:limit])
     if len(errors) > limit:
         head += f"; ... ({len(errors) - limit} more)"

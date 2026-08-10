@@ -17,11 +17,6 @@ from pathlib import Path
 
 from media_mate.models import MediaMateConfig
 
-__all__ = [
-    "config_target",
-    "load_config",
-    "save_config",
-]
 
 def load_config(path: Path | None = None) -> MediaMateConfig:
     """Load config from a TOML file.

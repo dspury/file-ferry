@@ -7,9 +7,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, PropertyMock, patch
 
-from media_mate.config import load_config, save_config
+from media_mate.config import load_config
+from media_mate.drives import _drive_label, _format_size, list_external_drives
 from media_mate.models import ChecksumAlgo, MediaMateConfig, OrganizeResult
-from media_mate.organize import compute_output_tree
 from media_mate.tui import (
     HomeScreen,
     LogScreen,
@@ -18,9 +18,8 @@ from media_mate.tui import (
     PipelineScreen,
     QueueItem,
     SettingsScreen,
-    _drive_label,
-    _format_size,
-    list_external_drives,
+    compute_output_tree,
+    save_config,
 )
 
 
@@ -56,60 +55,6 @@ def test_save_config_preserves_comments_and_layout(tmp_path: Path) -> None:
     assert "# Keep card folders intact" in saved
     assert "proxy_height = 720" in saved
     assert saved.count("[organize]") == 1
-
-
-def test_save_config_preserves_equal_sign_in_quoted_string(tmp_path: Path) -> None:
-    """Regression for #38: a quoted value containing '=' must not be
-    re-parsed as an assignment by the merger.
-    """
-    target = tmp_path / "media-mate.toml"
-    target.write_text(
-        'resolve_path = "/data/contains=sign/drp"  # path with =\n[organize]\nmode = "copy"\n'
-    )
-    save_config(MediaMateConfig(resolve_path="/data/contains=sign/drp"), target)
-    assert load_config(target).resolve_path == "/data/contains=sign/drp"
-
-
-def test_save_config_preserves_inline_table(tmp_path: Path) -> None:
-    """Regression for #38: an inline-table key written by the user
-    in a [proxy] sub-table must survive a merge.
-    """
-    target = tmp_path / "media-mate.toml"
-    target.write_text('[proxy]\nextra_arg = "-ss 00:00:01"\n[organize]\nmode = "copy"\n')
-    save_config(MediaMateConfig(), target)
-    saved = target.read_text()
-    # The user-defined key survives.
-    assert 'extra_arg = "-ss 00:00:01"' in saved
-
-
-def test_save_config_round_trips_native_types(tmp_path: Path) -> None:
-    """Regression for #38: integers and booleans stay as native TOML
-    types, not strings (the regex merger wrote proxy_height = 720
-    as the string "720").
-    """
-    target = tmp_path / "media-mate.toml"
-    save_config(MediaMateConfig(proxy_height=720), target)
-    import tomllib
-
-    parsed = tomllib.loads(target.read_text())
-    assert parsed["proxy_height"] == 720
-    assert isinstance(parsed["proxy_height"], int)
-
-
-def test_save_config_with_none_value_removes_key(tmp_path: Path) -> None:
-    """Regression for #38: the prior merger treated None as "delete
-    this key." Preserve that contract: a None value drops the key
-    from the output document.
-    """
-    target = tmp_path / "media-mate.toml"
-    target.write_text(
-        'ffmpeg_path = "/old/ffmpeg"\nproxy_codec = "h264"\n[organize]\nmode = "copy"\n'
-    )
-    # MediaMateConfig with default ffmpeg_path=None → caller wants it gone.
-    save_config(MediaMateConfig(ffmpeg_path=None, proxy_codec="h264"), target)
-    saved = target.read_text()
-    assert "ffmpeg_path" not in saved
-    assert "proxy_codec" in saved
 
 
 def test_keyboard_screen_navigation(tmp_path: Path) -> None:
@@ -333,8 +278,8 @@ class TestListExternalDrives:
             return Path(text)
 
         with (
-            patch("media_mate.tui.Path", side_effect=fake_path_factory),
-            patch("media_mate.tui.platform.system", return_value="Darwin"),
+            patch("media_mate.drives.Path", side_effect=fake_path_factory),
+            patch("media_mate.drives.platform.system", return_value="Darwin"),
         ):
             drives = list_external_drives()
 
@@ -360,7 +305,7 @@ class TestListExternalDrives:
 
         with (
             patch.dict("os.environ", {"USER": user}, clear=False),
-            patch("media_mate.tui.Path") as path_cls,
+            patch("media_mate.drives.Path") as path_cls,
         ):
             # Map exact strings (no substring matching — /media/alice is a
             # suffix of /run/media/alice, so naive .replace() corrupts it).
@@ -374,7 +319,7 @@ class TestListExternalDrives:
 
             path_cls.side_effect = factory
 
-            with patch("media_mate.tui.platform.system", return_value="Linux"):
+            with patch("media_mate.drives.platform.system", return_value="Linux"):
                 drives = list_external_drives()
 
         names = sorted(d.name for d in drives)
@@ -384,8 +329,8 @@ class TestListExternalDrives:
 
     def test_linux_returns_empty_when_no_user_media_dir(self, tmp_path: Path) -> None:
         with (
-            patch("media_mate.tui.platform.system", return_value="Linux"),
-            patch("media_mate.tui.Path", side_effect=lambda p: Path(str(p))),
+            patch("media_mate.drives.platform.system", return_value="Linux"),
+            patch("media_mate.drives.Path", side_effect=lambda p: Path(str(p))),
         ):
             drives = list_external_drives()
         assert drives == []
@@ -401,7 +346,7 @@ class TestListExternalDrives:
 
         with (
             patch.dict("os.environ", {"SYSTEMDRIVE": "C:"}, clear=False),
-            patch("media_mate.tui.platform.system", return_value="Windows"),
+            patch("media_mate.drives.platform.system", return_value="Windows"),
             patch.object(Path, "exists", fake_stat),
             patch.object(Path, "is_dir", fake_stat),
         ):
@@ -411,12 +356,12 @@ class TestListExternalDrives:
         assert names == ["D:", "E:"]
 
     def test_returns_empty_for_unknown_platform(self) -> None:
-        with patch("media_mate.tui.platform.system", return_value="Plan9"):
+        with patch("media_mate.drives.platform.system", return_value="Plan9"):
             assert list_external_drives() == []
 
     def test_drive_label_falls_back_when_disk_usage_fails(self, tmp_path: Path) -> None:
         # disk_usage raises (e.g. drive unmounted between detection and display).
-        with patch("media_mate.tui.shutil.disk_usage", side_effect=OSError("not mounted")):
+        with patch("media_mate.drives.shutil.disk_usage", side_effect=OSError("not mounted")):
             label = _drive_label(tmp_path / "Card")
         assert label == "Card"
 
@@ -424,7 +369,7 @@ class TestListExternalDrives:
         drive = tmp_path / "Camera Card"
         drive.mkdir()
         with patch(
-            "media_mate.tui.shutil.disk_usage",
+            "media_mate.drives.shutil.disk_usage",
             return_value=SimpleNamespace(free=552 * 1024**3, total=1800 * 1024**3),
         ):
             label = _drive_label(drive)

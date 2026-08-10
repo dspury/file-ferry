@@ -856,24 +856,16 @@ class PipelineScreen(Screen[Any]):
             file: Path, error: str | None, _failures: list[str] = probe_failures
         ) -> None:
             if error is None:
-                self.app.call_from_thread(
-                    self._log, f"[dim]    · {escape(file.name)}[/]"
-                )
+                self.app.call_from_thread(self._log, f"[dim]    · {escape(file.name)}[/]")
             else:
                 _failures.append(f"{file.name} — {error}")
 
-        probe_result = probe_path(
-            ctx.item.path, ctx.store, config=ctx.cfg, on_file=on_probe_file
-        )
+        probe_result = probe_path(ctx.item.path, ctx.store, config=ctx.cfg, on_file=on_probe_file)
         self._log_failure_lines(probe_failures)
         if not probe_result:
             if probe_failures:
-                raise RuntimeError(
-                    f"probe failed for all {len(probe_failures)} file(s)"
-                )
-            raise RuntimeError(
-                "no media files found — is the folder still mounted?"
-            )
+                raise RuntimeError(f"probe failed for all {len(probe_failures)} file(s)")
+            raise RuntimeError("no media files found — is the folder still mounted?")
         return f"{len(probe_result)} ok" + (
             f", [red]{len(probe_failures)} failed[/]" if probe_failures else ""
         )
@@ -893,9 +885,8 @@ class PipelineScreen(Screen[Any]):
         ctx.organized = organized
         ctx.organize_ran = True
         self._log_failure_lines(organize_result.errors)
-        detail = (
-            f"{organize_result.files_moved} ok, {organize_result.files_skipped} skipped"
-            + (" [dry-run]" if ctx.options.dry_run else "")
+        detail = f"{organize_result.files_moved} ok, {organize_result.files_skipped} skipped" + (
+            " [dry-run]" if ctx.options.dry_run else ""
         )
         return detail
 
@@ -906,19 +897,12 @@ class PipelineScreen(Screen[Any]):
         # output to proxy; operating on the source would proxy raw.
         if ctx.organize_ran and ctx.options.dry_run:
             return "skipped — organize was dry-run"
-        proxy_source: Path = (
-            ctx.item.path if ctx.organized is None else ctx.organized
-        )
+        proxy_source: Path = ctx.item.path if ctx.organized is None else ctx.organized
         proxy_dir = ctx.out / "proxies"
-        proxy_result = generate_proxies(
-            proxy_source, proxy_dir, ctx.store, config=ctx.cfg
-        )
+        proxy_result = generate_proxies(proxy_source, proxy_dir, ctx.store, config=ctx.cfg)
         ctx.proxy_dir = proxy_dir
         self._log_failure_lines(
-            [
-                f"{Path(fail.source_path).name} — {fail.reason}"
-                for fail in proxy_result.failures
-            ]
+            [f"{Path(fail.source_path).name} — {fail.reason}" for fail in proxy_result.failures]
         )
         return (
             f"{len(proxy_result.results)} ok, "
@@ -934,15 +918,11 @@ class PipelineScreen(Screen[Any]):
         if ctx.organize_ran and ctx.options.dry_run:
             return "skipped — organize was dry-run"
         ctx.out.mkdir(parents=True, exist_ok=True)
-        resolve_source: Path = (
-            ctx.item.path if ctx.organized is None else ctx.organized
-        )
+        resolve_source: Path = ctx.item.path if ctx.organized is None else ctx.organized
         spec = ResolveProjectSpec(
             name=ctx.options.project_name or ctx.item.path.name,
             source_folder=str(resolve_source),
-            output_path=str(
-                ctx.out / f"{ctx.options.project_name or ctx.item.path.name}.drp"
-            ),
+            output_path=str(ctx.out / f"{ctx.options.project_name or ctx.item.path.name}.drp"),
             resolution=cast(Any, ctx.options.resolution),
             frame_rate=cast(Any, ctx.options.frame_rate),
             color_space=ctx.options.color_space,
@@ -958,9 +938,7 @@ class PipelineScreen(Screen[Any]):
         # Same dry-run guard as proxy/resolve.
         if ctx.organize_ran and ctx.options.dry_run:
             return "skipped — organize was dry-run"
-        verify_source: Path = (
-            ctx.item.path if ctx.organized is None else ctx.organized
-        )
+        verify_source: Path = ctx.item.path if ctx.organized is None else ctx.organized
         verify_result = verify_folder(
             verify_source,
             ctx.store,

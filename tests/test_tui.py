@@ -474,9 +474,7 @@ class TestPipelineDispatch:
                         }[step],
                         return_value="sentinel",
                     ):
-                        result = PipelineScreen._dispatch_step(
-                            PipelineScreen(), step, ctx
-                        )
+                        result = PipelineScreen._dispatch_step(PipelineScreen(), step, ctx)
                     assert result == "sentinel", f"{step} did not route correctly"
 
         asyncio.run(run())

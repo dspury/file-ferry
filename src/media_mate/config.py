@@ -162,7 +162,6 @@ def _merge_config_text(existing: str, values: dict[tuple[str, str], str | None])
     return tomlkit.dumps(doc)
 
 
-
 __all__ = [
     "config_target",
     "load_config",

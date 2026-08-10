@@ -236,9 +236,7 @@ class TestProjects:
             )
         )
         with store._connect() as conn:
-            row = conn.execute(
-                "SELECT created_at FROM projects WHERE id = ?", (pid,)
-            ).fetchone()
+            row = conn.execute("SELECT created_at FROM projects WHERE id = ?", (pid,)).fetchone()
         assert row is not None
         stored = row["created_at"]
         # Must be a string, not a datetime — sqlite's default text_factory

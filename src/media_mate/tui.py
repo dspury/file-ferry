@@ -7,6 +7,7 @@ import sqlite3
 import subprocess
 from collections.abc import Iterable
 from dataclasses import dataclass
+from functools import lru_cache
 from os import replace
 from pathlib import Path
 from time import monotonic
@@ -81,6 +82,15 @@ _STATUS_GLYPH = {
 
 
 def get_ffmpeg_version() -> str:
+    """Probe the installed ffmpeg and return its version string.
+
+    The result is memoized for the process lifetime by
+    ``_cached_ffmpeg_version`` (an ``lru_cache`` wrapper) — the
+    subprocess check can take seconds on a cold PATH, and the Home
+    screen calls this on every screen resume. Use
+    ``_cached_ffmpeg_version.cache_clear()`` from tests to reset the
+    cache between cases.
+    """
     try:
         result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True, timeout=5)
         return result.stdout.splitlines()[0].split()[2]
@@ -88,16 +98,9 @@ def get_ffmpeg_version() -> str:
         return "not found"
 
 
-#: Cached ffmpeg version — the subprocess check can take seconds; the Home
-#: screen fetches it once in a background worker and reuses it afterwards.
-_ffmpeg_version: str | None = None
-
-
+@lru_cache(maxsize=1)
 def _cached_ffmpeg_version() -> str:
-    global _ffmpeg_version
-    if _ffmpeg_version is None:
-        _ffmpeg_version = get_ffmpeg_version()
-    return _ffmpeg_version
+    return get_ffmpeg_version()
 
 
 def get_run_counts(db: Path) -> tuple[int, int, int, int]:
@@ -260,6 +263,12 @@ class HomeScreen(Screen[Any]):
         ("s", "settings", "Settings"),
     ]
 
+    def __init__(self) -> None:
+        super().__init__()
+        # Cached ffmpeg version, populated by the background worker on
+        # first mount. None means "still loading — show placeholder".
+        self.ffmpeg_version: str | None = None
+
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="home"):
@@ -284,7 +293,7 @@ class HomeScreen(Screen[Any]):
         self._refresh_stats()
         # The ffmpeg version check spawns a subprocess (up to 5s on a cold
         # PATH) — fetch it off the UI thread so startup never blocks.
-        if _ffmpeg_version is None:
+        if self.ffmpeg_version is None:
             self.run_worker(self._load_ffmpeg_version, thread=True)
 
     def on_screen_resume(self) -> None:
@@ -303,7 +312,7 @@ class HomeScreen(Screen[Any]):
         )
         self.query_one("#stat-failed", Static).update(f"[dim]FAILED[/]\n[red bold]{failed}[/]")
         self.query_one("#stat-live", Static).update(f"[dim]LIVE[/]\n[cyan bold]{running}[/]")
-        self._update_system_line(_ffmpeg_version or "checking…")
+        self._update_system_line(self.ffmpeg_version or "checking…")
 
     def _update_system_line(self, ffmpeg_version: str) -> None:
         app = cast("MediaMateApp", self.app)
@@ -313,6 +322,7 @@ class HomeScreen(Screen[Any]):
 
     def _load_ffmpeg_version(self) -> None:
         version = _cached_ffmpeg_version()
+        self.ffmpeg_version = version
         self.app.call_from_thread(self._update_system_line, version)
 
     def action_pipeline(self) -> None:

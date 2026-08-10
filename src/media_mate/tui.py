@@ -45,6 +45,7 @@ from media_mate import __version__
 from media_mate.config import load_config
 from media_mate.log import LogStore
 from media_mate.models import ChecksumAlgo, MediaMateConfig, OrganizeConfig
+from media_mate.organize import compute_output_tree
 from media_mate.probe import SYSTEM_ARTIFACT_NAMES
 
 DEFAULT_DB = Path.home() / ".media-mate" / "media-mate.db"
@@ -443,20 +444,6 @@ class PipelineOptions:
     resolution: str
     frame_rate: str
     color_space: str
-
-
-def compute_output_tree(output_root: Path | None, item_path: Path) -> Path:
-    """Compute the per-source output tree for a single queue item.
-
-    Each queued source gets its OWN subtree so same-named clips from separate
-    folders (e.g. two camera cards both containing ``clip.MP4``) never collide
-    in a shared ``<root>/organized`` or ``<root>/proxies``. With a shared
-    output_root, card_a's organized output lands at ``<root>/card_a/organized``
-    and card_b's at ``<root>/card_b/organized``. Without a root, each source's
-    tree sits next to the source under its parent.
-    """
-    base = output_root if output_root is not None else item_path.parent
-    return base / item_path.name
 
 
 class PipelineScreen(Screen[Any]):

@@ -58,6 +58,60 @@ def test_save_config_preserves_comments_and_layout(tmp_path: Path) -> None:
     assert saved.count("[organize]") == 1
 
 
+def test_save_config_preserves_equal_sign_in_quoted_string(tmp_path: Path) -> None:
+    """Regression for #38: a quoted value containing '=' must not be
+    re-parsed as an assignment by the merger.
+    """
+    target = tmp_path / "media-mate.toml"
+    target.write_text(
+        'resolve_path = "/data/contains=sign/drp"  # path with =\n[organize]\nmode = "copy"\n'
+    )
+    save_config(MediaMateConfig(resolve_path="/data/contains=sign/drp"), target)
+    assert load_config(target).resolve_path == "/data/contains=sign/drp"
+
+
+def test_save_config_preserves_inline_table(tmp_path: Path) -> None:
+    """Regression for #38: an inline-table key written by the user
+    in a [proxy] sub-table must survive a merge.
+    """
+    target = tmp_path / "media-mate.toml"
+    target.write_text('[proxy]\nextra_arg = "-ss 00:00:01"\n[organize]\nmode = "copy"\n')
+    save_config(MediaMateConfig(), target)
+    saved = target.read_text()
+    # The user-defined key survives.
+    assert 'extra_arg = "-ss 00:00:01"' in saved
+
+
+def test_save_config_round_trips_native_types(tmp_path: Path) -> None:
+    """Regression for #38: integers and booleans stay as native TOML
+    types, not strings (the regex merger wrote proxy_height = 720
+    as the string "720").
+    """
+    target = tmp_path / "media-mate.toml"
+    save_config(MediaMateConfig(proxy_height=720), target)
+    import tomllib
+
+    parsed = tomllib.loads(target.read_text())
+    assert parsed["proxy_height"] == 720
+    assert isinstance(parsed["proxy_height"], int)
+
+
+def test_save_config_with_none_value_removes_key(tmp_path: Path) -> None:
+    """Regression for #38: the prior merger treated None as "delete
+    this key." Preserve that contract: a None value drops the key
+    from the output document.
+    """
+    target = tmp_path / "media-mate.toml"
+    target.write_text(
+        'ffmpeg_path = "/old/ffmpeg"\nproxy_codec = "h264"\n[organize]\nmode = "copy"\n'
+    )
+    # MediaMateConfig with default ffmpeg_path=None → caller wants it gone.
+    save_config(MediaMateConfig(ffmpeg_path=None, proxy_codec="h264"), target)
+    saved = target.read_text()
+    assert "ffmpeg_path" not in saved
+    assert "proxy_codec" in saved
+
+
 def test_keyboard_screen_navigation(tmp_path: Path) -> None:
     async def navigate() -> None:
         app = MediaMateApp(tmp_path / "audit.db")

@@ -10,7 +10,6 @@ import sqlite3
 import subprocess
 from collections.abc import Iterable
 from dataclasses import dataclass
-from os import replace
 from pathlib import Path
 from time import monotonic
 from typing import Any, ClassVar, Literal, cast
@@ -249,7 +248,7 @@ def save_config(config: MediaMateConfig, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(f"{path.suffix}.tmp")
     temporary.write_text(content, encoding="utf-8")
-    replace(temporary, path)
+    os.replace(temporary, path)
 
 
 def _default_config_text(values: dict[tuple[str, str], str | None]) -> str:

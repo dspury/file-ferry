@@ -7,8 +7,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, PropertyMock, patch
 
+import pytest
+
 from media_mate.config import load_config
-from media_mate.drives import _drive_label, _format_size, list_external_drives
 from media_mate.models import ChecksumAlgo, MediaMateConfig, OrganizeResult
 from media_mate.tui import (
     HomeScreen,
@@ -18,7 +19,10 @@ from media_mate.tui import (
     PipelineScreen,
     QueueItem,
     SettingsScreen,
+    _drive_label,
+    _format_size,
     compute_output_tree,
+    list_external_drives,
     save_config,
 )
 
@@ -278,8 +282,8 @@ class TestListExternalDrives:
             return Path(text)
 
         with (
-            patch("media_mate.drives.Path", side_effect=fake_path_factory),
-            patch("media_mate.drives.platform.system", return_value="Darwin"),
+            patch("media_mate.tui.Path", side_effect=fake_path_factory),
+            patch("media_mate.tui.platform.system", return_value="Darwin"),
         ):
             drives = list_external_drives()
 
@@ -305,7 +309,7 @@ class TestListExternalDrives:
 
         with (
             patch.dict("os.environ", {"USER": user}, clear=False),
-            patch("media_mate.drives.Path") as path_cls,
+            patch("media_mate.tui.Path") as path_cls,
         ):
             # Map exact strings (no substring matching — /media/alice is a
             # suffix of /run/media/alice, so naive .replace() corrupts it).
@@ -319,7 +323,7 @@ class TestListExternalDrives:
 
             path_cls.side_effect = factory
 
-            with patch("media_mate.drives.platform.system", return_value="Linux"):
+            with patch("media_mate.tui.platform.system", return_value="Linux"):
                 drives = list_external_drives()
 
         names = sorted(d.name for d in drives)
@@ -329,8 +333,8 @@ class TestListExternalDrives:
 
     def test_linux_returns_empty_when_no_user_media_dir(self, tmp_path: Path) -> None:
         with (
-            patch("media_mate.drives.platform.system", return_value="Linux"),
-            patch("media_mate.drives.Path", side_effect=lambda p: Path(str(p))),
+            patch("media_mate.tui.platform.system", return_value="Linux"),
+            patch("media_mate.tui.Path", side_effect=lambda p: Path(str(p))),
         ):
             drives = list_external_drives()
         assert drives == []
@@ -346,7 +350,7 @@ class TestListExternalDrives:
 
         with (
             patch.dict("os.environ", {"SYSTEMDRIVE": "C:"}, clear=False),
-            patch("media_mate.drives.platform.system", return_value="Windows"),
+            patch("media_mate.tui.platform.system", return_value="Windows"),
             patch.object(Path, "exists", fake_stat),
             patch.object(Path, "is_dir", fake_stat),
         ):
@@ -356,12 +360,12 @@ class TestListExternalDrives:
         assert names == ["D:", "E:"]
 
     def test_returns_empty_for_unknown_platform(self) -> None:
-        with patch("media_mate.drives.platform.system", return_value="Plan9"):
+        with patch("media_mate.tui.platform.system", return_value="Plan9"):
             assert list_external_drives() == []
 
     def test_drive_label_falls_back_when_disk_usage_fails(self, tmp_path: Path) -> None:
         # disk_usage raises (e.g. drive unmounted between detection and display).
-        with patch("media_mate.drives.shutil.disk_usage", side_effect=OSError("not mounted")):
+        with patch("media_mate.tui.shutil.disk_usage", side_effect=OSError("not mounted")):
             label = _drive_label(tmp_path / "Card")
         assert label == "Card"
 
@@ -369,7 +373,7 @@ class TestListExternalDrives:
         drive = tmp_path / "Camera Card"
         drive.mkdir()
         with patch(
-            "media_mate.drives.shutil.disk_usage",
+            "media_mate.tui.shutil.disk_usage",
             return_value=SimpleNamespace(free=552 * 1024**3, total=1800 * 1024**3),
         ):
             label = _drive_label(drive)
@@ -415,5 +419,191 @@ class TestListExternalDrives:
                         await pilot.pause(0.05)
                     assert not screen.query_one("#drives-list").display
                     assert not screen.query_one("#drives-label").display
+
+        asyncio.run(run())
+
+
+class TestPipelineDispatch:
+    """Lock the per-step dispatch contract from the #39 refactor.
+
+    Each step is now its own method on PipelineScreen; the
+    orchestrator dispatches via `_dispatch_step`. These tests
+    exercise the dispatch table (route lookup + unknown-step
+    rejection).
+    """
+
+    @staticmethod
+    def _opts(**overrides) -> PipelineOptions:
+        defaults: dict = dict(
+            output_root=None,
+            move=False,
+            dry_run=False,
+            accept_changes=False,
+            project_name="",
+            resolution="",
+            frame_rate="",
+            color_space="",
+        )
+        defaults.update(overrides)
+        return PipelineOptions(**defaults)
+
+    def test_dispatch_routes_known_steps(self, tmp_path: Path) -> None:
+        async def run() -> None:
+            app = MediaMateApp(tmp_path / "audit.db")
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+                from media_mate.tui import _PipelineItemContext
+
+                ctx = _PipelineItemContext(
+                    item=QueueItem(path=tmp_path / "src"),
+                    out=tmp_path / "out",
+                    store=MagicMock(),
+                    cfg=MediaMateConfig(),
+                    options=self._opts(),
+                )
+                # All five known steps route without raising.
+                for step in ("probe", "organize", "proxy", "resolve", "verify"):
+                    with patch.object(
+                        PipelineScreen,
+                        {
+                            "probe": "_run_probe_step",
+                            "organize": "_run_organize_step",
+                            "proxy": "_run_proxy_step",
+                            "resolve": "_run_resolve_step",
+                            "verify": "_run_verify_step",
+                        }[step],
+                        return_value="sentinel",
+                    ):
+                        result = PipelineScreen._dispatch_step(
+                            PipelineScreen(), step, ctx
+                        )
+                    assert result == "sentinel", f"{step} did not route correctly"
+
+        asyncio.run(run())
+
+    def test_dispatch_rejects_unknown_step(self, tmp_path: Path) -> None:
+        async def run() -> None:
+            MediaMateApp(tmp_path / "audit.db")
+            from media_mate.tui import _PipelineItemContext
+
+            ctx = _PipelineItemContext(
+                item=QueueItem(path=tmp_path / "src"),
+                out=tmp_path / "out",
+                store=MagicMock(),
+                cfg=MediaMateConfig(),
+                options=self._opts(),
+            )
+            with pytest.raises(ValueError, match="unknown pipeline step"):
+                PipelineScreen._dispatch_step(PipelineScreen(), "frobnicate", ctx)
+
+        asyncio.run(run())
+
+
+class TestDryRunSkipSemantics:
+    """Lock the dry-run skip behavior from the #39 refactor.
+
+    When organize runs as dry-run, the proxy/resolve/verify steps
+    must skip — there's no organized output to operate on, and
+    operating on the source folder would corrupt raw footage.
+    """
+
+    @staticmethod
+    def _opts(**overrides) -> PipelineOptions:
+        defaults: dict = dict(
+            output_root=None,
+            move=False,
+            dry_run=False,
+            accept_changes=False,
+            project_name="",
+            resolution="",
+            frame_rate="",
+            color_space="",
+        )
+        defaults.update(overrides)
+        return PipelineOptions(**defaults)
+
+    def _make_ctx(self, tmp_path: Path, dry_run: bool, organize_ran: bool):
+        from media_mate.tui import _PipelineItemContext
+
+        return _PipelineItemContext(
+            item=QueueItem(path=tmp_path / "src"),
+            out=tmp_path / "out",
+            store=MagicMock(),
+            cfg=MediaMateConfig(),
+            options=self._opts(dry_run=dry_run),
+            organize_ran=organize_ran,
+        )
+
+    def test_proxy_step_skips_when_organize_was_dry_run(self, tmp_path: Path) -> None:
+        async def run() -> None:
+            MediaMateApp(tmp_path / "audit.db")
+            screen = PipelineScreen()
+            ctx = self._make_ctx(tmp_path, dry_run=True, organize_ran=True)
+            detail = screen._run_proxy_step(ctx)
+            assert "skipped" in detail
+            assert "dry-run" in detail
+
+        asyncio.run(run())
+
+    def test_resolve_step_skips_when_organize_was_dry_run(self, tmp_path: Path) -> None:
+        async def run() -> None:
+            MediaMateApp(tmp_path / "audit.db")
+            screen = PipelineScreen()
+            ctx = self._make_ctx(tmp_path, dry_run=True, organize_ran=True)
+            detail = screen._run_resolve_step(ctx)
+            assert "skipped" in detail
+            assert "dry-run" in detail
+
+        asyncio.run(run())
+
+    def test_verify_step_skips_when_organize_was_dry_run(self, tmp_path: Path) -> None:
+        async def run() -> None:
+            MediaMateApp(tmp_path / "audit.db")
+            screen = PipelineScreen()
+            ctx = self._make_ctx(tmp_path, dry_run=True, organize_ran=True)
+            detail = screen._run_verify_step(ctx)
+            assert "skipped" in detail
+            assert "dry-run" in detail
+
+    def test_proxy_step_runs_when_organize_was_not_dry_run(self, tmp_path: Path) -> None:
+        """Counter-test: the skip is gated on BOTH organize_ran AND dry_run."""
+
+        async def run() -> None:
+            MediaMateApp(tmp_path / "audit.db")
+            screen = PipelineScreen()
+            with patch("media_mate.proxy.generate_proxies") as mock_proxies:
+                from media_mate.proxy import ProxyBatchResult
+
+                mock_proxies.return_value = ProxyBatchResult(
+                    results=[], failures=[], skipped=[], already_existed=[]
+                )
+                ctx = self._make_ctx(tmp_path, dry_run=False, organize_ran=True)
+                detail = screen._run_proxy_step(ctx)
+            # The "skipped" string in this detail is the regular proxy
+            # summary ("0 ok, 0 skipped, 0 failed"), not the dry-run
+            # skip marker. Distinguish by absence of "dry-run".
+            assert "dry-run" not in detail
+            mock_proxies.assert_called_once()
+
+        asyncio.run(run())
+
+    def test_proxy_step_runs_when_organize_was_skipped(self, tmp_path: Path) -> None:
+        """When organize wasn't enabled at all (organize_ran=False),
+        proxy still runs against the source folder.
+        """
+
+        async def run() -> None:
+            MediaMateApp(tmp_path / "audit.db")
+            screen = PipelineScreen()
+            with patch("media_mate.proxy.generate_proxies") as mock_proxies:
+                from media_mate.proxy import ProxyBatchResult
+
+                mock_proxies.return_value = ProxyBatchResult(
+                    results=[], failures=[], skipped=[], already_existed=[]
+                )
+                ctx = self._make_ctx(tmp_path, dry_run=True, organize_ran=False)
+                detail = screen._run_proxy_step(ctx)
+            assert "dry-run" not in detail
+            mock_proxies.assert_called_once()
 
         asyncio.run(run())

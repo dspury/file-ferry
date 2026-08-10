@@ -65,9 +65,7 @@ def test_save_config_preserves_equal_sign_in_quoted_string(tmp_path: Path) -> No
     """
     target = tmp_path / "media-mate.toml"
     target.write_text(
-        'resolve_path = "/data/contains=sign/drp"  # path with =\n'
-        "[organize]\n"
-        'mode = "copy"\n'
+        'resolve_path = "/data/contains=sign/drp"  # path with =\n[organize]\nmode = "copy"\n'
     )
     save_config(MediaMateConfig(resolve_path="/data/contains=sign/drp"), target)
     assert load_config(target).resolve_path == "/data/contains=sign/drp"
@@ -78,12 +76,7 @@ def test_save_config_preserves_inline_table(tmp_path: Path) -> None:
     in a [proxy] sub-table must survive a merge.
     """
     target = tmp_path / "media-mate.toml"
-    target.write_text(
-        "[proxy]\n"
-        'extra_arg = "-ss 00:00:01"\n'
-        "[organize]\n"
-        'mode = "copy"\n'
-    )
+    target.write_text('[proxy]\nextra_arg = "-ss 00:00:01"\n[organize]\nmode = "copy"\n')
     save_config(MediaMateConfig(), target)
     saved = target.read_text()
     # The user-defined key survives.
@@ -111,10 +104,7 @@ def test_save_config_with_none_value_removes_key(tmp_path: Path) -> None:
     """
     target = tmp_path / "media-mate.toml"
     target.write_text(
-        'ffmpeg_path = "/old/ffmpeg"\n'
-        'proxy_codec = "h264"\n'
-        "[organize]\n"
-        'mode = "copy"\n'
+        'ffmpeg_path = "/old/ffmpeg"\nproxy_codec = "h264"\n[organize]\nmode = "copy"\n'
     )
     # MediaMateConfig with default ffmpeg_path=None → caller wants it gone.
     save_config(MediaMateConfig(ffmpeg_path=None, proxy_codec="h264"), target)

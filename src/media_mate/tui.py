@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import os
-import platform
-import shutil
+import re
 import sqlite3
 import subprocess
 from collections.abc import Iterable
 from dataclasses import dataclass
+from os import replace
 from pathlib import Path
 from time import monotonic
 from typing import Any, ClassVar, Literal, cast
@@ -40,10 +39,10 @@ from textual.widgets.option_list import Option
 from textual.worker import NoActiveWorker, get_current_worker
 
 from media_mate import __version__
-from media_mate.config import config_target, load_config, save_config
+from media_mate.config import load_config
+from media_mate.drives import _drive_label, list_external_drives
 from media_mate.log import LogStore
 from media_mate.models import ChecksumAlgo, MediaMateConfig, OrganizeConfig
-from media_mate.organize import compute_output_tree
 from media_mate.probe import SYSTEM_ARTIFACT_NAMES
 
 DEFAULT_DB = Path.home() / ".media-mate" / "media-mate.db"
@@ -79,98 +78,6 @@ _STATUS_GLYPH = {
     "running": "[cyan]●[/]",
     "partial": "[yellow]●[/]",
 }
-
-
-def _format_size(num_bytes: int) -> str:
-    """Render a byte count as a short human-readable string (e.g. ``1.2T``)."""
-    scaled = float(num_bytes)
-    for unit in ("B", "K", "M", "G", "T"):
-        if abs(scaled) < 1024:
-            return f"{scaled:0.1f}{unit}"
-        scaled /= 1024
-    return f"{scaled:0.1f}P"
-
-
-def _drive_label(path: Path) -> str:
-    """Best-effort display label for a mount, including free/total space."""
-    try:
-        usage = shutil.disk_usage(path)
-    except OSError:
-        return path.name or str(path)
-    free = _format_size(usage.free)
-    total = _format_size(usage.total)
-    name = path.name or str(path)
-    return f"{name}  ·  {free} free / {total}"
-
-
-def list_external_drives() -> list[Path]:
-    """Return mount points for connected external / removable volumes.
-
-    Cross-platform:
-      - macOS:   every entry under ``/Volumes/`` except the system volume
-        (detected by realpath resolving to ``/``). This correctly excludes
-        ``Macintosh HD`` while still showing the user's data volume and any
-        attached camera cards, backup disks, or USB sticks.
-      - Linux:   every directory under ``/media/$USER/`` and
-        ``/run/media/$USER/`` (modern GNOME/udisks2), deduplicated by
-        realpath. Fallback to ``/media`` if the user-scoped path is empty.
-      - Windows: every drive letter that exists except ``%SYSTEMDRIVE%``.
-
-    Returned paths are sorted alphabetically for stable display order.
-    """
-    system = platform.system()
-    drives: list[Path] = []
-
-    if system == "Darwin":
-        root_real = Path("/").resolve()
-        volumes = Path("/Volumes")
-        if volumes.is_dir():
-            for child in sorted(volumes.iterdir(), key=lambda p: p.name.lower()):
-                if not child.is_dir():
-                    continue
-                try:
-                    if child.resolve() == root_real:
-                        continue  # skip system volume
-                except OSError:
-                    continue
-                drives.append(child)
-        return drives
-
-    if system == "Linux":
-        user = os.environ.get("USER") or os.environ.get("LOGNAME") or ""
-        bases: list[Path] = []
-        if user:
-            bases.append(Path(f"/media/{user}"))
-            bases.append(Path(f"/run/media/{user}"))
-        bases.append(Path("/media"))
-        seen: set[str] = set()
-        for base in bases:
-            if not base.is_dir():
-                continue
-            for child in sorted(base.iterdir(), key=lambda p: p.name.lower()):
-                if not child.is_dir():
-                    continue
-                try:
-                    real = str(child.resolve())
-                except OSError:
-                    continue
-                if real in seen:
-                    continue
-                seen.add(real)
-                drives.append(child)
-        return drives
-
-    if system == "Windows":
-        system_drive = (os.environ.get("SYSTEMDRIVE") or "C:").rstrip(":").upper()[:1] or "C"
-        for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
-            if letter == system_drive:
-                continue
-            root = Path(f"{letter}:/")
-            if root.exists() and root.is_dir():
-                drives.append(root)
-        return drives
-
-    return drives
 
 
 def get_ffmpeg_version() -> str:
@@ -215,6 +122,121 @@ class MediaDirectoryTree(DirectoryTree):
 
     def filter_paths(self, paths: Iterable[Path]) -> Iterable[Path]:
         return [p for p in paths if not (p.name.startswith(".") or p.name in SYSTEM_ARTIFACT_NAMES)]
+
+
+def config_target(explicit: Path | None) -> Path:
+    if explicit:
+        return explicit
+    local = Path.cwd() / "media-mate.toml"
+    return local if local.exists() else Path.home() / ".media-mate" / "config.toml"
+
+
+def save_config(config: MediaMateConfig, path: Path) -> None:
+    """Persist the existing TOML schema atomically while retaining comments."""
+
+    def q(value: str) -> str:
+        return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+    values = {
+        ("", "proxy_codec"): q(config.proxy_codec),
+        ("", "proxy_height"): str(config.proxy_height),
+        ("", "checksum_algo"): q(config.checksum_algo.value),
+        ("", "resolve_path"): q(config.resolve_path) if config.resolve_path else None,
+        ("", "ffmpeg_path"): q(config.ffmpeg_path) if config.ffmpeg_path else None,
+        ("organize", "template"): q(config.organize.template),
+        ("organize", "on_conflict"): q(config.organize.on_conflict),
+        ("organize", "mode"): q(config.organize.mode),
+    }
+    content = (
+        _merge_config_text(path.read_text(encoding="utf-8"), values)
+        if path.exists()
+        else _default_config_text(values)
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(f"{path.suffix}.tmp")
+    temporary.write_text(content, encoding="utf-8")
+    replace(temporary, path)
+
+
+def _default_config_text(values: dict[tuple[str, str], str | None]) -> str:
+    lines = [
+        f"proxy_codec = {values[('', 'proxy_codec')]}",
+        f"proxy_height = {values[('', 'proxy_height')]}",
+        f"checksum_algo = {values[('', 'checksum_algo')]}",
+        f"resolve_path = {values[('', 'resolve_path')]}" if values[("", "resolve_path")] else "",
+        f"ffmpeg_path = {values[('', 'ffmpeg_path')]}" if values[("", "ffmpeg_path")] else "",
+        "",
+        "[organize]",
+        f"template = {values[('organize', 'template')]}",
+        f"on_conflict = {values[('organize', 'on_conflict')]}",
+        f"mode = {values[('organize', 'mode')]}",
+        "",
+    ]
+    return "\n".join(line for line in lines if line != "") + "\n"
+
+
+def _merge_config_text(existing: str, values: dict[tuple[str, str], str | None]) -> str:
+    """Update known TOML values without discarding comments or unrelated layout."""
+    if not existing.strip():
+        return _default_config_text(values)
+
+    section = ""
+    seen: set[tuple[str, str]] = set()
+    lines: list[str] = []
+    section_re = re.compile(r"^\s*\[([^]]+)]\s*(?:#.*)?$")
+    assignment_re = re.compile(r"^(\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*=\s*)(.*?)(\s+#.*)?$")
+    for line in existing.splitlines():
+        section_match = section_re.match(line)
+        if section_match:
+            section = section_match.group(1)
+            lines.append(line)
+            continue
+        assignment_match = assignment_re.match(line)
+        if assignment_match:
+            indent, key, equals, _old_value, inline_comment = assignment_match.groups()
+            target = (section, key)
+            if target in values:
+                seen.add(target)
+                value = values[target]
+                if value is not None:
+                    lines.append(f"{indent}{key}{equals}{value}{inline_comment or ''}")
+                continue
+        lines.append(line)
+
+    missing_top = [
+        f"{key} = {value}"
+        for (section_name, key), value in values.items()
+        if section_name == "" and value is not None and (section_name, key) not in seen
+    ]
+    first_section = next((i for i, line in enumerate(lines) if section_re.match(line)), len(lines))
+    lines[first_section:first_section] = missing_top
+
+    missing_organize = [
+        f"{key} = {value}"
+        for (section_name, key), value in values.items()
+        if section_name == "organize" and value is not None and (section_name, key) not in seen
+    ]
+    if missing_organize:
+        organize_start = next(
+            (
+                i
+                for i, line in enumerate(lines)
+                if section_re.match(line) and line.strip().startswith("[organize]")
+            ),
+            None,
+        )
+        if organize_start is None:
+            if lines and lines[-1]:
+                lines.append("")
+            lines.extend(["[organize]", *missing_organize])
+        else:
+            organize_end = next(
+                (i for i in range(organize_start + 1, len(lines)) if section_re.match(lines[i])),
+                len(lines),
+            )
+            lines[organize_end:organize_end] = missing_organize
+    return "\n".join(lines).rstrip() + "\n"
+
 
 class MessageDialog(ModalScreen[None]):
     def __init__(self, message: str) -> None:
@@ -327,6 +349,20 @@ class PipelineOptions:
     resolution: str
     frame_rate: str
     color_space: str
+
+
+def compute_output_tree(output_root: Path | None, item_path: Path) -> Path:
+    """Compute the per-source output tree for a single queue item.
+
+    Each queued source gets its OWN subtree so same-named clips from separate
+    folders (e.g. two camera cards both containing ``clip.MP4``) never collide
+    in a shared ``<root>/organized`` or ``<root>/proxies``. With a shared
+    output_root, card_a's organized output lands at ``<root>/card_a/organized``
+    and card_b's at ``<root>/card_b/organized``. Without a root, each source's
+    tree sits next to the source under its parent.
+    """
+    base = output_root if output_root is not None else item_path.parent
+    return base / item_path.name
 
 
 class PipelineScreen(Screen[Any]):

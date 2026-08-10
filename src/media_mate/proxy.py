@@ -33,7 +33,7 @@ from media_mate.models import (
     ProxySkip,
     RunStatus,
 )
-from media_mate.probe import is_system_artifact
+from media_mate.probe import _format_errors, is_system_artifact
 
 
 class ProxyError(Exception):
@@ -424,16 +424,6 @@ def generate_proxies(
             ProxySkip(source_path=str(s), proxy_path=str(o)) for s, o in already_existed
         ],
     )
-
-
-def _format_errors(errors: list[tuple[Path, str]], limit: int = 5) -> str:
-    """Format an error summary for the run log."""
-    if not errors:
-        return ""
-    head = "; ".join(f"{p.name}: {r}" for p, r in errors[:limit])
-    if len(errors) > limit:
-        head += f"; ... ({len(errors) - limit} more)"
-    return f"{len(errors)} file(s) failed: {head}"
 
 
 __all__ = [

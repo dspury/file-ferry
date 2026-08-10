@@ -4,16 +4,17 @@ from __future__ import annotations
 
 import os
 import platform
-import re
 import shutil
 import sqlite3
 import subprocess
+import tomllib
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from time import monotonic
 from typing import Any, ClassVar, Literal, cast
 
+import tomlkit
 from rich.markup import escape
 from rich.text import Text
 from textual import on
@@ -225,7 +226,11 @@ def config_target(explicit: Path | None) -> Path:
 
 
 def save_config(config: MediaMateConfig, path: Path) -> None:
-    """Persist the existing TOML schema atomically while retaining comments."""
+    """Persist the existing TOML schema atomically while retaining comments.
+
+    Uses tomlkit so that comments, whitespace, and unrelated layout in
+    the user's existing config file are preserved across saves.
+    """
 
     def q(value: str) -> str:
         return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
@@ -251,84 +256,68 @@ def save_config(config: MediaMateConfig, path: Path) -> None:
     os.replace(temporary, path)
 
 
+def _coerce_toml_value(raw: str) -> object:
+    """Re-parse a string-encoded TOML value into its native Python type.
+
+    Used after `_save_config`'s stringification round-trip so the
+    document written by `_default_config_text` matches what
+    `_merge_config_text` would have produced from a real TOML parse.
+
+    `raw` is always quoted (the caller wraps strings in `"…"`), so
+    a single-line `tomllib.loads(f'_ = {raw}\n')` is sufficient for
+    the flat values we use today.
+    """
+    parsed = tomllib.loads(f"_ = {raw}\n")["_"]
+    return parsed
+
+
 def _default_config_text(values: dict[tuple[str, str], str | None]) -> str:
-    lines = [
-        f"proxy_codec = {values[('', 'proxy_codec')]}",
-        f"proxy_height = {values[('', 'proxy_height')]}",
-        f"checksum_algo = {values[('', 'checksum_algo')]}",
-        f"resolve_path = {values[('', 'resolve_path')]}" if values[("", "resolve_path")] else "",
-        f"ffmpeg_path = {values[('', 'ffmpeg_path')]}" if values[("", "ffmpeg_path")] else "",
-        "",
-        "[organize]",
-        f"template = {values[('organize', 'template')]}",
-        f"on_conflict = {values[('organize', 'on_conflict')]}",
-        f"mode = {values[('organize', 'mode')]}",
-        "",
-    ]
-    return "\n".join(line for line in lines if line != "") + "\n"
+    """Render a fresh TOML document for a fresh config file."""
+    doc = tomlkit.document()
+    for (section, key), raw in values.items():
+        if raw is None:
+            continue
+        value = _coerce_toml_value(raw)
+        if section:
+            if section not in doc:
+                doc[section] = tomlkit.table()
+            doc[section][key] = value
+        else:
+            doc[key] = value
+    return tomlkit.dumps(doc)
 
 
 def _merge_config_text(existing: str, values: dict[tuple[str, str], str | None]) -> str:
-    """Update known TOML values without discarding comments or unrelated layout."""
+    """Update known TOML values without discarding comments or unrelated layout.
+
+    Uses tomlkit to parse `existing` into a mutable document, writes
+    each entry in `values` to its (section, key), and emits the
+    resulting document as a string. Comments and unknown layout are
+    preserved by tomlkit's round-trip machinery.
+
+    Values mapped to `None` are *removed* from the document. This
+    matches the prior regex-based behavior, which treated `None` as
+    "delete this key."
+    """
     if not existing.strip():
         return _default_config_text(values)
 
-    section = ""
-    seen: set[tuple[str, str]] = set()
-    lines: list[str] = []
-    section_re = re.compile(r"^\s*\[([^]]+)]\s*(?:#.*)?$")
-    assignment_re = re.compile(r"^(\s*)([A-Za-z_][A-Za-z0-9_]*)(\s*=\s*)(.*?)(\s+#.*)?$")
-    for line in existing.splitlines():
-        section_match = section_re.match(line)
-        if section_match:
-            section = section_match.group(1)
-            lines.append(line)
+    doc = tomlkit.parse(existing)
+    for (section, key), raw in values.items():
+        if raw is None:
+            if section and section in doc and key in doc[section]:
+                del doc[section][key]
+            elif not section and key in doc:
+                del doc[key]
             continue
-        assignment_match = assignment_re.match(line)
-        if assignment_match:
-            indent, key, equals, _old_value, inline_comment = assignment_match.groups()
-            target = (section, key)
-            if target in values:
-                seen.add(target)
-                value = values[target]
-                if value is not None:
-                    lines.append(f"{indent}{key}{equals}{value}{inline_comment or ''}")
-                continue
-        lines.append(line)
-
-    missing_top = [
-        f"{key} = {value}"
-        for (section_name, key), value in values.items()
-        if section_name == "" and value is not None and (section_name, key) not in seen
-    ]
-    first_section = next((i for i, line in enumerate(lines) if section_re.match(line)), len(lines))
-    lines[first_section:first_section] = missing_top
-
-    missing_organize = [
-        f"{key} = {value}"
-        for (section_name, key), value in values.items()
-        if section_name == "organize" and value is not None and (section_name, key) not in seen
-    ]
-    if missing_organize:
-        organize_start = next(
-            (
-                i
-                for i, line in enumerate(lines)
-                if section_re.match(line) and line.strip().startswith("[organize]")
-            ),
-            None,
-        )
-        if organize_start is None:
-            if lines and lines[-1]:
-                lines.append("")
-            lines.extend(["[organize]", *missing_organize])
+        value = _coerce_toml_value(raw)
+        if section:
+            if section not in doc:
+                doc[section] = tomlkit.table()
+            doc[section][key] = value
         else:
-            organize_end = next(
-                (i for i in range(organize_start + 1, len(lines)) if section_re.match(lines[i])),
-                len(lines),
-            )
-            lines[organize_end:organize_end] = missing_organize
-    return "\n".join(lines).rstrip() + "\n"
+            doc[key] = value
+    return tomlkit.dumps(doc)
 
 
 class MessageDialog(ModalScreen[None]):

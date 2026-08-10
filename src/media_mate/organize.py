@@ -198,6 +198,20 @@ def _unique_path(dest: Path) -> Path:
         n += 1
 
 
+def compute_output_tree(output_root: Path | None, item_path: Path) -> Path:
+    """Compute the per-source output tree for a single queue item.
+
+    Each queued source gets its OWN subtree so same-named clips from separate
+    folders (e.g. two camera cards both containing ``clip.MP4``) never collide
+    in a shared ``<root>/organized`` or ``<root>/proxies``. With a shared
+    output_root, card_a's organized output lands at ``<root>/card_a/organized``
+    and card_b's at ``<root>/card_b/organized``. Without a root, each source's
+    tree sits next to the source under its parent.
+    """
+    base = output_root if output_root is not None else item_path.parent
+    return base / item_path.name
+
+
 # ---------------------------------------------------------------------------
 # Main public API
 # ---------------------------------------------------------------------------

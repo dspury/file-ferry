@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import os
+import platform
 import re
+import shutil
 import sqlite3
 import subprocess
 from collections.abc import Iterable
 from dataclasses import dataclass
-from functools import lru_cache
 from os import replace
 from pathlib import Path
 from time import monotonic
@@ -41,7 +43,6 @@ from textual.worker import NoActiveWorker, get_current_worker
 
 from media_mate import __version__
 from media_mate.config import load_config
-from media_mate.drives import _drive_label, list_external_drives
 from media_mate.log import LogStore
 from media_mate.models import ChecksumAlgo, MediaMateConfig, OrganizeConfig
 from media_mate.probe import SYSTEM_ARTIFACT_NAMES
@@ -81,16 +82,99 @@ _STATUS_GLYPH = {
 }
 
 
-def get_ffmpeg_version() -> str:
-    """Probe the installed ffmpeg and return its version string.
+def _format_size(num_bytes: int) -> str:
+    """Render a byte count as a short human-readable string (e.g. ``1.2T``)."""
+    scaled = float(num_bytes)
+    for unit in ("B", "K", "M", "G", "T"):
+        if abs(scaled) < 1024:
+            return f"{scaled:0.1f}{unit}"
+        scaled /= 1024
+    return f"{scaled:0.1f}P"
 
-    The result is memoized for the process lifetime by
-    ``_cached_ffmpeg_version`` (an ``lru_cache`` wrapper) — the
-    subprocess check can take seconds on a cold PATH, and the Home
-    screen calls this on every screen resume. Use
-    ``_cached_ffmpeg_version.cache_clear()`` from tests to reset the
-    cache between cases.
+
+def _drive_label(path: Path) -> str:
+    """Best-effort display label for a mount, including free/total space."""
+    try:
+        usage = shutil.disk_usage(path)
+    except OSError:
+        return path.name or str(path)
+    free = _format_size(usage.free)
+    total = _format_size(usage.total)
+    name = path.name or str(path)
+    return f"{name}  ·  {free} free / {total}"
+
+
+def list_external_drives() -> list[Path]:
+    """Return mount points for connected external / removable volumes.
+
+    Cross-platform:
+      - macOS:   every entry under ``/Volumes/`` except the system volume
+        (detected by realpath resolving to ``/``). This correctly excludes
+        ``Macintosh HD`` while still showing the user's data volume and any
+        attached camera cards, backup disks, or USB sticks.
+      - Linux:   every directory under ``/media/$USER/`` and
+        ``/run/media/$USER/`` (modern GNOME/udisks2), deduplicated by
+        realpath. Fallback to ``/media`` if the user-scoped path is empty.
+      - Windows: every drive letter that exists except ``%SYSTEMDRIVE%``.
+
+    Returned paths are sorted alphabetically for stable display order.
     """
+    system = platform.system()
+    drives: list[Path] = []
+
+    if system == "Darwin":
+        root_real = Path("/").resolve()
+        volumes = Path("/Volumes")
+        if volumes.is_dir():
+            for child in sorted(volumes.iterdir(), key=lambda p: p.name.lower()):
+                if not child.is_dir():
+                    continue
+                try:
+                    if child.resolve() == root_real:
+                        continue  # skip system volume
+                except OSError:
+                    continue
+                drives.append(child)
+        return drives
+
+    if system == "Linux":
+        user = os.environ.get("USER") or os.environ.get("LOGNAME") or ""
+        bases: list[Path] = []
+        if user:
+            bases.append(Path(f"/media/{user}"))
+            bases.append(Path(f"/run/media/{user}"))
+        bases.append(Path("/media"))
+        seen: set[str] = set()
+        for base in bases:
+            if not base.is_dir():
+                continue
+            for child in sorted(base.iterdir(), key=lambda p: p.name.lower()):
+                if not child.is_dir():
+                    continue
+                try:
+                    real = str(child.resolve())
+                except OSError:
+                    continue
+                if real in seen:
+                    continue
+                seen.add(real)
+                drives.append(child)
+        return drives
+
+    if system == "Windows":
+        system_drive = (os.environ.get("SYSTEMDRIVE") or "C:").rstrip(":").upper()[:1] or "C"
+        for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+            if letter == system_drive:
+                continue
+            root = Path(f"{letter}:/")
+            if root.exists() and root.is_dir():
+                drives.append(root)
+        return drives
+
+    return drives
+
+
+def get_ffmpeg_version() -> str:
     try:
         result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True, timeout=5)
         return result.stdout.splitlines()[0].split()[2]
@@ -98,9 +182,16 @@ def get_ffmpeg_version() -> str:
         return "not found"
 
 
-@lru_cache(maxsize=1)
+#: Cached ffmpeg version — the subprocess check can take seconds; the Home
+#: screen fetches it once in a background worker and reuses it afterwards.
+_ffmpeg_version: str | None = None
+
+
 def _cached_ffmpeg_version() -> str:
-    return get_ffmpeg_version()
+    global _ffmpeg_version
+    if _ffmpeg_version is None:
+        _ffmpeg_version = get_ffmpeg_version()
+    return _ffmpeg_version
 
 
 def get_run_counts(db: Path) -> tuple[int, int, int, int]:
@@ -263,12 +354,6 @@ class HomeScreen(Screen[Any]):
         ("s", "settings", "Settings"),
     ]
 
-    def __init__(self) -> None:
-        super().__init__()
-        # Cached ffmpeg version, populated by the background worker on
-        # first mount. None means "still loading — show placeholder".
-        self.ffmpeg_version: str | None = None
-
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="home"):
@@ -293,7 +378,7 @@ class HomeScreen(Screen[Any]):
         self._refresh_stats()
         # The ffmpeg version check spawns a subprocess (up to 5s on a cold
         # PATH) — fetch it off the UI thread so startup never blocks.
-        if self.ffmpeg_version is None:
+        if _ffmpeg_version is None:
             self.run_worker(self._load_ffmpeg_version, thread=True)
 
     def on_screen_resume(self) -> None:
@@ -312,7 +397,7 @@ class HomeScreen(Screen[Any]):
         )
         self.query_one("#stat-failed", Static).update(f"[dim]FAILED[/]\n[red bold]{failed}[/]")
         self.query_one("#stat-live", Static).update(f"[dim]LIVE[/]\n[cyan bold]{running}[/]")
-        self._update_system_line(self.ffmpeg_version or "checking…")
+        self._update_system_line(_ffmpeg_version or "checking…")
 
     def _update_system_line(self, ffmpeg_version: str) -> None:
         app = cast("MediaMateApp", self.app)
@@ -322,7 +407,6 @@ class HomeScreen(Screen[Any]):
 
     def _load_ffmpeg_version(self) -> None:
         version = _cached_ffmpeg_version()
-        self.ffmpeg_version = version
         self.app.call_from_thread(self._update_system_line, version)
 
     def action_pipeline(self) -> None:
@@ -668,13 +752,14 @@ class PipelineScreen(Screen[Any]):
             self.app.call_from_thread(self._finish_run)
 
     def _run_queue_inner(self, enabled: list[str], options: PipelineOptions) -> None:
-        from media_mate.models import ResolveProjectSpec
-        from media_mate.organize import organize_path
-        from media_mate.probe import probe_path
-        from media_mate.proxy import generate_proxies
-        from media_mate.resolve import create_resolve_project
-        from media_mate.verify import verify_folder
+        """Orchestrator: loop items, loop steps, delegate per-step work.
 
+        Per-step logic lives in `_run_<step>_step()` methods so each
+        capability's wiring (dry-run skip, log surfacing, detail
+        string) is colocated. The orchestrator owns the cross-step
+        invariants: cancellation, per-item output isolation, progress
+        accounting, error containment, final queue summary.
+        """
         app = cast("MediaMateApp", self.app)
         try:
             store = LogStore(app.db_path)
@@ -688,6 +773,7 @@ class PipelineScreen(Screen[Any]):
                 1,
             )
             return
+
         # Snapshot: items added/removed mid-run must not shift the live batch.
         items = list(self.items)
         total = len(items) * len(enabled)
@@ -700,14 +786,15 @@ class PipelineScreen(Screen[Any]):
             self.app.call_from_thread(
                 self._ui, f"[cyan]▶ {escape(str(item.path))}[/]", completed, total
             )
-            # Each queue item gets its own output tree, even when a shared output_root
-            # is configured. This prevents same-named clips from separate source folders
-            # (e.g. multiple camera cards) from colliding in <root>/organized.
-            out = compute_output_tree(options.output_root, item.path)
-            organized: Path | None = None
-            proxy_dir: Path | None = None
-            organize_ran = False
-            organize_dry = options.dry_run
+            # Each queue item gets its own output tree so same-named
+            # clips from separate source folders don't collide.
+            ctx = _PipelineItemContext(
+                item=item,
+                out=compute_output_tree(options.output_root, item.path),
+                store=store,
+                cfg=cfg,
+                options=options,
+            )
             try:
                 for step in enabled:
                     if self._cancelled():
@@ -719,109 +806,7 @@ class PipelineScreen(Screen[Any]):
                         completed,
                         total,
                     )
-                    if step == "probe":
-                        probe_failures: list[str] = []
-
-                        def on_probe_file(
-                            file: Path, error: str | None, _failures: list[str] = probe_failures
-                        ) -> None:
-                            if error is None:
-                                self.app.call_from_thread(
-                                    self._log, f"[dim]    · {escape(file.name)}[/]"
-                                )
-                            else:
-                                _failures.append(f"{file.name} — {error}")
-
-                        probe_result = probe_path(
-                            item.path, store, config=cfg, on_file=on_probe_file
-                        )
-                        self._log_failure_lines(probe_failures)
-                        if not probe_result:
-                            if probe_failures:
-                                raise RuntimeError(
-                                    f"probe failed for all {len(probe_failures)} file(s)"
-                                )
-                            raise RuntimeError(
-                                "no media files found — is the folder still mounted?"
-                            )
-                        detail = f"{len(probe_result)} ok" + (
-                            f", [red]{len(probe_failures)} failed[/]" if probe_failures else ""
-                        )
-                    elif step == "organize":
-                        organized = out / "organized"
-                        organize_result = organize_path(
-                            item.path,
-                            organized,
-                            store,
-                            config=cfg,
-                            dry_run=organize_dry,
-                            move=True if options.move else None,
-                        )
-                        organize_ran = True
-                        self._log_failure_lines(organize_result.errors)
-                        detail = (
-                            f"{organize_result.files_moved} ok, {organize_result.files_skipped} skipped"
-                            + (" [dry-run]" if organize_dry else "")
-                        )
-                    elif step == "proxy":
-                        # Skip proxy if organize is in the pipeline and was a dry-run —
-                        # there is no organized output to proxy; operating on the source
-                        # folder would proxy raw footage instead of the organized proxy.
-                        if organize_ran and organize_dry:
-                            detail = "skipped — organize was dry-run"
-                        else:
-                            proxy_source: Path = item.path if organized is None else organized
-                            proxy_dir = out / "proxies"
-                            proxy_result = generate_proxies(
-                                proxy_source, proxy_dir, store, config=cfg
-                            )
-                            self._log_failure_lines(
-                                [
-                                    f"{Path(fail.source_path).name} — {fail.reason}"
-                                    for fail in proxy_result.failures
-                                ]
-                            )
-                            detail = f"{len(proxy_result.results)} ok, {len(proxy_result.already_existed) + len(proxy_result.skipped)} skipped, {len(proxy_result.failures)} failed"
-                    elif step == "resolve":
-                        # Same guard as proxy: don't resolve from an organize dry-run.
-                        if organize_ran and organize_dry:
-                            detail = "skipped — organize was dry-run"
-                        else:
-                            out.mkdir(parents=True, exist_ok=True)
-                            resolve_source: Path = item.path if organized is None else organized
-                            spec = ResolveProjectSpec(
-                                name=options.project_name or item.path.name,
-                                source_folder=str(resolve_source),
-                                output_path=str(
-                                    out / f"{options.project_name or item.path.name}.drp"
-                                ),
-                                resolution=cast(Any, options.resolution),
-                                frame_rate=cast(Any, options.frame_rate),
-                                color_space=options.color_space,
-                            )
-                            resolve_result = create_resolve_project(
-                                spec, resolve_source, proxy_dir, store, config=cfg
-                            )
-                            detail = f"{resolve_result.bin_count} bins"
-                    else:
-                        # Skip verify if organize was a dry-run (same reasoning as proxy).
-                        if organize_ran and organize_dry:
-                            detail = "skipped — organize was dry-run"
-                        else:
-                            verify_source: Path = item.path if organized is None else organized
-                            verify_result = verify_folder(
-                                verify_source,
-                                store,
-                                config=cfg,
-                                accept_changes=options.accept_changes,
-                            )
-                            detail = f"{verify_result.files_checked} checked"
-                            if not verify_result.is_clean:
-                                detail += (
-                                    f" — [red]{verify_result.files_missing} missing, "
-                                    f"{verify_result.files_modified} modified, "
-                                    f"{verify_result.files_added} added[/]"
-                                )
+                    detail = self._dispatch_step(step, ctx)
                     completed += 1
                     self.app.call_from_thread(
                         self._ui, f"[green]✓ {step}[/]  {detail}", completed, total
@@ -845,6 +830,171 @@ class PipelineScreen(Screen[Any]):
         else:
             summary = "[bold green]QUEUE COMPLETE[/]"
         self.app.call_from_thread(self._ui, summary, completed, total)
+
+    def _dispatch_step(self, step: str, ctx: _PipelineItemContext) -> str:
+        """Route a step name to its per-step method. Returns the detail line."""
+        match step:
+            case "probe":
+                return self._run_probe_step(ctx)
+            case "organize":
+                return self._run_organize_step(ctx)
+            case "proxy":
+                return self._run_proxy_step(ctx)
+            case "resolve":
+                return self._run_resolve_step(ctx)
+            case "verify":
+                return self._run_verify_step(ctx)
+            case _:
+                raise ValueError(f"unknown pipeline step: {step!r}")
+
+    def _run_probe_step(self, ctx: _PipelineItemContext) -> str:
+        from media_mate.probe import probe_path
+
+        probe_failures: list[str] = []
+
+        def on_probe_file(
+            file: Path, error: str | None, _failures: list[str] = probe_failures
+        ) -> None:
+            if error is None:
+                self.app.call_from_thread(
+                    self._log, f"[dim]    · {escape(file.name)}[/]"
+                )
+            else:
+                _failures.append(f"{file.name} — {error}")
+
+        probe_result = probe_path(
+            ctx.item.path, ctx.store, config=ctx.cfg, on_file=on_probe_file
+        )
+        self._log_failure_lines(probe_failures)
+        if not probe_result:
+            if probe_failures:
+                raise RuntimeError(
+                    f"probe failed for all {len(probe_failures)} file(s)"
+                )
+            raise RuntimeError(
+                "no media files found — is the folder still mounted?"
+            )
+        return f"{len(probe_result)} ok" + (
+            f", [red]{len(probe_failures)} failed[/]" if probe_failures else ""
+        )
+
+    def _run_organize_step(self, ctx: _PipelineItemContext) -> str:
+        from media_mate.organize import organize_path
+
+        organized = ctx.out / "organized"
+        organize_result = organize_path(
+            ctx.item.path,
+            organized,
+            ctx.store,
+            config=ctx.cfg,
+            dry_run=ctx.options.dry_run,
+            move=True if ctx.options.move else None,
+        )
+        ctx.organized = organized
+        ctx.organize_ran = True
+        self._log_failure_lines(organize_result.errors)
+        detail = (
+            f"{organize_result.files_moved} ok, {organize_result.files_skipped} skipped"
+            + (" [dry-run]" if ctx.options.dry_run else "")
+        )
+        return detail
+
+    def _run_proxy_step(self, ctx: _PipelineItemContext) -> str:
+        from media_mate.proxy import generate_proxies
+
+        # Skip if organize was a dry-run — there's no organized
+        # output to proxy; operating on the source would proxy raw.
+        if ctx.organize_ran and ctx.options.dry_run:
+            return "skipped — organize was dry-run"
+        proxy_source: Path = (
+            ctx.item.path if ctx.organized is None else ctx.organized
+        )
+        proxy_dir = ctx.out / "proxies"
+        proxy_result = generate_proxies(
+            proxy_source, proxy_dir, ctx.store, config=ctx.cfg
+        )
+        ctx.proxy_dir = proxy_dir
+        self._log_failure_lines(
+            [
+                f"{Path(fail.source_path).name} — {fail.reason}"
+                for fail in proxy_result.failures
+            ]
+        )
+        return (
+            f"{len(proxy_result.results)} ok, "
+            f"{len(proxy_result.already_existed) + len(proxy_result.skipped)} skipped, "
+            f"{len(proxy_result.failures)} failed"
+        )
+
+    def _run_resolve_step(self, ctx: _PipelineItemContext) -> str:
+        from media_mate.models import ResolveProjectSpec
+        from media_mate.resolve import create_resolve_project
+
+        # Same dry-run guard as proxy.
+        if ctx.organize_ran and ctx.options.dry_run:
+            return "skipped — organize was dry-run"
+        ctx.out.mkdir(parents=True, exist_ok=True)
+        resolve_source: Path = (
+            ctx.item.path if ctx.organized is None else ctx.organized
+        )
+        spec = ResolveProjectSpec(
+            name=ctx.options.project_name or ctx.item.path.name,
+            source_folder=str(resolve_source),
+            output_path=str(
+                ctx.out / f"{ctx.options.project_name or ctx.item.path.name}.drp"
+            ),
+            resolution=cast(Any, ctx.options.resolution),
+            frame_rate=cast(Any, ctx.options.frame_rate),
+            color_space=ctx.options.color_space,
+        )
+        resolve_result = create_resolve_project(
+            spec, resolve_source, ctx.proxy_dir, ctx.store, config=ctx.cfg
+        )
+        return f"{resolve_result.bin_count} bins"
+
+    def _run_verify_step(self, ctx: _PipelineItemContext) -> str:
+        from media_mate.verify import verify_folder
+
+        # Same dry-run guard as proxy/resolve.
+        if ctx.organize_ran and ctx.options.dry_run:
+            return "skipped — organize was dry-run"
+        verify_source: Path = (
+            ctx.item.path if ctx.organized is None else ctx.organized
+        )
+        verify_result = verify_folder(
+            verify_source,
+            ctx.store,
+            config=ctx.cfg,
+            accept_changes=ctx.options.accept_changes,
+        )
+        detail = f"{verify_result.files_checked} checked"
+        if not verify_result.is_clean:
+            detail += (
+                f" — [red]{verify_result.files_missing} missing, "
+                f"{verify_result.files_modified} modified, "
+                f"{verify_result.files_added} added[/]"
+            )
+        return detail
+
+
+@dataclass
+class _PipelineItemContext:
+    """Per-item state threaded through the step methods.
+
+    `organized` and `proxy_dir` are populated by the organize and
+    proxy steps respectively and consumed by downstream steps.
+    `organize_ran` flags whether organize ran (used to apply the
+    dry-run skip to proxy/resolve/verify).
+    """
+
+    item: QueueItem
+    out: Path
+    store: LogStore
+    cfg: MediaMateConfig
+    options: PipelineOptions
+    organized: Path | None = None
+    proxy_dir: Path | None = None
+    organize_ran: bool = False
 
 
 class LogScreen(Screen[Any]):

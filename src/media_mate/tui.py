@@ -1147,14 +1147,14 @@ class MediaMateApp(App[Any]):
 
     /* ---- Home dashboard ---- */
     #home { height: 1fr; align-horizontal: center; padding: 1 2; }
-    #hero { width: 90; padding: 1 4; border: round $primary; background: $panel; align-horizontal: center; }
+    #hero { width: 1fr; padding: 1 4; border: round $primary; background: $panel; align-horizontal: center; }
     #logo { color: $primary; text-align: center; text-style: bold; }
     #strap { text-align: center; color: $accent; text-style: bold; margin: 1 0 0 0; }
     #tagline { text-align: center; color: $text-muted; text-style: italic; }
     #home-actions { height: 3; align: center middle; margin: 1 0; }
     #home-actions Button { margin: 0 1; }
     #stats-row { height: auto; align: center middle; margin: 1 0; }
-    .stat-tile { width: 18; height: 3; border: round $surface-lighten-2; background: $surface; padding: 0 2; text-align: center; margin: 0 1; }
+    .stat-tile { width: 18; height: 4; border: round $surface-lighten-2; background: $surface; padding: 0 2; text-align: center; margin: 0 1; }
     #system { text-align: center; color: $text-muted; margin: 1 0 0 0; }
 
     /* ---- Pipeline workspace ---- */

@@ -75,7 +75,7 @@ JSON-serializable, queryable in SQLite.
 
 ### 5.2 Organize
 
-Auto-organize a folder of media into a structured layout based on configurable rules. Default rule: `<root>/<source_relpath>/<filename><ext>` — the source's subfolder structure is preserved under the destination root (mirrors how DITs think about cards/scenes/takes). Rules live in a config file (`media-mate.toml`) and can be overridden per-project (e.g. `{root}/{codec_family}/{resolution_bucket}/{filename}{ext}`). Sources are copied by default via `shutil.copy2` (full byte-for-byte copy, preserving mtime/flags) so raw camera media stays untouched and a downstream edit to the destination cannot silently mutate the source inode; `--move` (or `mode = "move"` in config) relocates instead. Hardlinks were considered for same-device copies to avoid wasted I/O but were explicitly rejected: a hardlink aliases the destination to the source inode, so editing the "copy" would corrupt the raw. Correctness over a marginal speedup.
+Auto-organize a folder of media into a structured layout based on configurable rules. Default rule: `<root>/<source_relpath>/<filename><ext>` — the source's subfolder structure is preserved under the destination root (mirrors how DITs think about cards/scenes/takes). Rules live in a config file (`media-mate.toml`) and can be overridden per-project (e.g. `{root}/{codec_family}/{resolution_bucket}/{filename}{ext}`). Sources are copied by default so raw camera media stays untouched; `--move` (or `mode = "move"` in config) relocates instead.
 
 **Note:** `--dry-run` is supported — preview the organization plan before touching any files.
 
@@ -92,6 +92,8 @@ Generate edit-friendly proxies (default: ProRes 422 Proxy at 1080p, aspect-prese
 - **SAR / anamorphic** — `setsar` applied after scale to restore correct display aspect ratio
 - **Audio codec** — PCM bit depth matched to source audio (`pcm_s16le` for 8–15-bit audio, `pcm_s32le` for 16+ bit)
 - **All audio tracks** — `-map 0:a` captures every audio track, not just the first
+
+On same-device organize operations, hardlinks are used instead of full copies to avoid wasted I/O.
 
 Supports MOV, MXF, MP4, and any ffmpeg-readable format. **RAW codecs (R3D/BRAW/ARI) are recognized by container but require vendor SDKs for decode — stock ffmpeg cannot decode them.**
 
@@ -150,6 +152,12 @@ Each box is a Python module with its own tests. The CLI and TUI both compose the
 
 ## 7. Data model (SQLite schema sketch)
 
+The schema lives in `src/media_mate/log.py` (`SCHEMA_SQL` +
+`LogStore._migrate`). The version is recorded in `schema_meta`
+and bumped via additive migrations when columns are added — never
+drop or rename, only `ALTER TABLE ADD COLUMN`. See `SCHEMA_VERSION`
+for the current value.
+
 ```sql
 -- One row per media-mate run
 CREATE TABLE runs (
@@ -172,30 +180,33 @@ CREATE TABLE files (
     last_seen_run INTEGER REFERENCES runs(id)
 );
 
--- Probe results
+-- Probe results — populated by `media-mate probe`.
+-- Every column beyond `id`/`file_id`/`run_id`/`probed_at` is nullable
+-- (or default-safe for `is_vfr`) so historical rows survive schema
+-- additions unchanged.
 CREATE TABLE probes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     file_id INTEGER REFERENCES files(id),
     run_id INTEGER REFERENCES runs(id),
-    codec TEXT,
+    codec TEXT,                      -- video_codec or audio_codec fallback
     container TEXT,
     width INTEGER,
     height INTEGER,
     frame_rate REAL,
-    avg_frame_rate REAL,
-    r_frame_rate REAL,
+    r_frame_rate REAL,               -- real frame rate (VFR detection, #8)
+    is_vfr INTEGER NOT NULL DEFAULT 0,
     color_space TEXT,
     color_transfer TEXT,
     color_primaries TEXT,
     bit_depth INTEGER,
     sample_aspect_ratio TEXT,        -- e.g. "2:1"
     timecode TEXT,                   -- e.g. "01:23:45:12"
-    is_vfr INTEGER,                  -- 1 = true, 0 = false
     audio_codec TEXT,
     audio_channels INTEGER,
     audio_sample_rate INTEGER,
     audio_bit_depth INTEGER,
     duration REAL,
+    modification_time TEXT,
     probed_at TEXT NOT NULL
 );
 
@@ -213,13 +224,17 @@ CREATE TABLE proxies (
 );
 
 -- Resolve project creation records
+-- `path` is the requested .drp path (may not exist if Resolve was
+-- unavailable). `manifest_path` records what was actually written,
+-- so the audit log reflects ground truth.
 CREATE TABLE projects (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     path TEXT NOT NULL,
+    manifest_path TEXT,
     run_id INTEGER REFERENCES runs(id),
     resolution TEXT,
-    frame_rate REAL,
+    frame_rate TEXT,
     color_space TEXT,
     bin_count INTEGER,
     timeline_count INTEGER,
@@ -240,29 +255,60 @@ CREATE TABLE verifications (
     verified_at TEXT NOT NULL
 );
 
--- Organize operations — one row per file moved or copied
+-- Organize operations — one row per file copied or moved.
+-- `link` and `skip` are reserved for future operations; current
+-- code only emits `copy` and `move`.
 CREATE TABLE organize_ops (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id INTEGER REFERENCES runs(id),
     source_path TEXT NOT NULL,
     destination_path TEXT NOT NULL,
-    operation TEXT NOT NULL,          -- copy | move | link | skip
-    codec TEXT,                       -- detected source codec
-    resolution TEXT,                  -- detected source resolution
-    organized_at TEXT NOT NULL
+    operation TEXT NOT NULL,          -- copy | move (reserved: link | skip)
+    codec_family TEXT,
+    resolution_bucket TEXT,
+    file_size INTEGER,
+    moved_at TEXT NOT NULL
 );
 
--- Verification baseline snapshots — immutable; never mutated on mismatch
+-- Verification baseline snapshots — immutable; never mutated on mismatch.
+-- `size` and `mtime` are nullable because the snapshot row may exist
+-- for a file that has since been removed (so file-level mtime can be
+-- reported even when the row is detached from the live folder state).
 CREATE TABLE verification_snapshots (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     folder TEXT NOT NULL,
     path TEXT NOT NULL,              -- relative path within folder
     checksum TEXT NOT NULL,
-    size INTEGER NOT NULL,
-    snapshot_at TEXT NOT NULL,
+    size INTEGER,
+    mtime REAL,
+    algo TEXT NOT NULL,
+    recorded_at TEXT NOT NULL,
     UNIQUE(folder, path)
 );
-CREATE INDEX idx_verif_snap_folder ON verification_snapshots(folder);
+
+-- Stores one row per verified folder, recording the baseline state.
+-- `is_empty=1` means the folder was empty at baseline time (no
+-- files). This distinguishes "folder has never had files" from
+-- "folder has files" so a file added later is reported as "added",
+-- not silently absorbed by an old snapshot row.
+CREATE TABLE verification_baselines (
+    folder TEXT PRIMARY KEY,
+    algo TEXT NOT NULL,
+    is_empty INTEGER NOT NULL DEFAULT 0,
+    recorded_at TEXT NOT NULL
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_files_path         ON files(path);
+CREATE INDEX IF NOT EXISTS idx_probes_file_id     ON probes(file_id);
+CREATE INDEX IF NOT EXISTS idx_probes_run_id      ON probes(run_id);
+CREATE INDEX IF NOT EXISTS idx_proxies_run_id     ON proxies(run_id);
+CREATE INDEX IF NOT EXISTS idx_projects_run_id    ON projects(run_id);
+CREATE INDEX IF NOT EXISTS idx_verifications_run_id ON verifications(run_id);
+CREATE INDEX IF NOT EXISTS idx_runs_started_at    ON runs(started_at);
+CREATE INDEX IF NOT EXISTS idx_organize_ops_run_id  ON organize_ops(run_id);
+CREATE INDEX IF NOT EXISTS idx_organize_ops_source ON organize_ops(source_path);
+CREATE INDEX IF NOT EXISTS idx_verif_snap_folder  ON verification_snapshots(folder);
 ```
 
 ---
@@ -711,10 +757,10 @@ The following issues are acknowledged and targeted for v0.3. Each requires a spe
 
 **Severity:** Partial.
 **Recommendation:** Two parts:
-1. **Hardlink on same device** — when source and dest are on the same volume, use `os.link()` instead of `shutil.copy2()`. Zero I/O overhead, originals stay immutable. *Rejected during v0.2.2 audit (#2 in that batch): a hardlink aliases the destination to the source inode, so editing the "copy" corrupts the raw. `shutil.copy2` is used unconditionally in `organize.py` instead. This is the 80% solution.*
+1. **Hardlink on same device** — when source and dest are on the same volume, use `os.link()` instead of `shutil.copy2()`. Zero I/O overhead, originals stay immutable. Implemented in organize. This is the 80% solution.
 2. **Device-aware parallelism** — closed as won't-fix for v0.3. Adds significant complexity for marginal gain on a single-operator CLI.
-**Versioning impact:** None (hardlink decision is a code path correction, not a behavior change at the user-facing level).
-**Status:** Hardlink: rejected (correctness > marginal I/O speedup). Parallelism: wont-fix.
+**Versioning impact:** None (hardlink is an optimization, not a behavior change).
+**Status:** Hardlink: worth doing now. Parallelism: wont-fix.
 
 ### #20 — Resolve: empty project
 

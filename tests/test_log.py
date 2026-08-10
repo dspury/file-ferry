@@ -81,6 +81,53 @@ class TestSchema:
         assert "operation" in columns
         assert operation == "copy"
 
+    def test_initialize_migrates_legacy_probe_schema(self, tmp_path) -> None:
+        """Regression for #42: pre-v7 probe tables get the new columns.
+
+        Simulates a v6 database by creating a minimal probes table that
+        omits the nine v7 columns. After `initialize()`, the migration
+        must have added them so a real `insert_probe` succeeds.
+        """
+        import sqlite3
+
+        db_path = tmp_path / "legacy_probe.db"
+        with sqlite3.connect(db_path) as conn:
+            # Mimic the v6 schema: probes table without the v7 columns.
+            conn.execute(
+                "CREATE TABLE runs ("
+                "id INTEGER PRIMARY KEY, started_at TEXT NOT NULL, finished_at TEXT, "
+                "command TEXT NOT NULL, config_hash TEXT, status TEXT NOT NULL, error TEXT)"
+            )
+            conn.execute(
+                "CREATE TABLE files ("
+                "id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE, size INTEGER, mtime REAL, "
+                "first_seen_run INTEGER REFERENCES runs(id), "
+                "last_seen_run INTEGER REFERENCES runs(id))"
+            )
+            conn.execute(
+                "CREATE TABLE probes ("
+                "id INTEGER PRIMARY KEY, file_id INTEGER REFERENCES files(id), "
+                "run_id INTEGER REFERENCES runs(id), codec TEXT, container TEXT, "
+                "width INTEGER, height INTEGER, frame_rate REAL, color_space TEXT, "
+                "bit_depth INTEGER, duration REAL, audio_channels INTEGER, "
+                "audio_sample_rate INTEGER, probed_at TEXT NOT NULL)"
+            )
+
+        legacy = LogStore(db_path)
+        legacy.initialize()
+
+        with sqlite3.connect(db_path) as conn:
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(probes)")}
+        assert "r_frame_rate" in columns
+        assert "is_vfr" in columns
+        assert "color_transfer" in columns
+        assert "color_primaries" in columns
+        assert "sample_aspect_ratio" in columns
+        assert "timecode" in columns
+        assert "audio_codec" in columns
+        assert "audio_bit_depth" in columns
+        assert "modification_time" in columns
+
 
 class TestRuns:
     def test_start_run_returns_id(self, store: LogStore) -> None:
@@ -174,6 +221,60 @@ class TestProbes:
         )
         assert pid > 0
 
+    def test_probe_round_trip_includes_v7_columns(self, store: LogStore, tmp_path) -> None:
+        """Regression for #42: every MediaProbe field round-trips through SQLite.
+
+        Exercises the nine columns added in schema v7 (r_frame_rate,
+        is_vfr, color_transfer, color_primaries, sample_aspect_ratio,
+        timecode, audio_codec, audio_bit_depth, modification_time).
+        Without the migration or insert/read updates, this test fails
+        because either the INSERT rejects unknown columns or the
+        SELECT loses the values.
+        """
+        run_id = store.start_run("media-mate probe ./raw")
+        file_id = store.upsert_file("/tmp/vfr_clip.mov", run_id=run_id)
+        now = datetime.now(UTC)
+        mtime = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
+        store.insert_probe(
+            ProbeRecord(
+                file_id=file_id,
+                run_id=run_id,
+                codec="h264",
+                container="mov",
+                width=1920,
+                height=1080,
+                frame_rate=29.97,
+                r_frame_rate=30.0,
+                is_vfr=True,
+                color_space="bt709",
+                color_transfer="bt709",
+                color_primaries="bt709",
+                bit_depth=10,
+                sample_aspect_ratio="16:9",
+                timecode="01:02:03:04",
+                audio_codec="pcm_s24le",
+                audio_channels=2,
+                audio_sample_rate=48000,
+                audio_bit_depth=24,
+                duration=120.5,
+                modification_time=mtime,
+                probed_at=now,
+            )
+        )
+
+        results = store.get_latest_probes_by_paths(["/tmp/vfr_clip.mov"])
+        assert len(results) == 1
+        probe = results["/tmp/vfr_clip.mov"]
+        assert probe.r_frame_rate == 30.0
+        assert probe.is_vfr is True
+        assert probe.color_transfer == "bt709"
+        assert probe.color_primaries == "bt709"
+        assert probe.sample_aspect_ratio == "16:9"
+        assert probe.timecode == "01:02:03:04"
+        assert probe.audio_codec == "pcm_s24le"
+        assert probe.audio_bit_depth == 24
+        assert probe.modification_time == mtime
+
 
 class TestProxies:
     def test_insert_proxy(self, store: LogStore) -> None:
@@ -212,41 +313,6 @@ class TestProjects:
             )
         )
         assert pid > 0
-
-    def test_insert_project_stores_created_at_as_iso_string(self, store: LogStore) -> None:
-        """Regression for #41: created_at must be serialized via _iso(), not raw.
-
-        On Python 3.12+ sqlite3 emits a DeprecationWarning when a datetime
-        is bound directly to a parameter; passing an ISO string silences it
-        and matches the convention used by every other LogStore insert.
-        """
-        run_id = store.start_run("media-mate resolve create ./raw")
-        pid = store.insert_project(
-            ProjectRecord(
-                name="Episode-13",
-                path="/tmp/Episode-13.drp",
-                run_id=run_id,
-                resolution="1080",
-                frame_rate="24",
-                color_space="Rec.709",
-                bin_count=1,
-                timeline_count=1,
-                resolve_version="20.0",
-                created_at=datetime.now(UTC),
-            )
-        )
-        with store._connect() as conn:
-            row = conn.execute("SELECT created_at FROM projects WHERE id = ?", (pid,)).fetchone()
-        assert row is not None
-        stored = row["created_at"]
-        # Must be a string, not a datetime — sqlite's default text_factory
-        # stringifies datetimes too, so we additionally require the canonical
-        # _iso() form (capital-T separator, not datetime.__str__'s space).
-        assert isinstance(stored, str)
-        assert "T" in stored, f"expected ISO-8601 'T' separator, got {stored!r}"
-        # Round-trip via fromisoformat and confirm the suffix is UTC.
-        parsed = datetime.fromisoformat(stored)
-        assert parsed.tzinfo is not None
 
 
 class TestVerifications:

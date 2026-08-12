@@ -9,8 +9,9 @@ from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 
-from media_mate.config import load_config
+from media_mate.config import load_config, save_config
 from media_mate.models import ChecksumAlgo, MediaMateConfig, OrganizeResult
+from media_mate.organize import compute_output_tree
 from media_mate.tui import (
     HomeScreen,
     LogScreen,
@@ -21,9 +22,7 @@ from media_mate.tui import (
     SettingsScreen,
     _drive_label,
     _format_size,
-    compute_output_tree,
     list_external_drives,
-    save_config,
 )
 
 

@@ -72,24 +72,24 @@ A full walkthrough with screenshots and audit-log output is in [`examples/WALKTH
 
 The TUI is a full-screen Textual workstation. It's keyboard-driven and lives inside your terminal — no browser, no separate window.
 
-| Screen | What it does |
-|---|---|
-| **Home** | Dashboard with ffmpeg version, db path, and stat tiles (total / succeeded / failed / live runs) |
+| Screen        | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Home**      | Dashboard with ffmpeg version, db path, and stat tiles (total / succeeded / failed / live runs)                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | **Pipelines** | Browse mounted folders, queue several sources, run all five capability steps, watch progress live. The MEDIA BROWSER pane surfaces connected external drives (camera cards, backup disks, USB sticks) at the top — each entry shows name and free/total space, click one to jump the tree straight to it. The drive list refreshes automatically when cards are plugged in or ejected, and system junk (`.Trashes`, `$RECYCLE.BIN`, AppleDouble `._*` sidecars, …) is hidden from the browser and skipped by every pipeline step. |
-| **Audit Log** | Browse and search run history; runs are color-coded by status |
-| **Settings** | Edit and persist proxy codec/height, checksum algorithm, and binary paths |
+| **Audit Log** | Browse and search run history; runs are color-coded by status                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **Settings**  | Edit and persist proxy codec/height, checksum algorithm, and binary paths                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
 **Keybindings** (all available without leaving the keyboard):
 
-| Key | Action |
-|---|---|
+| Key             | Action                                                         |
+| --------------- | -------------------------------------------------------------- |
 | `R` / `L` / `S` | Jump to **P**ipelines / Audit **L**og / **S**ettings from Home |
-| `A` | Add a folder to the queue (in Pipelines) |
-| `Ctrl+R` | Run the queue |
-| `Ctrl+C` | Safely cancel the current run |
-| `/` | Search the audit log |
-| `Ctrl+S` | Save settings |
-| `Q` | Quit |
+| `A`             | Add a folder to the queue (in Pipelines)                       |
+| `Ctrl+R`        | Run the queue                                                  |
+| `Ctrl+C`        | Safely cancel the current run                                  |
+| `/`             | Search the audit log                                           |
+| `Ctrl+S`        | Save settings                                                  |
+| `Q`             | Quit                                                           |
 
 The TUI is optional — `media-mate --no-tui` keeps you in CLI mode and prints command help.
 
@@ -99,15 +99,15 @@ The TUI is optional — `media-mate --no-tui` keeps you in CLI mode and prints c
 
 Each capability runs standalone or as part of the `run` pipeline. Step order in `run` is fixed: probe (always) → organize → proxy → resolve-project → verify. Skip any combination you don't need.
 
-| Command | What it does |
-|---|---|
-| `probe` | Run `ffprobe` on every file in a folder; capture codec, resolution, frame rate, color, audio, duration, size, mtime |
-| `organize` | Re-arrange files into a structured layout, preserving the source's folder shape (cards/scenes/takes) |
-| `proxy` | Generate ProRes 422 Proxy (or any ProRes variant) at 1080p via `ffmpeg`; aspect-preserving; skips non-video |
-| `resolve create` | Create a DaVinci Resolve project programmatically; falls back to a JSON manifest if Resolve isn't running |
-| `verify` | Checksum a folder; on rerun, report what changed (added/modified/missing) — designed for cron |
-| `log` | Query the audit log (text or JSON) |
-| `run` | Orchestrate any combination of the above as a pipeline |
+| Command          | What it does                                                                                                        |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `probe`          | Run `ffprobe` on every file in a folder; capture codec, resolution, frame rate, color, audio, duration, size, mtime |
+| `organize`       | Re-arrange files into a structured layout, preserving the source's folder shape (cards/scenes/takes)                |
+| `proxy`          | Generate ProRes 422 Proxy (or any ProRes variant) at 1080p via `ffmpeg`; aspect-preserving; skips non-video         |
+| `resolve create` | Create a DaVinci Resolve project programmatically; falls back to a JSON manifest if Resolve isn't running           |
+| `verify`         | Checksum a folder; on rerun, report what changed (added/modified/missing) — designed for cron                       |
+| `log`            | Query the audit log (text or JSON)                                                                                  |
+| `run`            | Orchestrate any combination of the above as a pipeline                                                              |
 
 Run `media-mate <command> --help` for the full flag list. Example output:
 
@@ -197,10 +197,10 @@ Every operation writes to `~/.media-mate/media-mate.db` (SQLite). The schema cov
 
 The log answers questions like:
 
-- *"When did this file get probed, and what was the result?"*
-- *"What got copied during the last organize run?"*
-- *"When was this Resolve project created, and from what source folder?"*
-- *"What was the checksum of this file at the last verify?"*
+- _"When did this file get probed, and what was the result?"_
+- _"What got copied during the last organize run?"_
+- _"When was this Resolve project created, and from what source folder?"_
+- _"What was the checksum of this file at the last verify?"_
 
 It's the system of record — back it up, copy it between machines, trust it as ground truth. Query from the TUI's **Audit Log** screen or the CLI:
 

@@ -214,12 +214,22 @@ media-mate log --limit 5
 
 ## Roadmap
 
-Ideas for future versions (not yet scheduled):
+The next product direction is documented in
+[`docs/MEDIA-MATE-PRODUCT-DIRECTION.md`](./docs/MEDIA-MATE-PRODUCT-DIRECTION.md).
+It proposes a local-first desktop workstation for verified card offload,
+existing-folder adoption, project reconciliation, and a retained CLI/TUI. It is
+a discussion draft, not a statement of shipped behavior.
+
+The full build plan is in
+[`docs/MEDIA-MATE-FULL-APP-IMPLEMENTATION-PLAN.md`](./docs/MEDIA-MATE-FULL-APP-IMPLEMENTATION-PLAN.md).
+It defines the proposed Electron architecture, shared Python application layer,
+media-safety contracts, delivery work, and release gates.
+
+Longer-term ideas (not yet scheduled):
 
 - Scene detection (PySceneDetect)
 - Audio loudness analysis
 - Watch-folder mode
-- Web UI
 - Cloud-storage adapters
 
 ---
@@ -237,7 +247,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 
-pytest                # 292 tests
+pytest                # 326 tests
 ruff check . && ruff format --check .
 mypy src
 ```

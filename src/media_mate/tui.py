@@ -40,6 +40,7 @@ from textual.widgets.option_list import Option
 from textual.worker import NoActiveWorker, get_current_worker
 
 from media_mate import __version__
+from media_mate.application.service import ApplicationService
 from media_mate.config import config_target, load_config, save_config
 from media_mate.log import LogStore
 from media_mate.models import ChecksumAlgo, MediaMateConfig, OrganizeConfig
@@ -236,6 +237,7 @@ class HomeScreen(Screen[Any]):
     BINDINGS: ClassVar = [
         ("r", "pipeline", "Run"),
         ("l", "logs", "Logs"),
+        ("j", "jobs", "Jobs"),
         ("s", "settings", "Settings"),
     ]
 
@@ -249,6 +251,7 @@ class HomeScreen(Screen[Any]):
             with Horizontal(id="home-actions"):
                 yield Button("RUN PIPELINES  [R]", id="pipeline", variant="primary")
                 yield Button("AUDIT LOG  [L]", id="logs")
+                yield Button("DURABLE JOBS  [J]", id="jobs")
                 yield Button("SETTINGS  [S]", id="settings")
             with Horizontal(id="stats-row"):
                 yield Static("", id="stat-total", classes="stat-tile")
@@ -303,11 +306,15 @@ class HomeScreen(Screen[Any]):
     def action_settings(self) -> None:
         self.app.push_screen("settings")
 
+    def action_jobs(self) -> None:
+        self.app.push_screen("jobs")
+
     @on(Button.Pressed)
     def buttons(self, event: Button.Pressed) -> None:
         {
             "pipeline": self.action_pipeline,
             "logs": self.action_logs,
+            "jobs": self.action_jobs,
             "settings": self.action_settings,
         }.get(event.button.id or "", lambda: None)()
 
@@ -846,6 +853,61 @@ class _PipelineItemContext:
     organize_ran: bool = False
 
 
+class JobsScreen(Screen[Any]):
+    """Durable job activity view (plan §8.2, §9).
+
+    Lists the durable jobs from the same ApplicationService the desktop
+    sidecar uses, so the TUI is a read-only recovery/activity surface for
+    the vNext job model (not a second implementation).
+    """
+
+    BINDINGS: ClassVar = [Binding("r", "refresh", "Refresh")]
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(id="log-panel"):
+            yield Static("DURABLE JOBS", id="stats")
+            yield DataTable(id="jobs-table")
+        yield Footer()
+
+    def on_mount(self) -> None:
+        self.query_one("#log-panel", Vertical).border_title = "JOBS"
+        table = self.query_one("#jobs-table", DataTable)
+        table.add_columns("ID", "Command", "State", "Project")
+        self._refresh()
+
+    def on_screen_resume(self) -> None:
+        self._refresh()
+
+    def action_refresh(self) -> None:
+        self._refresh()
+
+    def _refresh(self) -> None:
+        app = cast("MediaMateApp", self.app)
+        table = self.query_one("#jobs-table", DataTable)
+        table.clear()
+        try:
+            svc = ApplicationService(db_path=app.db_path, app_data_dir=app.db_path.parent)
+            svc.bootstrap()
+            try:
+                jobs = svc.job_list()
+            finally:
+                svc.close()
+        except Exception as exc:  # sidecar-style service not available
+            table.add_row("—", "—", "—", f"error: {exc}")
+            return
+        color_map = {
+            "succeeded": "green",
+            "failed": "red",
+            "needs_attention": "yellow",
+            "running": "cyan",
+            "queued": "magenta",
+        }
+        for j in jobs:
+            color = color_map.get(j.state, "white")
+            table.add_row(j.id, j.command, f"[{color}]{j.state}[/]", j.project_id)
+
+
 class LogScreen(Screen[Any]):
     BINDINGS: ClassVar = [Binding("/", "search", "Search"), Binding("r", "refresh", "Refresh")]
 
@@ -1083,6 +1145,7 @@ class MediaMateApp(App[Any]):
         "home": HomeScreen,
         "pipeline": PipelineScreen,
         "logs": LogScreen,
+        "jobs": JobsScreen,
         "settings": SettingsScreen,
     }
 

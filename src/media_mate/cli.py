@@ -80,6 +80,30 @@ def main(ctx: click.Context, db: Path, config_path: Path | None, no_tui: bool) -
             tui_main(db, config_path)
 
 
+# Register the vNext application-service verbs (plan §9, ADR-0005).
+# These share the ApplicationService the sidecar uses, so CLI and
+# desktop are behaviorally identical. The legacy verbs above are
+# untouched.
+from media_mate.cli_vnext import (  # noqa: E402  (after group def)
+    intake_group,
+    jobs_group,
+    project_group,
+    receipt_group,
+    reconcile_group,
+    source_group,
+)
+
+for _g in (
+    project_group,
+    source_group,
+    intake_group,
+    jobs_group,
+    receipt_group,
+    reconcile_group,
+):
+    main.add_command(_g)
+
+
 def _get_store(ctx: click.Context) -> LogStore:
     """Get or initialize the LogStore from the Click context."""
     db_path: Path = ctx.obj["db_path"]

@@ -122,6 +122,7 @@ METHOD_NAMES: tuple[str, ...] = (
     "intake.createSession",
     "intake.addDestination",
     "intake.evaluate",
+    "intake.adoptSource",
     "plan.build",
     "receipt.export",
     "receipt.get",

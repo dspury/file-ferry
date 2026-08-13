@@ -25,6 +25,8 @@ from media_mate.service.protocol import (
     PROTOCOL_VERSION,
     AcceptChangeParams,
     AddDestinationParams,
+    AdoptSourceParams,
+    AdoptSourceResult,
     AppSettings,
     AppStatus,
     ArchiveProjectParams,
@@ -218,6 +220,17 @@ def _build_handlers(service: ApplicationService) -> dict[str, Handler]:
             rpc_error("invalid_params", "missing sessionId")
         return service.intake_evaluate(session_id)
 
+    def intake_adopt_source(params: dict[str, Any]) -> AdoptSourceResult:
+        p = _validate(AdoptSourceParams, params)
+        asset_ids = service.intake_adopt_source(
+            p.session_id,
+            p.source_id,
+            p.entries,
+            p.destination_root,
+            project_id=p.project_id,
+        )
+        return AdoptSourceResult(assetIds=asset_ids)
+
     def job_create(params: dict[str, Any]) -> JobDetail:
         p = _validate(CreateJobParams, params)
         return service.job_create(p)
@@ -366,6 +379,7 @@ def _build_handlers(service: ApplicationService) -> dict[str, Handler]:
         "intake.createSession": intake_create_session,
         "intake.addDestination": intake_add_destination,
         "intake.evaluate": intake_evaluate,
+        "intake.adoptSource": intake_adopt_source,
         "job.create": job_create,
         "job.list": job_list,
         "job.get": job_get,

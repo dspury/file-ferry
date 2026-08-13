@@ -373,6 +373,22 @@ class SafeToFormatEval(FrozenModel):
     unmet: list[str]
 
 
+class AdoptSourceParams(FrozenModel):
+    """The params for ``intake.adoptSource`` — adopt a scanned source."""
+
+    session_id: str = Field(alias="sessionId")
+    source_id: int = Field(alias="sourceId")
+    entries: list[SourceInventoryEntry]
+    destination_root: str = Field(alias="destinationRoot")
+    project_id: str | None = Field(default=None, alias="projectId")
+
+
+class AdoptSourceResult(FrozenModel):
+    """The result of ``intake.adoptSource`` — adopted asset ids."""
+
+    asset_ids: list[str] = Field(alias="assetIds")
+
+
 # ---------------------------------------------------------------------------
 # jobs
 # ---------------------------------------------------------------------------
@@ -929,6 +945,8 @@ __all__ = [
     "PROTOCOL_VERSION",
     "AcceptChangeParams",
     "AddDestinationParams",
+    "AdoptSourceParams",
+    "AdoptSourceResult",
     "AppSettings",
     "AppStatus",
     "ArchiveProjectParams",

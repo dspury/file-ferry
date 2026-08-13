@@ -215,6 +215,18 @@ export interface SafeToFormatEval {
   readonly unmet: readonly string[];
 }
 
+export interface AdoptSourceParams {
+  readonly sessionId: string;
+  readonly sourceId: number;
+  readonly entries: readonly SourceInventoryEntry[];
+  readonly destinationRoot: string;
+  readonly projectId?: string | null;
+}
+
+export interface AdoptSourceResult {
+  readonly assetIds: readonly string[];
+}
+
 export interface JobDetail {
   readonly id: string;
   readonly projectId: string;
@@ -579,6 +591,7 @@ export interface MethodCatalog {
   };
   'intake.addDestination': { params: AddDestinationParams; result: IntakeDestination };
   'intake.evaluate': { params: { sessionId: string }; result: SafeToFormatEval };
+  'intake.adoptSource': { params: AdoptSourceParams; result: AdoptSourceResult };
   'job.create': { params: CreateJobParams; result: JobDetail };
   'job.list': { params: { projectId?: string }; result: ListJobsResult };
   'job.get': { params: { id: string }; result: JobDetail };

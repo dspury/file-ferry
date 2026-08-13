@@ -82,6 +82,7 @@ const api = {
     addDestination: (params: ParamsOf<'intake.addDestination'>) =>
       invoke('intake.addDestination', params),
     evaluate: (sessionId: string) => invoke('intake.evaluate', { sessionId }),
+    adoptSource: (params: ParamsOf<'intake.adoptSource'>) => invoke('intake.adoptSource', params),
   },
   job: {
     create: (params: ParamsOf<'job.create'>) => invoke('job.create', params),

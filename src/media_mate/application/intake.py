@@ -106,6 +106,31 @@ class IntakeService:
 
     # ---- adoption ----------------------------------------------------
 
+    def get_session(self, session_id: str) -> IntakeSession:
+        with transaction(self._db_path) as conn:
+            row = intake_repo.get_session(conn, session_id)
+        if row is None:
+            raise IntakeSessionNotFoundError(session_id)
+        return self._to_session(row)
+
+    def get_destinations(self, session_id: str) -> list[IntakeDestination]:
+        with transaction(self._db_path) as conn:
+            if intake_repo.get_session(conn, session_id) is None:
+                raise IntakeSessionNotFoundError(session_id)
+            rows = intake_repo.list_destinations(conn, session_id)
+        return [
+            IntakeDestination(
+                id=d.id,
+                intakeSessionId=session_id,
+                kind=d.kind,
+                rootPath=d.root_path,
+                role=d.role,
+                required=bool(d.required),
+                verified=bool(d.verified),
+            )
+            for d in rows
+        ]
+
     def adopt_source(
         self,
         session_id: str,

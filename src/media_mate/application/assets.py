@@ -85,6 +85,12 @@ class AssetService:
             rows = asset_repo.list_assets(conn, project_id)
         return [self._to_model(r) for r in rows]
 
+    def get_by_path(self, source_id: int, rel_path: str) -> AssetSummary | None:
+        """Return the asset for a source-relative path, if it exists."""
+        with transaction(self._db_path) as conn:
+            row = asset_repo.get_asset_by_path(conn, source_id, rel_path)
+        return self._to_model(row) if row is not None else None
+
     @staticmethod
     def _to_model(row: AssetRow) -> AssetSummary:
         return AssetSummary(

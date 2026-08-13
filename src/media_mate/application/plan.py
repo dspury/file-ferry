@@ -19,7 +19,9 @@ import hashlib
 import json
 import os
 import shutil
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Protocol
 
 from media_mate.application.policies import StoragePolicy
 from media_mate.application.sources import scan_inventory
@@ -37,6 +39,12 @@ from media_mate.service.protocol import (
 
 class PlanError(ValueError):
     """Raised when a plan cannot be built as requested."""
+
+
+class _CollisionEntry(Protocol):
+    """Any planned entry exposing a destination path (PlanEntry/OrganizeEntry)."""
+
+    dest_path: str
 
 
 class IntakePlanner:
@@ -128,24 +136,35 @@ class IntakePlanner:
             return StoragePolicy()
 
 
-def detect_collisions(planned: list[PlanEntry]) -> list[CollisionIssue]:
-    """Detect duplicate destinations and case-only collisions."""
+def detect_collisions(planned: Sequence[_CollisionEntry]) -> list[CollisionIssue]:
+    """Detect duplicate destinations and case-only collisions.
+
+    ``label_of`` returns the source-relative label for a planned entry
+    (``rel_path`` on :class:`PlanEntry`, ``source_path`` on organize entries).
+    """
     issues: list[CollisionIssue] = []
 
-    # Duplicate destination path (two relpaths mapping to the same dest).
+    def label_of(entry: _CollisionEntry) -> str:
+        rel = getattr(entry, "rel_path", None)
+        if rel:
+            return str(rel)
+        src = getattr(entry, "source_path", None)
+        return str(src) if src else entry.dest_path
+
+    # Duplicate destination path (two labels mapping to the same dest).
     by_dest: dict[str, list[str]] = {}
     for entry in planned:
-        by_dest.setdefault(entry.dest_path, []).append(entry.rel_path)
+        by_dest.setdefault(entry.dest_path, []).append(label_of(entry))
     for dest_path, rels in by_dest.items():
         if len(rels) > 1:
             issues.append(
                 CollisionIssue(path=dest_path, reason="duplicate_destination", count=len(rels))
             )
 
-    # Case-only collisions (relpaths differing only in case).
+    # Case-only collisions (labels differing only in case).
     by_lower: dict[str, list[str]] = {}
     for entry in planned:
-        by_lower.setdefault(entry.rel_path.lower(), []).append(entry.rel_path)
+        by_lower.setdefault(label_of(entry).lower(), []).append(label_of(entry))
     for key, rels in by_lower.items():
         if len(set(rels)) > 1:
             issues.append(CollisionIssue(path=key, reason="case_only", count=len(set(rels))))

@@ -318,6 +318,98 @@ export interface CancelJobParams {
   readonly id: string;
 }
 
+export interface ReconcileEntry {
+  readonly replicaId: number;
+  readonly path: string;
+  readonly availability: string;
+  readonly status: string;
+  readonly expectedChecksum: string | null;
+  readonly actualChecksum: string | null;
+}
+
+export interface ReconcileReport {
+  readonly assetId: string;
+  readonly entries: readonly ReconcileEntry[];
+}
+
+export interface ReconcileAssetParams {
+  readonly assetId: string;
+  readonly checksumAlgo?: string;
+}
+
+export interface ReconcileProjectParams {
+  readonly projectId: string;
+  readonly checksumAlgo?: string;
+}
+
+export interface AcceptChangeParams {
+  readonly assetId: string;
+  readonly replicaId: number;
+  readonly checksumAlgo: string;
+}
+
+export interface OrganizeEntry {
+  readonly sourcePath: string;
+  readonly destPath: string;
+  readonly size: number;
+}
+
+export interface OrganizeOutcome {
+  readonly sourcePath: string;
+  readonly destPath: string;
+  readonly operation: string;
+  readonly ok: boolean;
+  readonly error: string | null;
+}
+
+export interface OrganizePreview {
+  readonly sourceRoot: string;
+  readonly destRoot: string;
+  readonly entries: readonly OrganizeEntry[];
+  readonly collisions: readonly CollisionIssue[];
+  readonly totalBytes: number;
+  readonly mode: string;
+}
+
+export interface OrganizePreviewParams {
+  readonly sourceRoot: string;
+  readonly destRoot: string;
+  readonly entries: readonly SourceInventoryEntry[];
+  readonly template?: Record<string, unknown>;
+  readonly mode?: 'copy' | 'move' | 'link';
+}
+
+export interface OrganizeApplyParams {
+  readonly sourceRoot: string;
+  readonly destRoot: string;
+  readonly entries: readonly SourceInventoryEntry[];
+  readonly mode?: 'copy' | 'move' | 'link';
+  readonly confirmMove?: boolean;
+  readonly template?: Record<string, unknown>;
+}
+
+export interface OrganizeResult {
+  readonly entries: readonly OrganizeOutcome[];
+}
+
+export interface ClipMember {
+  readonly assetId: string;
+  readonly role: string;
+}
+
+export interface LogicalClip {
+  readonly id: number;
+  readonly sourceId: number;
+  readonly clipName: string;
+  readonly confidence: number;
+  readonly resolved: boolean;
+  readonly members: readonly ClipMember[];
+}
+
+export interface DetectClipsParams {
+  readonly sourceId: number;
+}
+
 export interface JobSnapshot {
   readonly id: string;
   readonly state:
@@ -396,6 +488,13 @@ export interface MethodCatalog {
   'job.recover': { params: Record<string, never>; result: string[] };
   'plan.build': { params: BuildPlanParams; result: IntakePlan };
   'receipt.export': { params: ExportReceiptParams; result: ExportReceiptResult };
+  'reconcile.asset': { params: ReconcileAssetParams; result: ReconcileReport };
+  'reconcile.project': { params: ReconcileProjectParams; result: ReconcileReport[] };
+  'reconcile.acceptChange': { params: AcceptChangeParams; result: ReconcileReport };
+  'organize.preview': { params: OrganizePreviewParams; result: OrganizePreview };
+  'organize.apply': { params: OrganizeApplyParams; result: OrganizeResult };
+  'clips.detect': { params: DetectClipsParams; result: LogicalClip[] };
+  'clips.list': { params: DetectClipsParams; result: LogicalClip[] };
   'audit.list': { params: ListAuditParams; result: ListAuditResult };
   'audit.backfill': { params: Record<string, never>; result: number };
   'job.subscribe': { params: { jobId: string }; result: JobSnapshot };

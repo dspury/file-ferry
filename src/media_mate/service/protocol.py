@@ -531,6 +531,141 @@ class CancelJobParams(FrozenModel):
     id: str
 
 
+# ---------------------------------------------------------------------------
+# reconciliation
+# ---------------------------------------------------------------------------
+
+
+class ReconcileEntry(FrozenModel):
+    """The state of one replica after a reconciliation check."""
+
+    replica_id: int = Field(alias="replicaId")
+    path: str
+    availability: str  # present | missing | inaccessible
+    status: str  # verified | changed | missing | inaccessible
+    expected_checksum: str | None = Field(alias="expectedChecksum")
+    actual_checksum: str | None = Field(alias="actualChecksum")
+
+
+class ReconcileReport(FrozenModel):
+    """The reconciliation result for one asset."""
+
+    asset_id: str = Field(alias="assetId")
+    entries: list[ReconcileEntry]
+
+
+class ReconcileAssetParams(FrozenModel):
+    """The params for ``reconcile.asset``."""
+
+    asset_id: str = Field(alias="assetId")
+    checksum_algo: str = Field(default="xxhash64", alias="checksumAlgo")
+
+
+class ReconcileProjectParams(FrozenModel):
+    """The params for ``reconcile.project``."""
+
+    project_id: str = Field(alias="projectId")
+    checksum_algo: str = Field(default="xxhash64", alias="checksumAlgo")
+
+
+class AcceptChangeParams(FrozenModel):
+    """The params for ``reconcile.acceptChange``."""
+
+    asset_id: str = Field(alias="assetId")
+    replica_id: int = Field(alias="replicaId")
+    checksum_algo: str = Field(alias="checksumAlgo")
+
+
+# ---------------------------------------------------------------------------
+# organization
+# ---------------------------------------------------------------------------
+
+
+class OrganizeEntry(FrozenModel):
+    """One planned source->destination organize copy."""
+
+    source_path: str = Field(alias="sourcePath")
+    dest_path: str = Field(alias="destPath")
+    size: int
+
+
+class OrganizeOutcome(FrozenModel):
+    """The result of one organize operation."""
+
+    source_path: str = Field(alias="sourcePath")
+    dest_path: str = Field(alias="destPath")
+    operation: str
+    ok: bool
+    error: str | None = None
+
+
+class OrganizePreview(FrozenModel):
+    """A complete source-to-destination tree + collision report."""
+
+    source_root: str = Field(alias="sourceRoot")
+    dest_root: str = Field(alias="destRoot")
+    entries: list[OrganizeEntry]
+    collisions: list[CollisionIssue]
+    total_bytes: int = Field(alias="totalBytes")
+    mode: str
+
+
+class OrganizePreviewParams(FrozenModel):
+    """The params for ``organize.preview``."""
+
+    source_root: str = Field(alias="sourceRoot")
+    dest_root: str = Field(alias="destRoot")
+    entries: list[SourceInventoryEntry]
+    template: dict[str, Any] = Field(default_factory=dict)
+    mode: Literal["copy", "move", "link"] = "copy"
+
+
+class OrganizeApplyParams(FrozenModel):
+    """The params for ``organize.apply``."""
+
+    source_root: str = Field(alias="sourceRoot")
+    dest_root: str = Field(alias="destRoot")
+    entries: list[SourceInventoryEntry]
+    mode: Literal["copy", "move", "link"] = "copy"
+    confirm_move: bool = Field(default=False, alias="confirmMove")
+    template: dict[str, Any] = Field(default_factory=dict)
+
+
+class OrganizeResult(FrozenModel):
+    """The result of ``organize.apply``."""
+
+    entries: list[OrganizeOutcome]
+
+
+# ---------------------------------------------------------------------------
+# logical clips
+# ---------------------------------------------------------------------------
+
+
+class ClipMember(FrozenModel):
+    """One asset in a logical clip."""
+
+    asset_id: str = Field(alias="assetId")
+    role: str  # primary | sidecar
+
+
+class LogicalClip(FrozenModel):
+    """A detected logical (multi-file / spanned) clip."""
+
+    id: int
+    source_id: int = Field(alias="sourceId")
+    clip_name: str = Field(alias="clipName")
+    confidence: float
+    resolved: bool
+    members: list[ClipMember]
+
+
+class DetectClipsParams(FrozenModel):
+    """The params for ``clips.detect``."""
+
+    source_id: int = Field(alias="sourceId")
+
+
 class SourceInventoryEntry(FrozenModel):
     """One file found by a read-only source scan."""
 
@@ -642,6 +777,7 @@ def decode_frame(line: str) -> Frame | None:
 # import them from a single namespace.
 __all__ = [
     "PROTOCOL_VERSION",
+    "AcceptChangeParams",
     "AddDestinationParams",
     "AppStatus",
     "ArchiveProjectParams",
@@ -649,11 +785,13 @@ __all__ = [
     "AuditEvent",
     "BuildPlanParams",
     "CancelJobParams",
+    "ClipMember",
     "CollisionIssue",
     "CreateIntakeSessionParams",
     "CreateJobParams",
     "CreateProjectParams",
     "CreateProjectResult",
+    "DetectClipsParams",
     "ErrorFrame",
     "EventFrame",
     "ExportReceiptParams",
@@ -677,12 +815,23 @@ __all__ = [
     "ListProjectsResult",
     "ListReplicasResult",
     "ListVolumesResult",
+    "LogicalClip",
     "MountedVolume",
     "OrganizationProfile",
+    "OrganizeApplyParams",
+    "OrganizeEntry",
+    "OrganizeOutcome",
+    "OrganizePreview",
+    "OrganizePreviewParams",
+    "OrganizeResult",
     "PlanDestination",
     "PlanEntry",
     "ProjectDetail",
     "ProjectSummary",
+    "ReconcileAssetParams",
+    "ReconcileEntry",
+    "ReconcileProjectParams",
+    "ReconcileReport",
     "ReplicaSummary",
     "RequestFrame",
     "ResponseFrame",

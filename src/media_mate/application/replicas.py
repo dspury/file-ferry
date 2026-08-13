@@ -150,6 +150,51 @@ class ReplicaService:
             replicaChecksum=replica_checksum,
         )
 
+    def record_verified(
+        self,
+        asset_id: str,
+        project_id: str,
+        path: str,
+        *,
+        checksum: str,
+        algo: str,
+        source_checksum: str,
+    ) -> int:
+        """Record a verified replica, updating an existing (asset, path) row.
+
+        Used by the offload engine after a successful copy+verify so a
+        re-run updates rather than duplicates the replica for a location.
+        """
+        now = _now_iso()
+        with transaction(self._db_path) as conn:
+            existing = conn.execute(
+                "SELECT id FROM replicas WHERE asset_id = ? AND path = ?",
+                (asset_id, path),
+            ).fetchone()
+            if existing is not None:
+                replica_repo.record_verification_attempt(
+                    conn,
+                    int(existing["id"]),
+                    checksum=checksum,
+                    algo=algo,
+                    source_checksum=source_checksum,
+                    verified=True,
+                    verified_at=now,
+                    size=_size_or_none(Path(path)),
+                    availability="present" if Path(path).exists() else "missing",
+                    last_checked_at=now,
+                )
+                return int(existing["id"])
+            return self.record(
+                asset_id,
+                project_id,
+                path,
+                checksum=checksum,
+                algo=algo,
+                source_checksum=source_checksum,
+                verified=True,
+            )
+
     def list(self, asset_id: str) -> list[ReplicaSummary]:
         with transaction(self._db_path) as conn:
             rows = replica_repo.list_replicas(conn, asset_id)

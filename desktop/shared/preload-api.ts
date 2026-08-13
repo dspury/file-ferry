@@ -63,6 +63,20 @@ export const api = {
   receipt: {
     export: (params: ParamsOf<'receipt.export'>) => invoke('receipt.export', params),
   },
+  reconcile: {
+    asset: (params: ParamsOf<'reconcile.asset'>) => invoke('reconcile.asset', params),
+    project: (params: ParamsOf<'reconcile.project'>) => invoke('reconcile.project', params),
+    acceptChange: (params: ParamsOf<'reconcile.acceptChange'>) =>
+      invoke('reconcile.acceptChange', params),
+  },
+  organize: {
+    preview: (params: ParamsOf<'organize.preview'>) => invoke('organize.preview', params),
+    apply: (params: ParamsOf<'organize.apply'>) => invoke('organize.apply', params),
+  },
+  clips: {
+    detect: (sourceId: number) => invoke('clips.detect', { sourceId }),
+    list: (sourceId: number) => invoke('clips.list', { sourceId }),
+  },
   audit: {
     list: (params?: ParamsOf<'audit.list'>) => invoke('audit.list', params ?? {}),
     backfill: () => invoke('audit.backfill', {}),

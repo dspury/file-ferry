@@ -158,6 +158,54 @@ class JobService:
                 error=error,
             )
 
+    def add_item(
+        self,
+        job_id: str,
+        *,
+        step: str,
+        asset_id: str | None,
+        source_path: str,
+        dest_path: str,
+        total_bytes: int,
+        temp_path: str | None = None,
+    ) -> None:
+        with transaction(self._db_path) as conn:
+            job_repo.insert_item(
+                conn,
+                job_repo.JobItemRow(
+                    id=0,
+                    job_id=job_id,
+                    step=step,
+                    asset_id=asset_id,
+                    source_path=source_path,
+                    dest_path=dest_path,
+                    temp_path=temp_path,
+                    byte_progress=0,
+                    total_bytes=total_bytes,
+                    state="pending",
+                    error=None,
+                ),
+            )
+
+    def update_item_progress(
+        self,
+        job_id: str,
+        asset_id: str,
+        *,
+        byte_progress: int | None = None,
+        state: str | None = None,
+        error: str | None = None,
+    ) -> None:
+        with transaction(self._db_path) as conn:
+            job_repo.update_item_progress(
+                conn,
+                job_id,
+                asset_id,
+                byte_progress=byte_progress,
+                state=state,
+                error=error,
+            )
+
     @staticmethod
     def _to_detail(row: job_repo.JobRow) -> JobDetail:
         return JobDetail(

@@ -20,12 +20,16 @@ from pathlib import Path
 
 from media_mate.application.assets import AssetService
 from media_mate.application.audit import AuditService
+from media_mate.application.clips import ClipService
 from media_mate.application.intake import IntakeService
 from media_mate.application.jobs import JobService
+from media_mate.application.offload import OffloadRunner
+from media_mate.application.organize import OrganizeService
 from media_mate.application.plan import IntakePlanner
 from media_mate.application.profiles import ProfileService
 from media_mate.application.projects import ProjectService
 from media_mate.application.receipts import ReceiptStore, export_html, export_markdown
+from media_mate.application.reconcile import ReconcileService
 from media_mate.application.replicas import ReplicaService
 from media_mate.application.scheduler import JobScheduler
 from media_mate.application.sources import SourceService
@@ -33,6 +37,7 @@ from media_mate.persistence import runner
 from media_mate.persistence.connection import transaction
 from media_mate.service.protocol import (
     PROTOCOL_VERSION,
+    AcceptChangeParams,
     AddDestinationParams,
     ArchiveProjectParams,
     AssetSummary,
@@ -42,6 +47,7 @@ from media_mate.service.protocol import (
     CreateIntakeSessionParams,
     CreateJobParams,
     CreateProjectParams,
+    DetectClipsParams,
     ExportReceiptParams,
     ExportReceiptResult,
     IntakeDestination,
@@ -52,10 +58,18 @@ from media_mate.service.protocol import (
     JobTransitionParams,
     ListAssetsParams,
     ListAuditParams,
+    LogicalClip,
     MountedVolume,
     OrganizationProfile,
+    OrganizeApplyParams,
+    OrganizePreview,
+    OrganizePreviewParams,
+    OrganizeResult,
     ProjectDetail,
     ProjectSummary,
+    ReconcileAssetParams,
+    ReconcileProjectParams,
+    ReconcileReport,
     ReplicaSummary,
     SafeToFormatEval,
     SaveProfileParams,
@@ -93,6 +107,13 @@ METHOD_NAMES: tuple[str, ...] = (
     "intake.evaluate",
     "plan.build",
     "receipt.export",
+    "reconcile.asset",
+    "reconcile.project",
+    "reconcile.acceptChange",
+    "organize.preview",
+    "organize.apply",
+    "clips.detect",
+    "clips.list",
     "job.create",
     "job.list",
     "job.get",
@@ -131,6 +152,9 @@ class ApplicationService:
         self._audit: AuditService | None = None
         self._planner: IntakePlanner | None = None
         self._scheduler: JobScheduler | None = None
+        self._reconcile: ReconcileService | None = None
+        self._organize: OrganizeService | None = None
+        self._clips: ClipService | None = None
 
     # ---- lifecycle ----------------------------------------------------
 
@@ -166,6 +190,10 @@ class ApplicationService:
         self._planner = IntakePlanner(self._db_path)
         self._scheduler = JobScheduler(self._db_path, self._jobs)
         self._receipts = ReceiptStore(self._app_data_dir)
+        self._reconcile = ReconcileService(self._db_path)
+        self._organize = OrganizeService()
+        self._clips = ClipService(self._db_path)
+        self._register_scheduler_runners()
         self._bootstrapped = True
 
     def close(self) -> None:
@@ -184,6 +212,9 @@ class ApplicationService:
         self._audit = None
         self._planner = None
         self._scheduler = None
+        self._reconcile = None
+        self._organize = None
+        self._clips = None
         self._bootstrapped = False
 
     # ---- introspection ------------------------------------------------
@@ -352,6 +383,46 @@ class ApplicationService:
         content = export_html(receipt) if params.format == "html" else export_markdown(receipt)
         return ExportReceiptResult(content=content)
 
+    # ---- reconcile / organize / clips --------------------------------
+
+    def reconcile_asset(self, params: ReconcileAssetParams) -> ReconcileReport:
+        return self._reconcile_service().reconcile_asset(params.asset_id, algo=params.checksum_algo)
+
+    def reconcile_project(self, params: ReconcileProjectParams) -> list[ReconcileReport]:
+        return self._reconcile_service().reconcile_project(
+            params.project_id, algo=params.checksum_algo
+        )
+
+    def reconcile_accept_change(self, params: AcceptChangeParams) -> ReconcileReport:
+        return self._reconcile_service().accept_change(
+            params.asset_id, params.replica_id, algo=params.checksum_algo
+        )
+
+    def organize_preview(self, params: OrganizePreviewParams) -> OrganizePreview:
+        return self._organize_service().preview(params)
+
+    def organize_apply(self, params: OrganizeApplyParams) -> OrganizeResult:
+        return self._organize_service().apply(params)
+
+    def clips_detect(self, params: DetectClipsParams) -> list[LogicalClip]:
+        return self._clips_service().detect(params.source_id)
+
+    def clips_list(self, source_id: int) -> list[LogicalClip]:
+        return self._clips_service().list(source_id)
+
+    # ---- scheduler wiring --------------------------------------------
+
+    def _register_scheduler_runners(self) -> None:
+        """Wire the durable runners (offload) into the scheduler."""
+        runner = OffloadRunner(
+            self._planner_service(),
+            self._intake_service(),
+            self._replica_service(),
+            self._asset_service(),
+            self._job_service(),
+        )
+        self._scheduler_service().register_runner("offload", runner)
+
     # ---- audit methods -----------------------------------------------
 
     def audit_list(self, params: ListAuditParams) -> list[AuditEvent]:
@@ -406,6 +477,21 @@ class ApplicationService:
         if self._scheduler is None:
             raise RuntimeError("ApplicationService.bootstrap() must be called first")
         return self._scheduler
+
+    def _reconcile_service(self) -> ReconcileService:
+        if self._reconcile is None:
+            raise RuntimeError("ApplicationService.bootstrap() must be called first")
+        return self._reconcile
+
+    def _organize_service(self) -> OrganizeService:
+        if self._organize is None:
+            raise RuntimeError("ApplicationService.bootstrap() must be called first")
+        return self._organize
+
+    def _clips_service(self) -> ClipService:
+        if self._clips is None:
+            raise RuntimeError("ApplicationService.bootstrap() must be called first")
+        return self._clips
 
     def scheduler(self) -> JobScheduler:
         """Expose the scheduler so runners can be registered at startup."""

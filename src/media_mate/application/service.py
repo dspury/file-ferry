@@ -15,7 +15,6 @@ execution) lands in subsequent packages per ADR-0005.
 from __future__ import annotations
 
 import logging
-import platform
 from pathlib import Path
 
 from media_mate.application.assets import AssetService
@@ -36,6 +35,7 @@ from media_mate.application.reconcile import ReconcileService
 from media_mate.application.replicas import ReplicaService
 from media_mate.application.scheduler import JobScheduler
 from media_mate.application.sources import SourceService
+from media_mate.application.volumes import SystemVolumeAdapter, VolumeChange, VolumeObserver
 from media_mate.persistence import runner
 from media_mate.persistence.connection import transaction
 from media_mate.service.protocol import (
@@ -167,6 +167,8 @@ class ApplicationService:
         self._clips: ClipService | None = None
         self._derivatives: DerivativeService | None = None
         self._manifest: ManifestService | None = None
+        self._volume_adapter: SystemVolumeAdapter | None = None
+        self._volume_observer: VolumeObserver | None = None
 
     # ---- lifecycle ----------------------------------------------------
 
@@ -207,6 +209,8 @@ class ApplicationService:
         self._clips = ClipService(self._db_path)
         self._derivatives = DerivativeService(self._db_path)
         self._manifest = ManifestService(self._db_path)
+        self._volume_adapter = SystemVolumeAdapter()
+        self._volume_observer = VolumeObserver(self._volume_adapter)
         self._register_scheduler_runners()
         self._bootstrapped = True
 
@@ -231,6 +235,8 @@ class ApplicationService:
         self._clips = None
         self._derivatives = None
         self._manifest = None
+        self._volume_adapter = None
+        self._volume_observer = None
         self._bootstrapped = False
 
     # ---- introspection ------------------------------------------------
@@ -550,11 +556,16 @@ class ApplicationService:
         return self._audit
 
     def list_volumes(self) -> list[MountedVolume]:
-        """Return the list of mounted volumes. Empty in the foundation cut."""
-        # The real implementation lives in a platform adapter tested
-        # on macOS, Linux, and Windows. The foundation cut returns
-        # the root mount to prove the protocol shape round-trips.
-        return [_root_volume()]
+        """Return the currently mounted volumes (observations only)."""
+        if self._volume_adapter is None:
+            raise RuntimeError("ApplicationService.bootstrap() must be called first")
+        return self._volume_adapter.list_volumes()
+
+    def volume_poll(self) -> VolumeChange:
+        """Return the mount/unmount observations since the last call."""
+        if self._volume_observer is None:
+            raise RuntimeError("ApplicationService.bootstrap() must be called first")
+        return self._volume_observer.poll()
 
     def job_snapshot(self, job_id: str) -> JobSnapshot:
         """Return a snapshot of the named job. The foundation cut returns
@@ -572,23 +583,3 @@ class ApplicationService:
     def job_unsubscribe(self, job_id: str) -> None:
         """Idempotent unsubscribe for the named job. No-op in the foundation cut."""
         return None
-
-
-def _root_volume() -> MountedVolume:
-    """Return a single ``/`` mount as the boot-vol proof the protocol round-trips."""
-    usage = _disk_usage(Path("/"))
-    return MountedVolume(
-        path="/",
-        label="root",
-        totalBytes=usage[0],
-        freeBytes=usage[1],
-        filesystem=platform.system(),
-    )
-
-
-def _disk_usage(path: Path) -> tuple[int, int]:
-    """Return ``(total, free)`` bytes for the volume holding ``path``."""
-    import shutil
-
-    usage = shutil.disk_usage(path)
-    return (usage.total, usage.free)

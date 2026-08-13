@@ -267,6 +267,33 @@ body {
   border-color: var(--c-accent);
 }
 
+/* ---- accessibility ---- */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  background: var(--c-accent);
+  color: #0d0f14;
+  padding: 8px 12px;
+  border-radius: 0 0 var(--radius) 0;
+}
+
+.skip-link:focus {
+  left: 0;
+}
+
+:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+}
+
+.nav__item:focus-visible,
+.btn:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+}
+
 /* ---- utility ---- */
 .stack {
   display: flex;

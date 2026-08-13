@@ -9,6 +9,7 @@
 import { useState } from 'react';
 import { useAsync } from '../hooks/useAsync.js';
 import { Chip, Panel, Field } from '../components/ui.js';
+import { ConfirmDialog } from '../components/ConfirmDialog.js';
 import {
   organizeStage,
   previewApplyable,
@@ -36,6 +37,7 @@ export function Organize(): JSX.Element {
   const [outcome, setOutcome] = useState<ReturnType<typeof outcomeSummary> | null>(null);
   const [applying, setApplying] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const pickSource = async () => {
     const r = await window.mediaMate.dialog.pick({ kind: 'directory' });
@@ -232,7 +234,7 @@ export function Organize(): JSX.Element {
       <Panel title="4 · Apply">
         <button
           className="btn btn--primary"
-          onClick={apply}
+          onClick={() => (mode === 'move' ? setConfirmOpen(true) : apply())}
           disabled={
             !previewApplyable(preview) ||
             moveRequiresConfirm(mode, confirmMove) ||
@@ -251,6 +253,21 @@ export function Organize(): JSX.Element {
           </p>
         ) : null}
       </Panel>
+
+      {confirmOpen ? (
+        <ConfirmDialog
+          title="Move files"
+          body="This will move source files into the destination. This is destructive and cannot be undone by media-mate."
+          phrase="move"
+          confirmLabel="Move files"
+          onConfirm={() => {
+            setConfirmOpen(false);
+            setConfirmMove(true);
+            void apply();
+          }}
+          onCancel={() => setConfirmOpen(false)}
+        />
+      ) : null}
     </div>
   );
 }

@@ -9,6 +9,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { MediaMateAPI } from '../../shared/preload-api.js';
 import { activeViewId, navigateTo, type ViewDef } from './views.js';
+import { viewIndex, moveIndex, keyToAction } from './lib/nav.js';
 import { Onboarding } from './screens/Onboarding.js';
 import { Home } from './screens/Home.js';
 import { Projects } from './screens/Projects.js';
@@ -62,30 +63,52 @@ export function App(): JSX.Element {
 
   const active = useMemo(() => VIEWS.find((v) => v.id === viewId) ?? VIEWS[0]!, [viewId]);
   const ActiveScreen = active.component;
+  const viewIds = VIEWS.map((v) => v.id);
+  const activeIndex = viewIndex(viewId, viewIds);
+
+  // Keyboard navigation: ArrowDown/Up move between views, Enter/Space
+  // activates the focused one (plan §10 Pkg7 step 4).
+  const onNavKeyDown = (e: React.KeyboardEvent) => {
+    const action = keyToAction(e.key, e.ctrlKey, e.altKey);
+    if (action === 'next') {
+      navigateTo(VIEWS[moveIndex(activeIndex, 1, VIEWS.length)]!.id);
+      e.preventDefault();
+    } else if (action === 'prev') {
+      navigateTo(VIEWS[moveIndex(activeIndex, -1, VIEWS.length)]!.id);
+      e.preventDefault();
+    }
+  };
 
   return (
-    <div className="app">
+    <div className="app" onKeyDown={onNavKeyDown}>
+      <a href="#content" className="skip-link">
+        Skip to content
+      </a>
       <nav className="nav" aria-label="Primary">
         <div className="nav__brand">
           media-mate
           <small>vNext desktop</small>
         </div>
-        {VIEWS.map((v) => (
-          <button
-            key={v.id}
-            className={`nav__item${v.id === active.id ? ' nav__item--active' : ''}`}
-            onClick={() => navigateTo(v.id)}
-            aria-current={v.id === active.id ? 'page' : undefined}
-          >
-            {v.label}
-          </button>
-        ))}
+        <div role="menu" aria-label="Views">
+          {VIEWS.map((v) => (
+            <button
+              key={v.id}
+              role="menuitem"
+              className={`nav__item${v.id === active.id ? ' nav__item--active' : ''}`}
+              onClick={() => navigateTo(v.id)}
+              aria-current={v.id === active.id ? 'page' : undefined}
+              aria-keyshortcuts="ArrowDown ArrowUp"
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
       </nav>
       <header className="header">
         <span className="header__title">{active.label}</span>
         <span className="header__status">{status ?? 'connecting…'}</span>
       </header>
-      <main className="content">
+      <main id="content" className="content" tabIndex={-1}>
         <ActiveScreen />
       </main>
     </div>

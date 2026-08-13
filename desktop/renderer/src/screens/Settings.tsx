@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import { useAsync } from '../hooks/useAsync.js';
 import { Chip, Field, Panel, LoadingState, ErrorState } from '../components/ui.js';
 import { validateSettings } from '../lib/settings.js';
+import { buildReportText, canCopy, diagnosticFileName } from '../lib/diagnostics.js';
 import type { AppSettings } from '../../../shared/ipc-methods.js';
 
 const CODECS = ['ProRes422Proxy', 'H264', 'H265', 'ProRes422HQ', 'ProRes4444'];
@@ -181,6 +182,58 @@ export function Settings(): JSX.Element {
         {savedMsg !== null ? <Chip tone="ok">{savedMsg}</Chip> : null}
         {saveError !== null ? <Chip tone="danger">{saveError}</Chip> : null}
       </div>
+
+      <DiagnosticsPanel />
     </div>
+  );
+}
+
+function DiagnosticsPanel(): JSX.Element {
+  const diag = useAsync(() => window.mediaMate.app.diagnostics());
+  const [copied, setCopied] = useState(false);
+
+  if (diag.loading) {
+    return (
+      <Panel title="Diagnostics">
+        <LoadingState message="Gathering diagnostics…" />
+      </Panel>
+    );
+  }
+  if (diag.error !== null) {
+    return (
+      <Panel title="Diagnostics">
+        <p className="muted">Diagnostics unavailable: {diag.error}</p>
+      </Panel>
+    );
+  }
+  const report = {
+    summary: diag.data?.summary ?? '',
+    generatedAt: new Date().toISOString(),
+    appVersion: 'desktop',
+  };
+  const text = buildReportText(report);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  return (
+    <Panel title="Diagnostics">
+      <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 180, overflowY: 'auto' }}>{text}</pre>
+      <div className="row" style={{ marginTop: 8 }}>
+        <button className="btn" onClick={copy} disabled={!canCopy(report)}>
+          {copied ? 'Copied' : 'Copy diagnostics'}
+        </button>
+        <button className="btn" onClick={() => void window.mediaMate.app.openDiagnosticFolder()}>
+          Open diagnostics folder
+        </button>
+        <span className="muted">Save as: {diagnosticFileName(report.generatedAt)}</span>
+      </div>
+    </Panel>
   );
 }

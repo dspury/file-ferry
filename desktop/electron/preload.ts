@@ -78,8 +78,16 @@ const api = {
     list: (projectId?: string) => invoke('job.list', projectId ? { projectId } : {}),
     get: (id: string) => invoke('job.get', { id }),
     transition: (params: ParamsOf<'job.transition'>) => invoke('job.transition', params),
+    cancel: (id: string) => invoke('job.cancel', { id }),
+    recover: () => invoke('job.recover', {}),
     subscribe: (jobId: string) => invoke('job.subscribe', { jobId }),
     unsubscribe: (jobId: string) => invoke('job.unsubscribe', { jobId }),
+  },
+  plan: {
+    build: (params: ParamsOf<'plan.build'>) => invoke('plan.build', params),
+  },
+  receipt: {
+    export: (params: ParamsOf<'receipt.export'>) => invoke('receipt.export', params),
   },
   audit: {
     list: (params?: ParamsOf<'audit.list'>) => invoke('audit.list', params ?? {}),

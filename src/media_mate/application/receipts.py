@@ -15,6 +15,7 @@ same session differ in metadata, not in substance.
 from __future__ import annotations
 
 import hashlib
+import html
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -134,3 +135,79 @@ class ReceiptStore:
             ),
         )
         return file_path
+
+
+# ---------------------------------------------------------------------------
+# Human-readable export (plan §6.5, §8.3 receipt.export)
+# ---------------------------------------------------------------------------
+
+
+def export_markdown(receipt: OperationReceipt) -> str:
+    """Render a receipt as a self-contained human-readable Markdown report."""
+    lines: list[str] = []
+    lines.append(f"# Media-mate operation receipt ({receipt.kind})")
+    lines.append("")
+    lines.append(f"- **Operation id:** `{receipt.operation_id}`")
+    lines.append(f"- **App version:** {receipt.app_version}")
+    lines.append(f"- **Protocol version:** {receipt.protocol_version}")
+    lines.append(f"- **Final state:** `{receipt.final_state}`")
+    lines.append(f"- **Created at:** {receipt.created_at}")
+    lines.append(f"- **Receipt hash (SHA-256):** `{receipt.receipt_hash()}`")
+    lines.append("")
+
+    if receipt.policy is not None:
+        lines.append("## Storage policy")
+        lines.append("")
+        lines.append(
+            "- required replicas: "
+            f"{receipt.policy.required_replicas} "
+            f"(algo {receipt.policy.checksum_algo})"
+        )
+        lines.append(f"- backup on different volume: {receipt.policy.backup_on_different_volume}")
+        lines.append(f"- safety reserve: {receipt.policy.safety_reserve_bytes} bytes")
+        lines.append("")
+
+    lines.append("## Planned operations")
+    lines.append("")
+    _append_json_table(lines, receipt.planned)
+    lines.append("## Actual results")
+    lines.append("")
+    _append_json_table(lines, receipt.actual)
+
+    if receipt.checksums:
+        lines.append("## Checksums")
+        lines.append("")
+        _append_json_table(lines, receipt.checksums)
+
+    if receipt.warnings:
+        lines.append("## Warnings")
+        lines.append("")
+        for w in receipt.warnings:
+            lines.append(f"- {w}")
+        lines.append("")
+    if receipt.errors:
+        lines.append("## Errors")
+        lines.append("")
+        for e in receipt.errors:
+            lines.append(f"- {e}")
+        lines.append("")
+
+    return "\n".join(lines) + "\n"
+
+
+def export_html(receipt: OperationReceipt) -> str:
+    """Render a receipt as a self-contained HTML document."""
+    md = export_markdown(receipt)
+    body = html.escape(md)
+    return (
+        '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">'
+        f"<title>Media-mate receipt {html.escape(receipt.operation_id)}</title></head>"
+        f"<body><pre>{body}</pre></body></html>\n"
+    )
+
+
+def _append_json_table(lines: list[str], rows: list[dict[str, Any]]) -> None:
+    for row in rows:
+        for key, value in row.items():
+            lines.append(f"- **{key}:** {value}")
+    lines.append("")

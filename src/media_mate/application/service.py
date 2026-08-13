@@ -22,21 +22,30 @@ from media_mate.application.assets import AssetService
 from media_mate.application.audit import AuditService
 from media_mate.application.intake import IntakeService
 from media_mate.application.jobs import JobService
+from media_mate.application.plan import IntakePlanner
 from media_mate.application.profiles import ProfileService
 from media_mate.application.projects import ProjectService
+from media_mate.application.receipts import ReceiptStore, export_html, export_markdown
 from media_mate.application.replicas import ReplicaService
+from media_mate.application.scheduler import JobScheduler
 from media_mate.application.sources import SourceService
 from media_mate.persistence import runner
+from media_mate.persistence.connection import transaction
 from media_mate.service.protocol import (
     PROTOCOL_VERSION,
     AddDestinationParams,
     ArchiveProjectParams,
     AssetSummary,
     AuditEvent,
+    BuildPlanParams,
+    CancelJobParams,
     CreateIntakeSessionParams,
     CreateJobParams,
     CreateProjectParams,
+    ExportReceiptParams,
+    ExportReceiptResult,
     IntakeDestination,
+    IntakePlan,
     IntakeSession,
     JobDetail,
     JobSnapshot,
@@ -82,10 +91,14 @@ METHOD_NAMES: tuple[str, ...] = (
     "intake.createSession",
     "intake.addDestination",
     "intake.evaluate",
+    "plan.build",
+    "receipt.export",
     "job.create",
     "job.list",
     "job.get",
     "job.transition",
+    "job.cancel",
+    "job.recover",
     "audit.list",
     "audit.backfill",
     "job.subscribe",
@@ -116,6 +129,8 @@ class ApplicationService:
         self._intake: IntakeService | None = None
         self._jobs: JobService | None = None
         self._audit: AuditService | None = None
+        self._planner: IntakePlanner | None = None
+        self._scheduler: JobScheduler | None = None
 
     # ---- lifecycle ----------------------------------------------------
 
@@ -148,6 +163,9 @@ class ApplicationService:
         self._intake = IntakeService(self._db_path, self._assets, self._replicas)
         self._jobs = JobService(self._db_path)
         self._audit = AuditService(self._db_path)
+        self._planner = IntakePlanner(self._db_path)
+        self._scheduler = JobScheduler(self._db_path, self._jobs)
+        self._receipts = ReceiptStore(self._app_data_dir)
         self._bootstrapped = True
 
     def close(self) -> None:
@@ -164,6 +182,8 @@ class ApplicationService:
         self._intake = None
         self._jobs = None
         self._audit = None
+        self._planner = None
+        self._scheduler = None
         self._bootstrapped = False
 
     # ---- introspection ------------------------------------------------
@@ -301,6 +321,37 @@ class ApplicationService:
     def job_transition(self, params: JobTransitionParams) -> JobDetail:
         return self._job_service().transition(params)
 
+    def job_cancel(self, params: CancelJobParams) -> None:
+        """Request cooperative cancellation of a running job."""
+        return self._scheduler_service().request_cancel(params.id)
+
+    def job_dispatch(self, job_id: str) -> JobDetail:
+        """Run one queued job through its registered runner."""
+        return self._scheduler_service().dispatch(job_id)
+
+    def job_recover(self) -> list[str]:
+        """Mark jobs interrupted by a restart as needs_attention."""
+        return self._scheduler_service().recover()
+
+    # ---- plan / receipt ----------------------------------------------
+
+    def plan_build(self, params: BuildPlanParams) -> IntakePlan:
+        return self._planner_service().build(params)
+
+    def receipt_export(self, params: ExportReceiptParams) -> ExportReceiptResult:
+        with transaction(self._db_path) as conn:
+            row = conn.execute(
+                "SELECT receipt_json FROM operation_receipts WHERE operation_id = ? LIMIT 1",
+                (params.operation_id,),
+            ).fetchone()
+        if row is None:
+            raise KeyError(f"no receipt for operation {params.operation_id}")
+        from media_mate.application.receipts import OperationReceipt
+
+        receipt = OperationReceipt.model_validate_json(row["receipt_json"])
+        content = export_html(receipt) if params.format == "html" else export_markdown(receipt)
+        return ExportReceiptResult(content=content)
+
     # ---- audit methods -----------------------------------------------
 
     def audit_list(self, params: ListAuditParams) -> list[AuditEvent]:
@@ -345,6 +396,20 @@ class ApplicationService:
         if self._jobs is None:
             raise RuntimeError("ApplicationService.bootstrap() must be called first")
         return self._jobs
+
+    def _planner_service(self) -> IntakePlanner:
+        if self._planner is None:
+            raise RuntimeError("ApplicationService.bootstrap() must be called first")
+        return self._planner
+
+    def _scheduler_service(self) -> JobScheduler:
+        if self._scheduler is None:
+            raise RuntimeError("ApplicationService.bootstrap() must be called first")
+        return self._scheduler
+
+    def scheduler(self) -> JobScheduler:
+        """Expose the scheduler so runners can be registered at startup."""
+        return self._scheduler_service()
 
     def _audit_service(self) -> AuditService:
         if self._audit is None:

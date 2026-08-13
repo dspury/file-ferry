@@ -267,6 +267,57 @@ export interface ListAuditResult {
   readonly events: readonly AuditEvent[];
 }
 
+export interface PlanDestination {
+  readonly kind: 'working' | 'backup' | 'organization';
+  readonly rootPath: string;
+  readonly required?: boolean;
+}
+
+export interface PlanEntry {
+  readonly relPath: string;
+  readonly destPath: string;
+  readonly size: number;
+}
+
+export interface CollisionIssue {
+  readonly path: string;
+  readonly reason: string;
+  readonly count: number;
+}
+
+export interface IntakePlan {
+  readonly fingerprint: string;
+  readonly projectId: string;
+  readonly sourceId: number;
+  readonly sourceRoot: string;
+  readonly destinations: readonly PlanDestination[];
+  readonly entries: readonly PlanEntry[];
+  readonly totalBytes: number;
+  readonly capacityOk: boolean;
+  readonly neededBytes: number;
+  readonly warnings: readonly string[];
+  readonly collisions: readonly CollisionIssue[];
+}
+
+export interface BuildPlanParams {
+  readonly projectId: string;
+  readonly sourceId: number;
+  readonly destinations: readonly PlanDestination[];
+}
+
+export interface ExportReceiptParams {
+  readonly operationId: string;
+  readonly format: 'markdown' | 'html';
+}
+
+export interface ExportReceiptResult {
+  readonly content: string;
+}
+
+export interface CancelJobParams {
+  readonly id: string;
+}
+
 export interface JobSnapshot {
   readonly id: string;
   readonly state:
@@ -341,6 +392,10 @@ export interface MethodCatalog {
   'job.list': { params: { projectId?: string }; result: ListJobsResult };
   'job.get': { params: { id: string }; result: JobDetail };
   'job.transition': { params: JobTransitionParams; result: JobDetail };
+  'job.cancel': { params: CancelJobParams; result: Record<string, never> };
+  'job.recover': { params: Record<string, never>; result: string[] };
+  'plan.build': { params: BuildPlanParams; result: IntakePlan };
+  'receipt.export': { params: ExportReceiptParams; result: ExportReceiptResult };
   'audit.list': { params: ListAuditParams; result: ListAuditResult };
   'audit.backfill': { params: Record<string, never>; result: number };
   'job.subscribe': { params: { jobId: string }; result: JobSnapshot };

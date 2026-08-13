@@ -449,6 +449,88 @@ class ListAuditResult(FrozenModel):
     events: list[AuditEvent]
 
 
+# ---------------------------------------------------------------------------
+# intake planning
+# ---------------------------------------------------------------------------
+
+
+class PlanDestination(FrozenModel):
+    """One destination requested for an intake plan."""
+
+    kind: Literal["working", "backup", "organization"]
+    root_path: str = Field(alias="rootPath")
+    required: bool = True
+
+
+class PlanEntry(FrozenModel):
+    """One planned source->destination copy."""
+
+    rel_path: str = Field(alias="relPath")
+    dest_path: str = Field(alias="destPath")
+    size: int
+
+
+class CollisionIssue(FrozenModel):
+    """A detected plan collision (duplicate destination or case-only)."""
+
+    path: str
+    reason: str
+    count: int
+
+
+class IntakePlan(FrozenModel):
+    """An immutable intake plan built before any write."""
+
+    fingerprint: str
+    project_id: str = Field(alias="projectId")
+    source_id: int = Field(alias="sourceId")
+    source_root: str = Field(alias="sourceRoot")
+    destinations: list[PlanDestination]
+    entries: list[PlanEntry]
+    total_bytes: int = Field(alias="totalBytes")
+    capacity_ok: bool = Field(alias="capacityOk")
+    needed_bytes: int = Field(alias="neededBytes")
+    warnings: list[str]
+    collisions: list[CollisionIssue]
+
+
+class BuildPlanParams(FrozenModel):
+    """The params for ``plan.build``."""
+
+    project_id: str = Field(alias="projectId")
+    source_id: int = Field(alias="sourceId")
+    destinations: list[PlanDestination]
+
+
+# ---------------------------------------------------------------------------
+# receipt export
+# ---------------------------------------------------------------------------
+
+
+class ExportReceiptParams(FrozenModel):
+    """The params for ``receipt.export``."""
+
+    operation_id: str = Field(alias="operationId")
+    format: Literal["markdown", "html"] = "markdown"
+
+
+class ExportReceiptResult(FrozenModel):
+    """The result of ``receipt.export``."""
+
+    content: str
+
+
+# ---------------------------------------------------------------------------
+# job cancellation
+# ---------------------------------------------------------------------------
+
+
+class CancelJobParams(FrozenModel):
+    """The params for ``job.cancel``."""
+
+    id: str
+
+
 class SourceInventoryEntry(FrozenModel):
     """One file found by a read-only source scan."""
 
@@ -565,16 +647,22 @@ __all__ = [
     "ArchiveProjectParams",
     "AssetSummary",
     "AuditEvent",
+    "BuildPlanParams",
+    "CancelJobParams",
+    "CollisionIssue",
     "CreateIntakeSessionParams",
     "CreateJobParams",
     "CreateProjectParams",
     "CreateProjectResult",
     "ErrorFrame",
     "EventFrame",
+    "ExportReceiptParams",
+    "ExportReceiptResult",
     "Frame",
     "FrameRoot",
     "GetCapabilities",
     "IntakeDestination",
+    "IntakePlan",
     "IntakeSession",
     "JobDetail",
     "JobEvent",
@@ -591,6 +679,8 @@ __all__ = [
     "ListVolumesResult",
     "MountedVolume",
     "OrganizationProfile",
+    "PlanDestination",
+    "PlanEntry",
     "ProjectDetail",
     "ProjectSummary",
     "ReplicaSummary",

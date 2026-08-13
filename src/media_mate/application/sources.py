@@ -87,12 +87,8 @@ class SourceService:
         if not root.is_dir():
             raise NotADirectoryError(f"source path is not a directory: {root}")
 
-        entries: list[SourceInventoryEntry] = []
-        total_bytes = 0
-        for rel, size, mtime in _walk(root):
-            total_bytes += size
-            entries.append(SourceInventoryEntry(path=rel, size=size, mtime=mtime))
-        entries.sort(key=lambda e: e.path)
+        entries = scan_inventory(root)
+        total_bytes = sum(e.size for e in entries)
         manifest_hash = _manifest_hash(entries)
 
         source_id = self._register(
@@ -179,6 +175,20 @@ def _walk(root: Path) -> Iterable[tuple[str, int, float]]:
                 continue
             rel = str(full.relative_to(root))
             yield rel, int(st.st_size), st.st_mtime
+
+
+def scan_inventory(root: Path) -> list[SourceInventoryEntry]:
+    """Return the read-only media-file inventory of ``root``.
+
+    Applies the same system-artifact exclusions as :meth:`SourceService.inspect`
+    so a planner that re-scans a source at plan time agrees with the
+    source scan that created the manifest.
+    """
+    entries = [
+        SourceInventoryEntry(path=rel, size=size, mtime=mtime) for rel, size, mtime in _walk(root)
+    ]
+    entries.sort(key=lambda e: e.path)
+    return entries
 
 
 def _manifest_hash(entries: list[SourceInventoryEntry]) -> str:

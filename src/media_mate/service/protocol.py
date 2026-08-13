@@ -818,6 +818,80 @@ class ListVolumesResult(FrozenModel):
 
 
 # ---------------------------------------------------------------------------
+# profile.preview (plan §8.3)
+# ---------------------------------------------------------------------------
+
+
+class ProfilePreviewParams(FrozenModel):
+    """The params for ``profile.preview`` — a profile template + inputs."""
+
+    name: str = ""
+    template: dict[str, Any] = Field(default_factory=dict)
+    source_root: str = Field(alias="sourceRoot")
+    dest_root: str = Field(alias="destRoot")
+    entries: list[SourceInventoryEntry]
+    conflict_policy: str = Field(default="skip", alias="conflictPolicy")
+    mutation_policy: str = Field(default="copy", alias="mutationPolicy")
+
+
+# ---------------------------------------------------------------------------
+# settings (plan §8.3)
+# ---------------------------------------------------------------------------
+
+
+class AppSettings(FrozenModel):
+    """The application settings exposed to the renderer (Settings screen)."""
+
+    proxy_codec: str = Field(default="ProRes422Proxy", alias="proxyCodec")
+    proxy_height: int = Field(default=1080, alias="proxyHeight")
+    checksum_algo: str = Field(default="xxhash64", alias="checksumAlgo")
+    resolve_path: str | None = Field(default=None, alias="resolvePath")
+    ffmpeg_path: str | None = Field(default=None, alias="ffmpegPath")
+    organize_template: str = Field(
+        default="{root}/{source_relpath}/{filename}{ext}", alias="organizeTemplate"
+    )
+    organize_mode: str = Field(default="copy", alias="organizeMode")
+    organize_on_conflict: str = Field(default="skip", alias="organizeOnConflict")
+
+
+class UpdateSettingsParams(FrozenModel):
+    """The params for ``settings.update``. Only present fields change."""
+
+    proxy_codec: str | None = Field(default=None, alias="proxyCodec")
+    proxy_height: int | None = Field(default=None, alias="proxyHeight")
+    checksum_algo: str | None = Field(default=None, alias="checksumAlgo")
+    resolve_path: str | None = Field(default=None, alias="resolvePath")
+    ffmpeg_path: str | None = Field(default=None, alias="ffmpegPath")
+    organize_template: str | None = Field(default=None, alias="organizeTemplate")
+    organize_mode: str | None = Field(default=None, alias="organizeMode")
+    organize_on_conflict: str | None = Field(default=None, alias="organizeOnConflict")
+
+
+# ---------------------------------------------------------------------------
+# app.doctor (plan §8.3, onboarding/doctor screen)
+# ---------------------------------------------------------------------------
+
+
+class ToolCheck(FrozenModel):
+    """One dependency check on the Doctor screen."""
+
+    name: str
+    present: bool
+    path: str | None = None
+    message: str | None = None
+
+
+class DoctorResult(FrozenModel):
+    """The result of ``app.doctor`` — dependency + storage health."""
+
+    version: str
+    protocol_version: int = Field(alias="protocolVersion")
+    tools: list[ToolCheck]
+    app_data_dir: str = Field(alias="appDataDir")
+    db_path: str = Field(alias="dbPath")
+
+
+# ---------------------------------------------------------------------------
 # Wire format helpers
 # ---------------------------------------------------------------------------
 
@@ -855,6 +929,7 @@ __all__ = [
     "PROTOCOL_VERSION",
     "AcceptChangeParams",
     "AddDestinationParams",
+    "AppSettings",
     "AppStatus",
     "ArchiveProjectParams",
     "AssetSummary",
@@ -869,6 +944,7 @@ __all__ = [
     "CreateProjectResult",
     "DerivativeSummary",
     "DetectClipsParams",
+    "DoctorResult",
     "ErrorFrame",
     "EventFrame",
     "ExportReceiptParams",
@@ -905,6 +981,7 @@ __all__ = [
     "OrganizeResult",
     "PlanDestination",
     "PlanEntry",
+    "ProfilePreviewParams",
     "ProjectDetail",
     "ProjectManifest",
     "ProjectSummary",
@@ -925,7 +1002,9 @@ __all__ = [
     "SourceInspectResult",
     "SourceInventoryEntry",
     "StoragePolicy",
+    "ToolCheck",
     "UpdateProjectParams",
+    "UpdateSettingsParams",
     "VerifyReplicaParams",
     "VerifyReplicaResult",
     "decode_frame",

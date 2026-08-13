@@ -49,7 +49,11 @@ def _parse(response: str) -> dict:
 
 
 def _service(tmp_path: Path) -> ApplicationService:
-    svc = ApplicationService(db_path=tmp_path / "wiring.db", app_data_dir=tmp_path / "app")
+    svc = ApplicationService(
+        db_path=tmp_path / "wiring.db",
+        app_data_dir=tmp_path / "app",
+        config_path=tmp_path / "config.toml",
+    )
     svc.bootstrap()
     return svc
 
@@ -152,5 +156,69 @@ class TestErrorMapping:
             resp = _parse(_serve(svc, _request("asset.get")))
             assert resp["kind"] == "error"
             assert resp["error"]["code"] == "invalid_params"
+        finally:
+            svc.close()
+
+
+class TestPackage7Methods:
+    def test_app_doctor_returns_tools(self, tmp_path: Path) -> None:
+        svc = _service(tmp_path)
+        try:
+            resp = _parse(_serve(svc, _request("app.doctor")))
+            assert resp["kind"] == "response"
+            result = resp["result"]
+            assert result["protocolVersion"] == PROTOCOL_VERSION
+            names = [t["name"] for t in result["tools"]]
+            assert "ffmpeg" in names and "ffprobe" in names
+            assert result["dbPath"]
+        finally:
+            svc.close()
+
+    def test_settings_get_and_update(self, tmp_path: Path) -> None:
+        svc = _service(tmp_path)
+        try:
+            got = _parse(_serve(svc, _request("settings.get")))
+            assert got["kind"] == "response"
+            # Legacy "xxhash" normalizes to the protocol value.
+            assert got["result"]["checksumAlgo"] == "xxhash64"
+            assert got["result"]["proxyCodec"] == "ProRes422Proxy"
+
+            updated = _parse(
+                _serve(
+                    svc,
+                    _request("settings.update", {"proxyCodec": "H264", "proxyHeight": 720}),
+                )
+            )
+            assert updated["kind"] == "response"
+            assert updated["result"]["proxyCodec"] == "H264"
+            assert updated["result"]["proxyHeight"] == 720
+        finally:
+            svc.close()
+
+    def test_settings_update_validates_params(self, tmp_path: Path) -> None:
+        svc = _service(tmp_path)
+        try:
+            resp = _parse(
+                _serve(svc, _request("settings.update", {"proxyHeight": "not-a-number"}))
+            )
+            assert resp["kind"] == "error"
+            assert resp["error"]["code"] == "invalid_params"
+        finally:
+            svc.close()
+
+    def test_job_resume_requires_needs_attention(self, tmp_path: Path) -> None:
+        svc = _service(tmp_path)
+        try:
+            resp = _parse(_serve(svc, _request("job.resume", {"id": "missing"})))
+            # Unknown job surfaces as an internal error (service lookup).
+            assert resp["kind"] == "error"
+        finally:
+            svc.close()
+
+    def test_receipt_get_missing_is_error(self, tmp_path: Path) -> None:
+        svc = _service(tmp_path)
+        try:
+            resp = _parse(_serve(svc, _request("receipt.get", {"operationId": "nope"})))
+            assert resp["kind"] == "error"
         finally:
             svc.close()

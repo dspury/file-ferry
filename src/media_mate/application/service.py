@@ -30,7 +30,12 @@ from media_mate.application.plan import IntakePlanner
 from media_mate.application.profiles import ProfileService
 from media_mate.application.projects import ProjectService
 from media_mate.application.proxy_runner import ProxyRunner
-from media_mate.application.receipts import ReceiptStore, export_html, export_markdown
+from media_mate.application.receipts import (
+    OperationReceipt,
+    ReceiptStore,
+    export_html,
+    export_markdown,
+)
 from media_mate.application.reconcile import ReconcileService
 from media_mate.application.replicas import ReplicaService
 from media_mate.application.scheduler import JobScheduler
@@ -42,6 +47,7 @@ from media_mate.service.protocol import (
     PROTOCOL_VERSION,
     AcceptChangeParams,
     AddDestinationParams,
+    AppSettings,
     ArchiveProjectParams,
     AssetSummary,
     AuditEvent,
@@ -52,6 +58,7 @@ from media_mate.service.protocol import (
     CreateProjectParams,
     DerivativeSummary,
     DetectClipsParams,
+    DoctorResult,
     ExportReceiptParams,
     ExportReceiptResult,
     IntakeDestination,
@@ -69,6 +76,7 @@ from media_mate.service.protocol import (
     OrganizePreview,
     OrganizePreviewParams,
     OrganizeResult,
+    ProfilePreviewParams,
     ProjectDetail,
     ProjectManifest,
     ProjectSummary,
@@ -83,6 +91,7 @@ from media_mate.service.protocol import (
     SourceInspectResult,
     SourceInventoryEntry,
     UpdateProjectParams,
+    UpdateSettingsParams,
     VerifyReplicaParams,
     VerifyReplicaResult,
 )
@@ -94,6 +103,7 @@ SIDECAR_VERSION = "0.0.0+foundation"
 METHOD_NAMES: tuple[str, ...] = (
     "app.getStatus",
     "app.getCapabilities",
+    "app.doctor",
     "project.list",
     "project.create",
     "project.get",
@@ -104,6 +114,7 @@ METHOD_NAMES: tuple[str, ...] = (
     "profile.save",
     "profile.list",
     "profile.get",
+    "profile.preview",
     "asset.list",
     "asset.get",
     "replica.verify",
@@ -113,6 +124,7 @@ METHOD_NAMES: tuple[str, ...] = (
     "intake.evaluate",
     "plan.build",
     "receipt.export",
+    "receipt.get",
     "reconcile.asset",
     "reconcile.project",
     "reconcile.acceptChange",
@@ -130,10 +142,14 @@ METHOD_NAMES: tuple[str, ...] = (
     "job.transition",
     "job.cancel",
     "job.recover",
+    "job.resume",
+    "job.retry",
     "audit.list",
     "audit.backfill",
     "job.subscribe",
     "job.unsubscribe",
+    "settings.get",
+    "settings.update",
 )
 
 EVENT_NAMES: tuple[str, ...] = (
@@ -146,11 +162,18 @@ EVENT_NAMES: tuple[str, ...] = (
 class ApplicationService:
     """The assembly root. One instance per process."""
 
-    def __init__(self, db_path: Path, app_data_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        db_path: Path,
+        app_data_dir: Path | None = None,
+        *,
+        config_path: Path | None = None,
+    ) -> None:
         self._db_path = Path(db_path)
         self._app_data_dir = (
             Path(app_data_dir) if app_data_dir is not None else self._db_path.parent
         )
+        self._config_path = Path(config_path) if config_path is not None else None
         self._bootstrapped = False
         self._projects: ProjectService | None = None
         self._sources: SourceService | None = None
@@ -292,6 +315,20 @@ class ApplicationService:
     def profile_get(self, profile_id: int) -> OrganizationProfile:
         return self._profile_service().get(profile_id)
 
+    def profile_preview(self, params: ProfilePreviewParams) -> OrganizePreview:
+        """Preview how an organization profile maps a source tree (plan §8.3)."""
+        from media_mate.service.protocol import OrganizePreviewParams
+
+        return self._organize_service().preview(
+            OrganizePreviewParams(
+                sourceRoot=params.source_root,
+                destRoot=params.dest_root,
+                entries=params.entries,
+                template=params.template,
+                mode="copy",  # preview never mutates
+            )
+        )
+
     # ---- asset methods -----------------------------------------------
 
     def asset_list(self, params: ListAssetsParams) -> list[AssetSummary]:
@@ -386,24 +423,41 @@ class ApplicationService:
         """Mark jobs interrupted by a restart as needs_attention."""
         return self._scheduler_service().recover()
 
+    def job_resume(self, job_id: str) -> JobDetail:
+        """Resume an attention job at a safe boundary (plan §6.4)."""
+        return self._scheduler_service().resume(job_id)
+
+    def job_retry(self, job_id: str) -> JobDetail:
+        """Retry a failed job with a fresh attempt (plan §6.4)."""
+        return self._scheduler_service().retry(job_id)
+
     # ---- plan / receipt ----------------------------------------------
 
     def plan_build(self, params: BuildPlanParams) -> IntakePlan:
         return self._planner_service().build(params)
 
     def receipt_export(self, params: ExportReceiptParams) -> ExportReceiptResult:
+
+        receipt = self._load_receipt(params.operation_id)
+        content = export_html(receipt) if params.format == "html" else export_markdown(receipt)
+        return ExportReceiptResult(content=content)
+
+    def receipt_get(self, operation_id: str) -> dict[str, object]:
+        """Return the stored receipt as a dict (plan §8.3 receipt.get)."""
+        receipt = self._load_receipt(operation_id)
+        dumped = receipt.model_dump(by_alias=True)
+        return {k: v for k, v in dumped.items()}
+
+    def _load_receipt(self, operation_id: str) -> OperationReceipt:
+        """Load an OperationReceipt by id, raising KeyError if absent."""
         with transaction(self._db_path) as conn:
             row = conn.execute(
                 "SELECT receipt_json FROM operation_receipts WHERE operation_id = ? LIMIT 1",
-                (params.operation_id,),
+                (operation_id,),
             ).fetchone()
         if row is None:
-            raise KeyError(f"no receipt for operation {params.operation_id}")
-        from media_mate.application.receipts import OperationReceipt
-
-        receipt = OperationReceipt.model_validate_json(row["receipt_json"])
-        content = export_html(receipt) if params.format == "html" else export_markdown(receipt)
-        return ExportReceiptResult(content=content)
+            raise KeyError(f"no receipt for operation {operation_id}")
+        return OperationReceipt.model_validate_json(row["receipt_json"])
 
     # ---- reconcile / organize / clips --------------------------------
 
@@ -567,6 +621,92 @@ class ApplicationService:
             raise RuntimeError("ApplicationService.bootstrap() must be called first")
         return self._volume_observer.poll()
 
+    # ---- settings / doctor (plan §8.3) -------------------------------
+
+    def settings_get(self) -> AppSettings:
+        """Return the current application settings from the config file."""
+        from media_mate.config import load_config
+
+        cfg = load_config(self._config_path)
+        raw_algo = cfg.checksum_algo.value if cfg.checksum_algo else "xxhash"
+        return AppSettings(
+            proxyCodec=cfg.proxy_codec,
+            proxyHeight=cfg.proxy_height,
+            # Legacy config enum uses "xxhash"; the vNext protocol uses
+            # "xxhash64". Normalize so the renderer sees a stable value.
+            checksumAlgo=_normalize_checksum_algo(raw_algo),
+            resolvePath=cfg.resolve_path,
+            ffmpegPath=cfg.ffmpeg_path,
+            organizeTemplate=cfg.organize.template,
+            organizeMode=cfg.organize.mode,
+            organizeOnConflict=cfg.organize.on_conflict,
+        )
+
+    def settings_update(self, params: UpdateSettingsParams) -> AppSettings:
+        """Apply present settings fields and persist, then return the result."""
+        from media_mate.config import config_target, load_config, save_config
+
+        current = load_config(self._config_path)
+        updates: dict[tuple[str, str], str] = {}
+        if params.proxy_codec is not None:
+            current.proxy_codec = params.proxy_codec
+            updates[("", "proxy_codec")] = params.proxy_codec
+        if params.proxy_height is not None:
+            current.proxy_height = params.proxy_height
+            updates[("", "proxy_height")] = str(params.proxy_height)
+        if params.checksum_algo is not None:
+            current.checksum_algo = params.checksum_algo  # type: ignore[assignment]
+            updates[("", "checksum_algo")] = params.checksum_algo
+        if params.resolve_path is not None:
+            current.resolve_path = params.resolve_path
+            updates[("", "resolve_path")] = params.resolve_path
+        if params.ffmpeg_path is not None:
+            current.ffmpeg_path = params.ffmpeg_path
+            updates[("", "ffmpeg_path")] = params.ffmpeg_path
+        if params.organize_template is not None:
+            current.organize.template = params.organize_template
+            updates[("organize", "template")] = params.organize_template
+        if params.organize_mode is not None:
+            current.organize.mode = params.organize_mode  # type: ignore[assignment]
+            updates[("organize", "mode")] = params.organize_mode
+        if params.organize_on_conflict is not None:
+            current.organize.on_conflict = params.organize_on_conflict  # type: ignore[assignment]
+            updates[("organize", "on_conflict")] = params.organize_on_conflict
+
+        path = config_target(self._config_path)
+        if updates:
+            save_config(current, path)
+        return self.settings_get()
+
+    def app_doctor(self) -> DoctorResult:
+        """Return dependency + storage health for the Onboarding/Doctor screen."""
+
+        from media_mate.config import config_target, load_config
+        from media_mate.service.protocol import ToolCheck
+
+        cfg = load_config(self._config_path)
+        ffmpeg = _locate_binary(cfg.ffmpeg_path, "ffmpeg")
+        ffprobe = _locate_binary(cfg.ffmpeg_path, "ffprobe")
+        resolve = cfg.resolve_path if cfg.resolve_path and Path(cfg.resolve_path).exists() else None
+        db_path = self._db_path
+        return DoctorResult(
+            version=self.sidecar_version(),
+            protocolVersion=PROTOCOL_VERSION,
+            tools=[
+                ToolCheck(name="ffmpeg", present=ffmpeg is not None, path=ffmpeg),
+                ToolCheck(name="ffprobe", present=ffprobe is not None, path=ffprobe),
+                ToolCheck(name="resolve", present=resolve is not None, path=resolve),
+                ToolCheck(
+                    name="config",
+                    present=True,
+                    path=str(config_target(self._config_path)),
+                    message="settings loaded",
+                ),
+            ],
+            appDataDir=str(self._app_data_dir),
+            dbPath=str(db_path),
+        )
+
     def job_snapshot(self, job_id: str) -> JobSnapshot:
         """Return a snapshot of the named job. The foundation cut returns
         a placeholder."""
@@ -583,3 +723,27 @@ class ApplicationService:
     def job_unsubscribe(self, job_id: str) -> None:
         """Idempotent unsubscribe for the named job. No-op in the foundation cut."""
         return None
+
+
+def _locate_binary(configured: str | None, name: str) -> str | None:
+    """Locate a binary from a configured path or PATH lookup."""
+    import shutil
+
+    if configured:
+        candidate = Path(configured).expanduser()
+        # config.ffmpeg_path may point at ffmpeg itself or its dir.
+        if candidate.is_dir():
+            candidate = candidate / name
+        if candidate.exists() and candidate.is_file():
+            return str(candidate)
+        if candidate.name == name and candidate.exists():
+            return str(candidate)
+    found = shutil.which(name)
+    return found
+
+
+def _normalize_checksum_algo(algo: str) -> str:
+    """Map the legacy config enum value to the vNext protocol value."""
+    if algo == "xxhash":
+        return "xxhash64"
+    return algo

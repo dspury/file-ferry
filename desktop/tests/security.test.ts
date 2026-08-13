@@ -70,6 +70,7 @@ describe('narrow preload surface (ADR-0001)', () => {
       'receipt',
       'reconcile',
       'replica',
+      'settings',
       'sidecarEvents',
       'source',
     ]);

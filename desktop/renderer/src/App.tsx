@@ -1,14 +1,22 @@
 /**
- * Foundation renderer. The full Ingest / Organize / Projects / Activity
- * screens land in Package 7 of the implementation plan. This App is the
- * minimum viable surface that proves the security boundary, the IPC
- * bridge, and the sidecar lifecycle are wired correctly.
+ * Desktop shell. Renders the nav, header, and the active screen based on
+ * the URL hash. It does not import filesystem, database, or node APIs; it
+ * only consumes the `window.mediaMate` API exposed by the preload.
  *
- * It does not import any filesystem, database, or node APIs. It only
- * consumes the `window.mediaMate` API exposed by the preload script.
+ * Package 7a: the shell, nav, and design system are wired here; the
+ * screens are placeholders until 7b/7c/7d.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { MediaMateAPI } from '../../shared/preload-api.js';
+import { activeViewId, navigateTo, type ViewDef } from './views.js';
+import { Onboarding } from './screens/Onboarding.js';
+import { Home } from './screens/Home.js';
+import { Projects } from './screens/Projects.js';
+import { Ingest } from './screens/Ingest.js';
+import { Organize } from './screens/Organize.js';
+import { Activity } from './screens/Activity.js';
+import { AssetDetail } from './screens/AssetDetail.js';
+import { Settings } from './screens/Settings.js';
 
 declare global {
   interface Window {
@@ -16,59 +24,70 @@ declare global {
   }
 }
 
-interface StatusView {
-  readonly sidecarVersion: string;
-  readonly protocolVersion: number;
-  readonly capabilities: readonly string[];
-}
+const VIEWS: readonly ViewDef[] = [
+  { id: 'onboarding', label: 'Onboarding', component: Onboarding },
+  { id: 'home', label: 'Home', component: Home },
+  { id: 'projects', label: 'Projects', component: Projects },
+  { id: 'ingest', label: 'Ingest', component: Ingest },
+  { id: 'organize', label: 'Organize', component: Organize },
+  { id: 'activity', label: 'Activity', component: Activity },
+  { id: 'asset', label: 'Asset / Clip', component: AssetDetail },
+  { id: 'settings', label: 'Settings', component: Settings },
+];
 
 export function App(): JSX.Element {
-  const [status, setStatus] = useState<StatusView | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [viewId, setViewId] = useState<string>(() => activeViewId('home'));
+  const [status, setStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onHashChange = () => setViewId(activeViewId('home'));
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     window.mediaMate.app
       .getStatus()
       .then((s) => {
-        if (!cancelled) setStatus(s);
+        if (!cancelled) setStatus(`protocol v${s.protocolVersion}`);
       })
-      .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
+      .catch(() => {
+        if (!cancelled) setStatus('sidecar unreachable');
       });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  if (error !== null) {
-    return (
-      <main className="app app--error">
-        <h1>media-mate</h1>
-        <p className="error">sidecar unreachable: {error}</p>
-      </main>
-    );
-  }
-
-  if (status === null) {
-    return (
-      <main className="app">
-        <h1>media-mate</h1>
-        <p>connecting to sidecar…</p>
-      </main>
-    );
-  }
+  const active = useMemo(() => VIEWS.find((v) => v.id === viewId) ?? VIEWS[0]!, [viewId]);
+  const ActiveScreen = active.component;
 
   return (
-    <main className="app">
-      <h1>media-mate</h1>
-      <p className="tag">vNext foundation · protocol v{status.protocolVersion}</p>
-      <p>sidecar {status.sidecarVersion}</p>
-      <ul>
-        {status.capabilities.map((c) => (
-          <li key={c}>{c}</li>
+    <div className="app">
+      <nav className="nav" aria-label="Primary">
+        <div className="nav__brand">
+          media-mate
+          <small>vNext desktop</small>
+        </div>
+        {VIEWS.map((v) => (
+          <button
+            key={v.id}
+            className={`nav__item${v.id === active.id ? ' nav__item--active' : ''}`}
+            onClick={() => navigateTo(v.id)}
+            aria-current={v.id === active.id ? 'page' : undefined}
+          >
+            {v.label}
+          </button>
         ))}
-      </ul>
-    </main>
+      </nav>
+      <header className="header">
+        <span className="header__title">{active.label}</span>
+        <span className="header__status">{status ?? 'connecting…'}</span>
+      </header>
+      <main className="content">
+        <ActiveScreen />
+      </main>
+    </div>
   );
 }

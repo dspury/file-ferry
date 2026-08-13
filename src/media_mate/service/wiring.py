@@ -25,6 +25,7 @@ from media_mate.service.protocol import (
     PROTOCOL_VERSION,
     AcceptChangeParams,
     AddDestinationParams,
+    AppSettings,
     AppStatus,
     ArchiveProjectParams,
     AssetSummary,
@@ -36,6 +37,7 @@ from media_mate.service.protocol import (
     CreateProjectResult,
     DerivativeSummary,
     DetectClipsParams,
+    DoctorResult,
     ExportReceiptParams,
     ExportReceiptResult,
     GetCapabilities,
@@ -60,6 +62,7 @@ from media_mate.service.protocol import (
     OrganizePreview,
     OrganizePreviewParams,
     OrganizeResult,
+    ProfilePreviewParams,
     ProjectDetail,
     ProjectManifest,
     ReconcileAssetParams,
@@ -71,6 +74,7 @@ from media_mate.service.protocol import (
     SourceInspectParams,
     SourceInspectResult,
     UpdateProjectParams,
+    UpdateSettingsParams,
     VerifyReplicaParams,
     VerifyReplicaResult,
 )
@@ -131,6 +135,9 @@ def _build_handlers(service: ApplicationService) -> dict[str, Handler]:
             version=PROTOCOL_VERSION,
         )
 
+    def app_doctor(_: dict[str, Any]) -> DoctorResult:
+        return service.app_doctor()
+
     def project_list(_: dict[str, Any]) -> ListProjectsResult:
         return ListProjectsResult(projects=service.list_projects())
 
@@ -171,6 +178,10 @@ def _build_handlers(service: ApplicationService) -> dict[str, Handler]:
         if not isinstance(profile_id, int):
             rpc_error("invalid_params", "missing id")
         return service.profile_get(profile_id)
+
+    def profile_preview(params: dict[str, Any]) -> OrganizePreview:
+        p = _validate(ProfilePreviewParams, params)
+        return service.profile_preview(p)
 
     def asset_list(params: dict[str, Any]) -> ListAssetsResult:
         p = _validate(ListAssetsParams, params)
@@ -231,6 +242,18 @@ def _build_handlers(service: ApplicationService) -> dict[str, Handler]:
     def job_recover(_: dict[str, Any]) -> list[str]:
         return service.job_recover()
 
+    def job_resume(params: dict[str, Any]) -> JobDetail:
+        job_id = params.get("id")
+        if not isinstance(job_id, str) or not job_id:
+            rpc_error("invalid_params", "missing id")
+        return service.job_resume(job_id)
+
+    def job_retry(params: dict[str, Any]) -> JobDetail:
+        job_id = params.get("id")
+        if not isinstance(job_id, str) or not job_id:
+            rpc_error("invalid_params", "missing id")
+        return service.job_retry(job_id)
+
     def plan_build(params: dict[str, Any]) -> IntakePlan:
         p = _validate(BuildPlanParams, params)
         return service.plan_build(p)
@@ -238,6 +261,12 @@ def _build_handlers(service: ApplicationService) -> dict[str, Handler]:
     def receipt_export(params: dict[str, Any]) -> ExportReceiptResult:
         p = _validate(ExportReceiptParams, params)
         return service.receipt_export(p)
+
+    def receipt_get(params: dict[str, Any]) -> dict[str, Any]:
+        op_id = params.get("operationId")
+        if not isinstance(op_id, str) or not op_id:
+            rpc_error("invalid_params", "missing operationId")
+        return service.receipt_get(op_id)
 
     def reconcile_asset(params: dict[str, Any]) -> ReconcileReport:
         p = _validate(ReconcileAssetParams, params)
@@ -308,9 +337,17 @@ def _build_handlers(service: ApplicationService) -> dict[str, Handler]:
         service.job_unsubscribe(job_id)
         return {}
 
+    def settings_get(_: dict[str, Any]) -> AppSettings:
+        return service.settings_get()
+
+    def settings_update(params: dict[str, Any]) -> AppSettings:
+        p = _validate(UpdateSettingsParams, params)
+        return service.settings_update(p)
+
     handlers: dict[str, Handler] = {
         "app.getStatus": app_get_status,
         "app.getCapabilities": app_get_capabilities,
+        "app.doctor": app_doctor,
         "project.list": project_list,
         "project.create": project_create,
         "project.get": project_get,
@@ -321,6 +358,7 @@ def _build_handlers(service: ApplicationService) -> dict[str, Handler]:
         "profile.save": profile_save,
         "profile.list": profile_list,
         "profile.get": profile_get,
+        "profile.preview": profile_preview,
         "asset.list": asset_list,
         "asset.get": asset_get,
         "replica.verify": replica_verify,
@@ -334,8 +372,11 @@ def _build_handlers(service: ApplicationService) -> dict[str, Handler]:
         "job.transition": job_transition,
         "job.cancel": job_cancel,
         "job.recover": job_recover,
+        "job.resume": job_resume,
+        "job.retry": job_retry,
         "plan.build": plan_build,
         "receipt.export": receipt_export,
+        "receipt.get": receipt_get,
         "reconcile.asset": reconcile_asset,
         "reconcile.project": reconcile_project,
         "reconcile.acceptChange": reconcile_accept_change,
@@ -351,5 +392,7 @@ def _build_handlers(service: ApplicationService) -> dict[str, Handler]:
         "audit.backfill": audit_backfill,
         "job.subscribe": job_subscribe,
         "job.unsubscribe": job_unsubscribe,
+        "settings.get": settings_get,
+        "settings.update": settings_update,
     }
     return handlers

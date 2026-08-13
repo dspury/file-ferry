@@ -19,7 +19,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from media_mate.application.jobs import InvalidTransitionError, JobService
-from media_mate.service.protocol import JobDetail
+from media_mate.service.protocol import CreateJobParams, JobDetail
 
 Runner = Callable[[JobDetail, "JobScheduler"], str]
 VolumeResolver = Callable[[JobDetail], str]
@@ -104,16 +104,20 @@ class JobScheduler:
 
         try:
             job = self._transition(job_id, "queued", "running")
-            if runner is None:
-                self._cancelled.discard(job_id)
-                return self._transition(job_id, "running", "needs_attention")
-            try:
-                outcome = runner(job, self)
-            except Exception:  # runner must not crash the scheduler
-                outcome = "failed"
-            return self._finish(job_id, job, outcome)
+            return self._execute(job, runner)
         finally:
             self._limiter.release(volume)
+
+    def _execute(self, job: JobDetail, runner: Runner | None) -> JobDetail:
+        """Run an already-"running" job through its runner and finish it."""
+        if runner is None:
+            self._cancelled.discard(job.id)
+            return self._transition(job.id, "running", "needs_attention")
+        try:
+            outcome = runner(job, self)
+        except Exception:  # runner must not crash the scheduler
+            outcome = "failed"
+        return self._finish(job.id, job, outcome)
 
     def _finish(self, job_id: str, job: JobDetail, outcome: str) -> JobDetail:
         # ``failed`` is only reachable from ``verifying`` in the §6.4 machine,
@@ -151,6 +155,54 @@ class JobScheduler:
                 except InvalidTransitionError:  # pragma: no cover - defensive
                     continue
         return recovered
+
+    def resume(self, job_id: str) -> JobDetail:
+        """Resume an attention/partial job at a safe boundary.
+
+        Per plan §6.4, ``needs_attention -> resumable -> running``. The
+        runner is responsible for validating source/destination state and
+        the original plan fingerprint before it reuses partial output; the
+        scheduler only advances the legal transitions and executes.
+        """
+        job = self._jobs.get(job_id)
+        if job.state != "needs_attention":
+            raise InvalidTransitionError(
+                f"cannot resume job {job_id} in state {job.state!r}; expected needs_attention"
+            )
+        runner = self._runners.get(job.command)
+        volume = self._volume_of(job)
+        if not self._limiter.acquire(volume):
+            return job  # no slot yet; stays needs_attention
+        try:
+            self._transition(job_id, "needs_attention", "resumable")
+            job = self._transition(job_id, "resumable", "running")
+            return self._execute(job, runner)
+        finally:
+            self._limiter.release(volume)
+
+    def retry(self, job_id: str) -> JobDetail:
+        """Retry a failed job with a fresh attempt.
+
+        ``failed`` is a terminal state in the §6.4 machine, so a retry
+        creates a NEW job (a fresh attempt) rather than mutating the
+        failed record. The prior failure is preserved in history.
+        """
+        prior = self._jobs.get(job_id)
+        if prior.state != "failed":
+            raise InvalidTransitionError(
+                f"cannot retry job {job_id} in state {prior.state!r}; expected failed"
+            )
+        created = self._jobs.create(
+            CreateJobParams(
+                projectId=prior.project_id,
+                command=prior.command,
+                sessionId=prior.session_id,
+                totalSteps=prior.total_steps,
+            )
+        )
+        self._transition(created.id, "planned", "awaiting_review")
+        self._transition(created.id, "awaiting_review", "queued")
+        return self.dispatch(created.id)
 
     # ---- events ------------------------------------------------------
 

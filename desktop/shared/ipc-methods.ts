@@ -497,6 +497,53 @@ export interface ListVolumesResult {
   readonly volumes: readonly MountedVolume[];
 }
 
+export interface ProfilePreviewParams {
+  readonly name?: string;
+  readonly template: Record<string, unknown>;
+  readonly sourceRoot: string;
+  readonly destRoot: string;
+  readonly entries: readonly SourceInventoryEntry[];
+  readonly conflictPolicy?: string;
+  readonly mutationPolicy?: string;
+}
+
+export interface AppSettings {
+  readonly proxyCodec: string;
+  readonly proxyHeight: number;
+  readonly checksumAlgo: string;
+  readonly resolvePath: string | null;
+  readonly ffmpegPath: string | null;
+  readonly organizeTemplate: string;
+  readonly organizeMode: string;
+  readonly organizeOnConflict: string;
+}
+
+export interface UpdateSettingsParams {
+  readonly proxyCodec?: string;
+  readonly proxyHeight?: number;
+  readonly checksumAlgo?: string;
+  readonly resolvePath?: string | null;
+  readonly ffmpegPath?: string | null;
+  readonly organizeTemplate?: string;
+  readonly organizeMode?: string;
+  readonly organizeOnConflict?: string;
+}
+
+export interface ToolCheck {
+  readonly name: string;
+  readonly present: boolean;
+  readonly path: string | null;
+  readonly message: string | null;
+}
+
+export interface DoctorResult {
+  readonly version: string;
+  readonly protocolVersion: number;
+  readonly tools: readonly ToolCheck[];
+  readonly appDataDir: string;
+  readonly dbPath: string;
+}
+
 /**
  * The method catalog. The `key` is the method name; the `value`
  * param/result types enforce the contract on both sides.
@@ -510,6 +557,7 @@ export interface ListVolumesResult {
 export interface MethodCatalog {
   'app.getStatus': { params: Record<string, never>; result: AppStatus };
   'app.getCapabilities': { params: Record<string, never>; result: GetCapabilities };
+  'app.doctor': { params: Record<string, never>; result: DoctorResult };
   'project.list': { params: Record<string, never>; result: ListProjectsResult };
   'project.create': { params: CreateProjectParams; result: CreateProjectResult };
   'project.get': { params: { projectId: string }; result: ProjectDetail };
@@ -520,6 +568,7 @@ export interface MethodCatalog {
   'profile.save': { params: SaveProfileParams; result: OrganizationProfile };
   'profile.list': { params: Record<string, never>; result: ListProfilesResult };
   'profile.get': { params: { id: number }; result: OrganizationProfile };
+  'profile.preview': { params: ProfilePreviewParams; result: OrganizePreview };
   'asset.list': { params: ListAssetsParams; result: ListAssetsResult };
   'asset.get': { params: { assetId: string }; result: AssetSummary };
   'replica.verify': { params: VerifyReplicaParams; result: VerifyReplicaResult };
@@ -536,8 +585,11 @@ export interface MethodCatalog {
   'job.transition': { params: JobTransitionParams; result: JobDetail };
   'job.cancel': { params: CancelJobParams; result: Record<string, never> };
   'job.recover': { params: Record<string, never>; result: string[] };
+  'job.resume': { params: { id: string }; result: JobDetail };
+  'job.retry': { params: { id: string }; result: JobDetail };
   'plan.build': { params: BuildPlanParams; result: IntakePlan };
   'receipt.export': { params: ExportReceiptParams; result: ExportReceiptResult };
+  'receipt.get': { params: { operationId: string }; result: Record<string, unknown> };
   'reconcile.asset': { params: ReconcileAssetParams; result: ReconcileReport };
   'reconcile.project': { params: ReconcileProjectParams; result: ReconcileReport[] };
   'reconcile.acceptChange': { params: AcceptChangeParams; result: ReconcileReport };
@@ -553,6 +605,8 @@ export interface MethodCatalog {
   'audit.backfill': { params: Record<string, never>; result: number };
   'job.subscribe': { params: { jobId: string }; result: JobSnapshot };
   'job.unsubscribe': { params: { jobId: string }; result: Record<string, never> };
+  'settings.get': { params: Record<string, never>; result: AppSettings };
+  'settings.update': { params: UpdateSettingsParams; result: AppSettings };
 }
 
 export type MethodName = keyof MethodCatalog;

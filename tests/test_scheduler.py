@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from media_mate.application.jobs import JobService
+from media_mate.application.jobs import InvalidTransitionError, JobService
 from media_mate.application.scheduler import JobScheduler, VolumeLimiter
 from media_mate.service.protocol import CreateJobParams, JobTransitionParams
 
@@ -184,3 +184,56 @@ def test_recover_marks_interrupted_as_needs_attention(db: Path) -> None:
     assert jobs.get(running).state == "needs_attention"
     assert jobs.get(verifying).state == "needs_attention"
     assert jobs.get(done).state == "succeeded"
+
+
+# ---- resume / retry (plan §6.4, Package 7) ---------------------------
+
+def _attention_job(db: Path, jobs: JobService) -> str:
+    """Create a job stuck in needs_attention with a runner registered."""
+    jid = _queued_job(jobs)
+    jobs.transition(JobTransitionParams(id=jid, fromState="queued", toState="running"))
+    jobs.transition(JobTransitionParams(id=jid, fromState="running", toState="needs_attention"))
+    return jid
+
+
+def test_resume_moves_attention_through_resumable_to_running(db: Path) -> None:
+    jobs = JobService(db)
+    sched = JobScheduler(db, jobs)
+    sched.register_runner("copy", lambda job, s: "succeeded")
+    jid = _attention_job(db, jobs)
+    result = sched.resume(jid)
+    # needs_attention -> resumable -> queued -> running -> verifying -> succeeded
+    assert result.state == "succeeded"
+
+
+def test_resume_requires_needs_attention(db: Path) -> None:
+    jobs = JobService(db)
+    sched = JobScheduler(db, jobs)
+    jid = _queued_job(jobs)
+    with pytest.raises(InvalidTransitionError):
+        sched.resume(jid)  # queued is not resumable
+
+
+def test_retry_creates_fresh_job_and_reruns(db: Path) -> None:
+    jobs = JobService(db)
+    sched = JobScheduler(db, jobs)
+    sched.register_runner("copy", lambda job, s: "failed")
+    jid = _queued_job(jobs)
+    assert sched.dispatch(jid).state == "failed"
+    # Change the runner outcome to success and retry.
+    sched.register_runner("copy", lambda job, s: "succeeded")
+    result = sched.retry(jid)
+    # Retry creates a NEW job (failed is terminal); the new one succeeds.
+    assert result.id != jid
+    assert result.state == "succeeded"
+    # The original failed record is preserved.
+    assert jobs.get(jid).state == "failed"
+
+
+def test_retry_requires_failed(db: Path) -> None:
+    jobs = JobService(db)
+    sched = JobScheduler(db, jobs)
+    sched.register_runner("copy", lambda job, s: "succeeded")
+    jid = _queued_job(jobs)
+    with pytest.raises(InvalidTransitionError):
+        sched.retry(jid)  # queued is not failed

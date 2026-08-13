@@ -42,6 +42,7 @@ const api = {
   app: {
     getStatus: () => invoke('app.getStatus', {}),
     getCapabilities: () => invoke('app.getCapabilities', {}),
+    doctor: () => invoke('app.doctor', {}),
     openDiagnosticFolder: () =>
       ipcRenderer.invoke('app:openDiagnosticFolder') as Promise<{ logDir: string }>,
     diagnostics: () => ipcRenderer.invoke('app:diagnostics') as Promise<{ summary: string }>,
@@ -65,6 +66,7 @@ const api = {
     save: (params: ParamsOf<'profile.save'>) => invoke('profile.save', params),
     list: () => invoke('profile.list', {}),
     get: (id: number) => invoke('profile.get', { id }),
+    preview: (params: ParamsOf<'profile.preview'>) => invoke('profile.preview', params),
   },
   asset: {
     list: (params?: ParamsOf<'asset.list'>) => invoke('asset.list', params ?? {}),
@@ -88,6 +90,8 @@ const api = {
     transition: (params: ParamsOf<'job.transition'>) => invoke('job.transition', params),
     cancel: (id: string) => invoke('job.cancel', { id }),
     recover: () => invoke('job.recover', {}),
+    resume: (id: string) => invoke('job.resume', { id }),
+    retry: (id: string) => invoke('job.retry', { id }),
     subscribe: (jobId: string) => invoke('job.subscribe', { jobId }),
     unsubscribe: (jobId: string) => invoke('job.unsubscribe', { jobId }),
   },
@@ -96,6 +100,11 @@ const api = {
   },
   receipt: {
     export: (params: ParamsOf<'receipt.export'>) => invoke('receipt.export', params),
+    get: (operationId: string) => invoke('receipt.get', { operationId }),
+  },
+  settings: {
+    get: () => invoke('settings.get', {}),
+    update: (params: ParamsOf<'settings.update'>) => invoke('settings.update', params),
   },
   reconcile: {
     asset: (params: ParamsOf<'reconcile.asset'>) => invoke('reconcile.asset', params),

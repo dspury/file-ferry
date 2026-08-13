@@ -15,6 +15,7 @@ import { applyContentSecurityPolicy, baseWindowOptions } from './security.js';
 import { JobSnapshotStore, replayPayload } from '../shared/replay.js';
 import { formatDiagnosticSummary } from '../shared/diagnostics.js';
 import { PROTOCOL_VERSION } from '../shared/version.js';
+import { getReleaseInfo, releaseSummary } from '../shared/release.js';
 import type { PickRequest } from '../shared/dialog.js';
 
 const isDev = !app.isPackaged;
@@ -163,7 +164,8 @@ async function main(): Promise<void> {
       logDir,
       logCount: countLogFiles(logDir),
     };
-    return { summary: formatDiagnosticSummary(report) };
+    const summary = `${releaseSummary(getReleaseInfo())}\n` + formatDiagnosticSummary(report);
+    return { summary };
   });
 
   ipcMain.handle(

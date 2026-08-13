@@ -41,14 +41,36 @@ development sidecar is launched by `electron/main.ts` as
 ## Build
 
 ```bash
+npm run build:sidecar  # freeze the Python sidecar (needs PyInstaller in .venv)
 npm run package:mac    # macOS DMG (arm64 + x64)
 npm run package:win    # Windows NSIS (x64)
 npm run package:linux  # Linux AppImage (x64)
 ```
 
+`package:*` runs `build:sidecar` first, so the frozen sidecar is always
+present before electron-builder packages the app.
+
 The packaged sidecar lives at `release/{app}/media-mate-desktop.app/
 Contents/Resources/sidecar/{arch}/media-mate-service` and is supervised
 by `electron/main.ts` at runtime.
+
+## Sidecar freeze
+
+`scripts/build-sidecar.sh` freezes the Python sidecar with PyInstaller
+into `desktop/sidecar/{arch}/media-mate-service` (a single onefile
+executable). It requires the package installed in `.venv`
+(`pip install -e .`) plus PyInstaller (`pip install pyinstaller`). The
+spec (`scripts/sidecar.spec`) bundles the migration submodules so the
+frozen app can discover them (see `persistence/runner.py`'s frozen
+discovery fallback). FFmpeg/ffprobe/Resolve are NOT bundled — they
+remain detected at runtime per the dependency policy.
+
+Verify a frozen build:
+
+```bash
+echo '{"jsonrpc":"2.0","v":1,"kind":"request","id":"x","method":"app.getCapabilities","params":{}}' \
+  | ./desktop/sidecar/arm64/media-mate-service --once --db /tmp/x.db
+```
 
 ## What's NOT in this foundation
 

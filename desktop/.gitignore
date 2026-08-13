@@ -25,3 +25,7 @@ npm-debug.log*
 # ephemeral
 .cache/
 .tmp/
+
+# frozen sidecar build output (produced by scripts/build-sidecar.sh)
+sidecar/
+pyinstaller-work/

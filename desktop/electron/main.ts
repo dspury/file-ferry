@@ -7,8 +7,8 @@
  */
 import { app, BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron';
 import { resolve as pathResolve } from 'node:path';
-import { existsSync } from 'node:fs';
 import { SidecarSupervisor } from './sidecar.js';
+import { resolveSidecarCommand } from './sidecar-command.js';
 import { showPicker } from './dialogs.js';
 import { ensureLogDir, appendLog, countLogFiles, openDiagnosticFolder } from './diagnostics.js';
 import { applyContentSecurityPolicy, baseWindowOptions } from './security.js';
@@ -22,25 +22,6 @@ const isDev = !app.isPackaged;
 interface SidecarRequestEnvelope {
   readonly method: string;
   readonly params: unknown;
-}
-
-function resolveSidecarCommand(): { executable: string; args: string[] } {
-  if (isDev) {
-    return {
-      executable: process.execPath,
-      args: ['-m', 'media_mate.service'],
-    };
-  }
-  const candidates = [
-    pathResolve(process.resourcesPath, 'sidecar', 'media-mate-service'),
-    pathResolve(process.resourcesPath, 'sidecar', 'media-mate-service.exe'),
-  ];
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) {
-      return { executable: candidate, args: [] };
-    }
-  }
-  throw new Error('sidecar executable not found in packaged resources');
 }
 
 async function createMainWindow(supervisor: SidecarSupervisor): Promise<BrowserWindow> {
@@ -129,7 +110,11 @@ async function main(): Promise<void> {
   await app.whenReady();
 
   const logDir = ensureLogDir();
-  const { executable, args } = resolveSidecarCommand();
+  const { executable, args } = resolveSidecarCommand(
+    app.isPackaged,
+    process.resourcesPath,
+    process.execPath,
+  );
   const supervisor = new SidecarSupervisor({
     executable,
     args,

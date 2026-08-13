@@ -41,6 +41,13 @@ export interface SidecarStatus {
   readonly pid: number | null;
   readonly restartCount: number;
   readonly lastExitCode: number | null;
+  readonly unparseableFrames: number;
+}
+
+export interface ProtocolErrorEvent {
+  readonly reason: 'unparseable_frame' | 'version_mismatch' | 'unsolicited_response';
+  readonly line: string;
+  readonly at: string;
 }
 
 export interface SidecarEventMap {
@@ -49,6 +56,7 @@ export interface SidecarEventMap {
   frame: Frame;
   log: string;
   stopped: void;
+  protocolError: ProtocolErrorEvent;
 }
 
 export class SidecarSupervisor extends EventEmitter {
@@ -58,6 +66,7 @@ export class SidecarSupervisor extends EventEmitter {
   private stderrLines: ReadLineInterface | null = null;
   private restartCount = 0;
   private lastExitCode: number | null = null;
+  private unparseableFrames = 0;
   private state: SidecarStatus['state'] = 'stopped';
   private stopRequested = false;
   private readonly pendingIds: Set<string> = new Set();
@@ -149,6 +158,7 @@ export class SidecarSupervisor extends EventEmitter {
       pid: this.child?.pid ?? null,
       restartCount: this.restartCount,
       lastExitCode: this.lastExitCode,
+      unparseableFrames: this.unparseableFrames,
     };
   }
 
@@ -200,7 +210,25 @@ export class SidecarSupervisor extends EventEmitter {
   private handleLine(line: string): void {
     const frame = decodeFrame(line);
     if (!frame) {
+      this.unparseableFrames += 1;
       this.emit('log', `unparseable frame: ${line}`);
+      this.emit('protocolError', {
+        reason: 'unparseable_frame',
+        line,
+        at: new Date().toISOString(),
+      });
+      return;
+    }
+    // The sidecar is a responder on stdin; it should never send a
+    // request or an unsolicited response up to us. Treat those as
+    // protocol violations worth surfacing rather than forwarding.
+    if (frame.kind === 'request' || frame.kind === 'response') {
+      this.emit('log', `unexpected frame kind on sidecar stdout: ${frame.kind}`);
+      this.emit('protocolError', {
+        reason: frame.kind === 'request' ? 'unsolicited_response' : 'unsolicited_response',
+        line,
+        at: new Date().toISOString(),
+      });
       return;
     }
     if (frame.kind === 'event' && frame.method === 'sidecar.ready') {

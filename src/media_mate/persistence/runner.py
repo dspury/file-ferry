@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import importlib
 import logging
+import pkgutil
 import re
 import sqlite3
 from collections.abc import Callable, Iterable
@@ -79,13 +80,58 @@ def discover_migrations(pkg: object = None) -> list[Migration]:
 
     The default package is :mod:`media_mate.persistence.migrations`;
     tests can pass a different package to use a temporary set.
+
+    Two discovery strategies are supported:
+
+    - **Source / filesystem:** iterate ``pkg.__path__`` for ``NNN_*.py``
+      modules, which is how tests and a plain ``pip install -e .`` run.
+    - **Frozen bundle:** when the package path is not a real directory
+      (PyInstaller onefile embeds modules in the archive), fall back to
+      importing the collected submodules by name. The spec bundles these
+      via ``collect_submodules``.
     """
     if pkg is None:
         pkg = importlib.import_module("media_mate.persistence.migrations")
     out: list[Migration] = []
-    for filename in sorted(pkg.__path__):  # type: ignore[attr-defined]
+
+    filesystem = _discover_from_path(pkg)
+    if filesystem is not None:
+        return filesystem
+
+    # Frozen fallback: enumerate collected submodules via pkgutil and
+    # import those that look like migrations.
+    for mod_info in pkgutil.iter_modules(pkg.__path__):  # type: ignore[attr-defined]
+        match = MIGRATION_PATTERN.match(f"{mod_info.name}.py")
+        if match is None:
+            continue
+        version = int(match.group(1))
+        name = match.group("name")
+        full_name = f"{pkg.__name__}.{mod_info.name}"  # type: ignore[attr-defined]
+        module = importlib.import_module(full_name)
+        out.append(Migration(version=version, name=name, module=module))
+    out.sort(key=lambda m: m.version)
+    return out
+
+
+def _discover_from_path(pkg: object) -> list[Migration] | None:
+    """Filesystem discovery; returns None when the path is not iterable.
+
+    In a frozen PyInstaller bundle the package ``__path__`` may point
+    inside the onefile archive and ``iterdir`` raises; in that case we
+    return None so the caller falls back to the frozen strategy.
+    """
+    out: list[Migration] = []
+    try:
+        pkg_path = list(pkg.__path__)  # type: ignore[attr-defined]
+    except Exception:
+        return None
+    for filename in sorted(pkg_path):
         path = Path(filename)
-        for child in sorted(path.iterdir()):
+        try:
+            children = sorted(path.iterdir())
+        except OSError:
+            return None
+        for child in children:
             match = MIGRATION_PATTERN.match(child.name)
             if match is None:
                 continue

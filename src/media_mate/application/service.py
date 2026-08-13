@@ -18,12 +18,20 @@ import logging
 import platform
 from pathlib import Path
 
+from media_mate.application.projects import ProjectService
+from media_mate.application.sources import SourceService
 from media_mate.persistence import runner
 from media_mate.service.protocol import (
+    PROTOCOL_VERSION,
+    ArchiveProjectParams,
     CreateProjectParams,
     JobSnapshot,
     MountedVolume,
+    ProjectDetail,
     ProjectSummary,
+    SourceInspectParams,
+    SourceInspectResult,
+    UpdateProjectParams,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -35,7 +43,11 @@ METHOD_NAMES: tuple[str, ...] = (
     "app.getCapabilities",
     "project.list",
     "project.create",
+    "project.get",
+    "project.update",
+    "project.archive",
     "source.listVolumes",
+    "source.inspect",
     "job.subscribe",
     "job.unsubscribe",
 )
@@ -56,6 +68,8 @@ class ApplicationService:
             Path(app_data_dir) if app_data_dir is not None else self._db_path.parent
         )
         self._bootstrapped = False
+        self._projects: ProjectService | None = None
+        self._sources: SourceService | None = None
 
     # ---- lifecycle ----------------------------------------------------
 
@@ -78,14 +92,20 @@ class ApplicationService:
             LOGGER.info(
                 "applied %d migrations; latest schema_version=%d", len(applied), applied[-1].version
             )
+        self._projects = ProjectService(
+            self._db_path, self._app_data_dir, protocol_version=PROTOCOL_VERSION
+        )
+        self._sources = SourceService(self._db_path)
         self._bootstrapped = True
 
     def close(self) -> None:
         """Release any resources held by the service.
 
-        The foundation cut holds no external resources beyond the
-        database file; ``close`` is a no-op kept for symmetry.
+        Services open short-lived connections per operation; ``close``
+        only clears the bootstrapped services.
         """
+        self._projects = None
+        self._sources = None
         self._bootstrapped = False
 
     # ---- introspection ------------------------------------------------
@@ -102,16 +122,43 @@ class ApplicationService:
     def event_names(self) -> tuple[str, ...]:
         return EVENT_NAMES
 
-    # ---- placeholder methods (real implementations land in Package 2) -
+    # ---- project methods ---------------------------------------------
 
     def list_projects(self) -> list[ProjectSummary]:
-        """Return the list of projects. Empty in the foundation cut."""
-        return []
+        """Return the list of projects."""
+        return self._project_service().list()
 
     def create_project(self, params: CreateProjectParams) -> str:
-        """Create a project. The foundation cut returns a stub id."""
-        # The real implementation lands in Package 2.1 (project service).
-        return "stub-project-id"
+        """Create a project and return its durable id."""
+        return self._project_service().create(params).id
+
+    def get_project(self, project_id: str) -> ProjectDetail:
+        """Return the detail for one project."""
+        return self._project_service().get(project_id)
+
+    def update_project(self, params: UpdateProjectParams) -> ProjectDetail:
+        """Update the mutable fields of one project."""
+        return self._project_service().update(params)
+
+    def archive_project(self, params: ArchiveProjectParams) -> ProjectDetail:
+        """Archive (soft-delete) one project."""
+        return self._project_service().archive(params.id)
+
+    # ---- source methods ----------------------------------------------
+
+    def source_inspect(self, params: SourceInspectParams) -> SourceInspectResult:
+        """Identify a source and scan it read-only."""
+        return self._source_service().inspect(params)
+
+    def _project_service(self) -> ProjectService:
+        if self._projects is None:
+            raise RuntimeError("ApplicationService.bootstrap() must be called first")
+        return self._projects
+
+    def _source_service(self) -> SourceService:
+        if self._sources is None:
+            raise RuntimeError("ApplicationService.bootstrap() must be called first")
+        return self._sources
 
     def list_volumes(self) -> list[MountedVolume]:
         """Return the list of mounted volumes. Empty in the foundation cut."""

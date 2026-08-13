@@ -25,24 +25,82 @@ export interface GetCapabilities {
   readonly version: ProtocolVersion;
 }
 
+export interface StoragePolicy {
+  readonly requiredReplicas: number;
+  readonly backupOnDifferentVolume: boolean;
+  readonly checksumAlgo: 'xxhash64' | 'sha256';
+  readonly safetyReserveBytes: number;
+  readonly requireSourceFingerprint: boolean;
+}
+
 export interface CreateProjectParams {
   readonly name: string;
   readonly workingRoot: string;
   readonly backupRoot: string;
+  readonly storagePolicy?: StoragePolicy;
+  readonly acknowledgeWeaker?: boolean;
 }
 
 export interface CreateProjectResult {
   readonly projectId: string;
 }
 
+export interface ProjectSummary {
+  readonly id: string;
+  readonly name: string;
+  readonly workingRoot: string;
+  readonly backupRoot: string | null;
+  readonly status: string;
+  readonly storagePolicy: StoragePolicy;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly archivedAt: string | null;
+}
+
+export interface ProjectDetail extends ProjectSummary {
+  readonly organizationProfileId: number | null;
+  readonly proxyDefaults: Record<string, unknown> | null;
+  readonly resolveDefaults: Record<string, unknown> | null;
+}
+
+export interface UpdateProjectParams {
+  readonly id: string;
+  readonly name?: string;
+  readonly workingRoot?: string;
+  readonly backupRoot?: string;
+  readonly storagePolicy?: StoragePolicy;
+  readonly acknowledgeWeaker?: boolean;
+}
+
+export interface ArchiveProjectParams {
+  readonly id: string;
+}
+
 export interface ListProjectsResult {
-  readonly projects: readonly {
-    readonly id: string;
-    readonly name: string;
-    readonly workingRoot: string;
-    readonly backupRoot: string;
-    readonly createdAt: string;
-  }[];
+  readonly projects: readonly ProjectSummary[];
+}
+
+export interface SourceInventoryEntry {
+  readonly path: string;
+  readonly size: number;
+  readonly mtime: number;
+}
+
+export interface SourceInspectParams {
+  readonly path: string;
+  readonly kind: 'card' | 'existing_media';
+  readonly label?: string | null;
+}
+
+export interface SourceInspectResult {
+  readonly sourceId: number;
+  readonly rootPath: string;
+  readonly kind: string;
+  readonly label: string | null;
+  readonly fileCount: number;
+  readonly totalBytes: number;
+  readonly manifestHash: string;
+  readonly entries: readonly SourceInventoryEntry[];
 }
 
 export interface JobSnapshot {
@@ -97,7 +155,11 @@ export interface MethodCatalog {
   'app.getCapabilities': { params: Record<string, never>; result: GetCapabilities };
   'project.list': { params: Record<string, never>; result: ListProjectsResult };
   'project.create': { params: CreateProjectParams; result: CreateProjectResult };
+  'project.get': { params: { projectId: string }; result: ProjectDetail };
+  'project.update': { params: UpdateProjectParams; result: ProjectDetail };
+  'project.archive': { params: ArchiveProjectParams; result: ProjectDetail };
   'source.listVolumes': { params: Record<string, never>; result: ListVolumesResult };
+  'source.inspect': { params: SourceInspectParams; result: SourceInspectResult };
   'job.subscribe': { params: { jobId: string }; result: JobSnapshot };
   'job.unsubscribe': { params: { jobId: string }; result: Record<string, never> };
 }

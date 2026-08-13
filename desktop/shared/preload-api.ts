@@ -19,9 +19,13 @@ export const api = {
   project: {
     list: () => invoke('project.list', {}),
     create: (params: ParamsOf<'project.create'>) => invoke('project.create', params),
+    get: (projectId: string) => invoke('project.get', { projectId }),
+    update: (params: ParamsOf<'project.update'>) => invoke('project.update', params),
+    archive: (projectId: string) => invoke('project.archive', { id: projectId }),
   },
   source: {
     listVolumes: () => invoke('source.listVolumes', {}),
+    inspect: (params: ParamsOf<'source.inspect'>) => invoke('source.inspect', params),
   },
   job: {
     subscribe: (jobId: string) => invoke('job.subscribe', { jobId }),

@@ -132,12 +132,32 @@ class GetCapabilities(FrozenModel):
     version: Literal[1]
 
 
+class StoragePolicy(FrozenModel):
+    """The storage-policy shape shared by the IPC and receipts (ADR-0004)."""
+
+    model_config = ConfigDict(
+        frozen=True,
+        extra="forbid",
+        populate_by_name=True,
+        use_attribute_docstrings=True,
+        ser_json_inf_nan="constants",
+    )
+
+    required_replicas: int = Field(default=2, ge=1, alias="requiredReplicas")
+    backup_on_different_volume: bool = Field(default=True, alias="backupOnDifferentVolume")
+    checksum_algo: Literal["xxhash64", "sha256"] = Field(default="xxhash64", alias="checksumAlgo")
+    safety_reserve_bytes: int = Field(default=0, ge=0, alias="safetyReserveBytes")
+    require_source_fingerprint: bool = Field(default=True, alias="requireSourceFingerprint")
+
+
 class CreateProjectParams(FrozenModel):
     """The params for ``project.create``."""
 
     name: str
     working_root: str = Field(alias="workingRoot")
-    backup_root: str = Field(alias="backupRoot")
+    backup_root: str | None = Field(default=None, alias="backupRoot")
+    storage_policy: StoragePolicy | None = Field(default=None, alias="storagePolicy")
+    acknowledge_weaker: bool = Field(default=False, alias="acknowledgeWeaker")
 
 
 class CreateProjectResult(FrozenModel):
@@ -152,14 +172,72 @@ class ProjectSummary(FrozenModel):
     id: str
     name: str
     working_root: str = Field(alias="workingRoot")
-    backup_root: str = Field(alias="backupRoot")
+    backup_root: str | None = Field(alias="backupRoot")
+    status: str
+    storage_policy: StoragePolicy = Field(alias="storagePolicy")
     created_at: str = Field(alias="createdAt")
+    updated_at: str = Field(alias="updatedAt")
+    archived_at: str | None = Field(alias="archivedAt")
 
 
 class ListProjectsResult(FrozenModel):
     """The result of ``project.list``."""
 
     projects: list[ProjectSummary]
+
+
+class ProjectDetail(ProjectSummary):
+    """The result of ``project.get`` — the summary plus defaults."""
+
+    organization_profile_id: int | None = Field(alias="organizationProfileId")
+    proxy_defaults: dict[str, object] | None = Field(alias="proxyDefaults")
+    resolve_defaults: dict[str, object] | None = Field(alias="resolveDefaults")
+
+
+class UpdateProjectParams(FrozenModel):
+    """The params for ``project.update``. Only present fields change."""
+
+    id: str
+    name: str | None = None
+    working_root: str | None = Field(default=None, alias="workingRoot")
+    backup_root: str | None = Field(default=None, alias="backupRoot")
+    storage_policy: StoragePolicy | None = Field(default=None, alias="storagePolicy")
+    acknowledge_weaker: bool = Field(default=False, alias="acknowledgeWeaker")
+
+
+class ArchiveProjectParams(FrozenModel):
+    """The params for ``project.archive``."""
+
+    id: str
+
+
+class SourceInventoryEntry(FrozenModel):
+    """One file found by a read-only source scan."""
+
+    path: str
+    size: int
+    mtime: float
+
+
+class SourceInspectParams(FrozenModel):
+    """The params for ``source.inspect``."""
+
+    path: str
+    kind: Literal["card", "existing_media"] = "existing_media"
+    label: str | None = None
+
+
+class SourceInspectResult(FrozenModel):
+    """The result of ``source.inspect`` — a read-only scan summary."""
+
+    source_id: int = Field(alias="sourceId")
+    root_path: str = Field(alias="rootPath")
+    kind: str
+    label: str | None = None
+    file_count: int = Field(alias="fileCount")
+    total_bytes: int = Field(alias="totalBytes")
+    manifest_hash: str = Field(alias="manifestHash")
+    entries: list[SourceInventoryEntry]
 
 
 class JobSnapshot(FrozenModel):
@@ -245,6 +323,7 @@ def decode_frame(line: str) -> Frame | None:
 __all__ = [
     "PROTOCOL_VERSION",
     "AppStatus",
+    "ArchiveProjectParams",
     "CreateProjectParams",
     "CreateProjectResult",
     "ErrorFrame",
@@ -257,11 +336,17 @@ __all__ = [
     "ListProjectsResult",
     "ListVolumesResult",
     "MountedVolume",
+    "ProjectDetail",
     "ProjectSummary",
     "RequestFrame",
     "ResponseFrame",
     "RpcError",
     "RpcErrorCode",
+    "SourceInspectParams",
+    "SourceInspectResult",
+    "SourceInventoryEntry",
+    "StoragePolicy",
+    "UpdateProjectParams",
     "decode_frame",
     "encode_frame",
 ]

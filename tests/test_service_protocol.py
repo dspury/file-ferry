@@ -32,6 +32,7 @@ from media_mate.service.protocol import (
     RequestFrame,
     ResponseFrame,
     RpcError,
+    StoragePolicy,
     decode_frame,
     encode_frame,
 )
@@ -222,11 +223,9 @@ class TestAliasesMatchTypeScript:
             backupRoot="/Volumes/BACKUP",
         )
         dumped = json.loads(params.model_dump_json(by_alias=True))
-        assert dumped == {
-            "name": "Episode-12",
-            "workingRoot": "/Volumes/RAID",
-            "backupRoot": "/Volumes/BACKUP",
-        }
+        assert dumped["name"] == "Episode-12"
+        assert dumped["workingRoot"] == "/Volumes/RAID"
+        assert dumped["backupRoot"] == "/Volumes/BACKUP"
 
     def test_create_project_result_uses_camel_case(self) -> None:
         result = CreateProjectResult(projectId="proj-001")
@@ -239,11 +238,22 @@ class TestAliasesMatchTypeScript:
             name="Episode-12",
             workingRoot="/Volumes/RAID",
             backupRoot="/Volumes/BACKUP",
+            status="active",
+            storagePolicy=StoragePolicy(
+                requiredReplicas=2,
+                backupOnDifferentVolume=True,
+                checksumAlgo="xxhash64",
+                safetyReserveBytes=0,
+                requireSourceFingerprint=True,
+            ),
             createdAt="2026-08-12T17:30:00Z",
+            updatedAt="2026-08-12T17:30:00Z",
+            archivedAt=None,
         )
         dumped = json.loads(summary.model_dump_json(by_alias=True))
         assert dumped["workingRoot"] == "/Volumes/RAID"
         assert dumped["createdAt"] == "2026-08-12T17:30:00Z"
+        assert dumped["storagePolicy"]["requiredReplicas"] == 2
 
     def test_list_projects_result(self) -> None:
         result = ListProjectsResult(projects=[])

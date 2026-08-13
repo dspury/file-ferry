@@ -9,7 +9,7 @@ event emission. The actual method handlers are wired in by the
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import IO
+from typing import IO, NoReturn
 
 from media_mate.service import PROTOCOL_VERSION
 from media_mate.service.protocol import (
@@ -140,7 +140,7 @@ class _RpcError(Exception):
         self.data = data
 
 
-def rpc_error(code: str, message: str, data: dict[str, object] | None = None) -> None:
+def rpc_error(code: str, message: str, data: dict[str, object] | None = None) -> NoReturn:
     """Raise an ``_RpcError`` from a handler."""
     raise _RpcError(code, message, data)
 

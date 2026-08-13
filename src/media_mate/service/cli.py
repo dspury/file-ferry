@@ -12,13 +12,32 @@ import argparse
 import sys
 from pathlib import Path
 
+from media_mate.application.service import ApplicationService
 from media_mate.service import PROTOCOL_VERSION
 from media_mate.service.server import SidecarServer
+from media_mate.service.wiring import wire_server
+
+
+def _default_db_path() -> Path:
+    """Return the default SQLite path under the user's app-data dir."""
+    import platform as _platform
+
+    base = {
+        "Darwin": Path.home() / "Library" / "Application Support",
+        "Windows": Path.home() / "AppData" / "Local",
+    }.get(_platform.system(), Path.home() / ".local" / "share")
+    return base / "media-mate" / "media-mate.db"
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="media-mate-service")
     parser.add_argument("--db", type=Path, default=None, help="override the default SQLite path")
+    parser.add_argument(
+        "--app-data",
+        type=Path,
+        default=None,
+        help="override the app-data dir (receipts, backups, logs)",
+    )
     parser.add_argument(
         "--once",
         action="store_true",
@@ -35,7 +54,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"media-mate service protocol version: {PROTOCOL_VERSION}")
         return 0
 
-    server = SidecarServer(db_path=args.db)
+    db_path = args.db or _default_db_path()
+    service = ApplicationService(db_path=db_path, app_data_dir=args.app_data or db_path.parent)
+    service.bootstrap()
+
+    server = SidecarServer(db_path=db_path)
+    wire_server(server, service)
+
     if args.once:
         return server.run_once(sys.stdin, sys.stdout)
     return server.run(sys.stdin, sys.stdout)

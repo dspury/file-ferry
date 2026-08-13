@@ -23,7 +23,7 @@ changes; this log records build progress, not shipped-product claims.
 | 6 | Electron shell + secure bridge (sidecar supervisor, single-instance, volume watcher, reload/reconnect) | **Done** | `0951d4c` | 507 + 41 |
 | 7 | Complete desktop experience (onboarding/doctor, Home, Projects, Ingest, Organize, Activity) | **Done** | `cbcb4a0` | 516 + 101 |
 | 8 | TUI/CLI parity and legacy transition | **Done** | `25b6e46` | 523 + 101 |
-| 9 | Packaged release + operational hardening | Not started | — | — |
+| 9 | Packaged release + operational hardening | **Done** | `eddd63b` | 523 + 104 |
 
 > Test counts are `pytest + desktop contract tests`. Package 1's `11d28b1` is
 > the foundation commit (ADR freeze + desktop scaffold + Python services);

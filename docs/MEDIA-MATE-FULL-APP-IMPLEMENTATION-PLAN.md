@@ -1,10 +1,34 @@
 # Media-mate Full App Implementation Plan
 
-> **Status:** Draft for implementation planning
+> **Status:** In implementation — Packages 1–5 landed
 > **Date:** 2026-08-12
 > **Product target:** A sturdy local-first Electron desktop application for
 > media offload, existing-folder organization, project media management, proxy
 > generation, verification, and editorial handoff.
+
+## 0. Implementation progress
+
+Tracked per package. Each landed package points to the commit that closed it
+and the test count at handoff. The `SPEC.md` remains authoritative for
+released v0.2.4 behavior until its sections are superseded through reviewed
+changes; this log records build progress, not shipped-product claims.
+
+| Pkg | Deliverable | Status | Commit | Head tests |
+| --- | --- | --- | --- | --- |
+| 1 | Contracts + repository foundation (ADRs, desktop scaffold, Python services foundation) | **Done** | `11d28b1` | 363 + 13 |
+| 2 | Persistence migration + application services (schema, project/source/profile/asset/replica/job/audit services, safe-to-format gate) | **Done** | `a4798e2` | 436 + 13 |
+| 3 | Planning, scheduler, recovery, receipt export | **Done** | `fbdbc98` | 459 + 13 |
+| 4 | Verified offload, organization, logical clips, reconciliation | **Done** | `67b0b46` | 481 + 13 |
+| 5 | Proxy as durable derivative job, project manifest + handoff | **Done** | `3b3c8b8` | 490 + 13 |
+| 6 | Electron shell + secure bridge (sidecar supervisor, single-instance, volume watcher, reload/reconnect) | Not started | — | — |
+| 7 | Complete desktop experience (onboarding/doctor, Home, Projects, Ingest, Organize, Activity) | Not started | — | — |
+| 8 | TUI/CLI parity and legacy transition | Not started | — | — |
+| 9 | Packaged release + operational hardening | Not started | — | — |
+
+> Test counts are `pytest + desktop contract tests`. Package 1's `11d28b1` is
+> the foundation commit (ADR freeze + desktop scaffold + Python services);
+> Packages 2–5 each landed in one commit as listed.
+
 
 ## 1. Authority, intent, and completion standard
 
@@ -410,6 +434,9 @@ integration, not a reduction in product scope.
 
 ### Package 1 — contracts and repository foundation
 
+> **Status:** Done (`11d28b1`). Steps 2–4 landed; step 1 (SPEC authority)
+> deferred until a release supersedes v0.2.4.
+
 1. Ratify this plan and update `SPEC.md` authority/release language.
 2. Define Python and TypeScript protocol/data-schema sources, compatibility
    rules, versioning, and fixture exchange.
@@ -421,6 +448,8 @@ integration, not a reduction in product scope.
 
 ### Package 2 — persistence migration and application services
 
+> **Status:** Done (`a4798e2`). All 5 steps landed.
+
 1. Introduce a connection/migration subsystem with backup/rollback behavior.
 2. Add the entities in Section 6 and repositories with foreign keys/indexes.
 3. Build project, profile, source, asset, replica, receipt, and job services.
@@ -430,6 +459,9 @@ integration, not a reduction in product scope.
    tests for migration and backup failure.
 
 ### Package 3 — planning, scheduler, and recovery engine
+
+> **Status:** Done (`fbdbc98`). Steps 1–3 landed; step 4 (migrate standalone
+> CLI/TUI commands) deferred to Package 8 per plan §9 ordering.
 
 1. Implement source inspection, volume abstraction, planning, capacity, and
    collision analysis.
@@ -441,6 +473,8 @@ integration, not a reduction in product scope.
 
 ### Package 4 — verified offload and organization
 
+> **Status:** Done (`67b0b46`). All 4 steps landed.
+
 1. Implement source-preserving offload with required destinations, temporary
    files, atomic finalization, per-file checksum verification, and card-safety
    policy.
@@ -451,6 +485,12 @@ integration, not a reduction in product scope.
 4. Implement reconciliation and explicit baseline acceptance/history.
 
 ### Package 5 — media derivatives and editorial handoff
+
+> **Status:** Done for the buildable surface (`3b3c8b8`). Step 1 and the
+> fallback branch of step 3 (labeled import manifest) and step 4 landed.
+> **Step 2 (real-media proxy validation: VFR/silent/multi-audio/SAR/RAW
+> refusal) and the live Resolve integration in step 3 remain deferred** to
+> the §11.2 real-media acceptance suite.
 
 1. Make proxy generation a job with per-asset derivative state and usable
    progress events.

@@ -53,9 +53,37 @@ const api = {
     listVolumes: () => invoke('source.listVolumes', {}),
     inspect: (params: ParamsOf<'source.inspect'>) => invoke('source.inspect', params),
   },
+  profile: {
+    save: (params: ParamsOf<'profile.save'>) => invoke('profile.save', params),
+    list: () => invoke('profile.list', {}),
+    get: (id: number) => invoke('profile.get', { id }),
+  },
+  asset: {
+    list: (params?: ParamsOf<'asset.list'>) => invoke('asset.list', params ?? {}),
+    get: (assetId: string) => invoke('asset.get', { assetId }),
+  },
+  replica: {
+    verify: (params: ParamsOf<'replica.verify'>) => invoke('replica.verify', params),
+    list: (assetId: string) => invoke('replica.list', { assetId }),
+  },
+  intake: {
+    createSession: (params: ParamsOf<'intake.createSession'>) =>
+      invoke('intake.createSession', params),
+    addDestination: (params: ParamsOf<'intake.addDestination'>) =>
+      invoke('intake.addDestination', params),
+    evaluate: (sessionId: string) => invoke('intake.evaluate', { sessionId }),
+  },
   job: {
+    create: (params: ParamsOf<'job.create'>) => invoke('job.create', params),
+    list: (projectId?: string) => invoke('job.list', projectId ? { projectId } : {}),
+    get: (id: string) => invoke('job.get', { id }),
+    transition: (params: ParamsOf<'job.transition'>) => invoke('job.transition', params),
     subscribe: (jobId: string) => invoke('job.subscribe', { jobId }),
     unsubscribe: (jobId: string) => invoke('job.unsubscribe', { jobId }),
+  },
+  audit: {
+    list: (params?: ParamsOf<'audit.list'>) => invoke('audit.list', params ?? {}),
+    backfill: () => invoke('audit.backfill', {}),
   },
   sidecarEvents: {
     onJobUpdated(handler: (event: EventFrame) => void): () => void {

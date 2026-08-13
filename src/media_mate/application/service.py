@@ -18,20 +18,44 @@ import logging
 import platform
 from pathlib import Path
 
+from media_mate.application.assets import AssetService
+from media_mate.application.audit import AuditService
+from media_mate.application.intake import IntakeService
+from media_mate.application.jobs import JobService
+from media_mate.application.profiles import ProfileService
 from media_mate.application.projects import ProjectService
+from media_mate.application.replicas import ReplicaService
 from media_mate.application.sources import SourceService
 from media_mate.persistence import runner
 from media_mate.service.protocol import (
     PROTOCOL_VERSION,
+    AddDestinationParams,
     ArchiveProjectParams,
+    AssetSummary,
+    AuditEvent,
+    CreateIntakeSessionParams,
+    CreateJobParams,
     CreateProjectParams,
+    IntakeDestination,
+    IntakeSession,
+    JobDetail,
     JobSnapshot,
+    JobTransitionParams,
+    ListAssetsParams,
+    ListAuditParams,
     MountedVolume,
+    OrganizationProfile,
     ProjectDetail,
     ProjectSummary,
+    ReplicaSummary,
+    SafeToFormatEval,
+    SaveProfileParams,
     SourceInspectParams,
     SourceInspectResult,
+    SourceInventoryEntry,
     UpdateProjectParams,
+    VerifyReplicaParams,
+    VerifyReplicaResult,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -48,6 +72,22 @@ METHOD_NAMES: tuple[str, ...] = (
     "project.archive",
     "source.listVolumes",
     "source.inspect",
+    "profile.save",
+    "profile.list",
+    "profile.get",
+    "asset.list",
+    "asset.get",
+    "replica.verify",
+    "replica.list",
+    "intake.createSession",
+    "intake.addDestination",
+    "intake.evaluate",
+    "job.create",
+    "job.list",
+    "job.get",
+    "job.transition",
+    "audit.list",
+    "audit.backfill",
     "job.subscribe",
     "job.unsubscribe",
 )
@@ -70,6 +110,12 @@ class ApplicationService:
         self._bootstrapped = False
         self._projects: ProjectService | None = None
         self._sources: SourceService | None = None
+        self._profiles: ProfileService | None = None
+        self._assets: AssetService | None = None
+        self._replicas: ReplicaService | None = None
+        self._intake: IntakeService | None = None
+        self._jobs: JobService | None = None
+        self._audit: AuditService | None = None
 
     # ---- lifecycle ----------------------------------------------------
 
@@ -96,6 +142,12 @@ class ApplicationService:
             self._db_path, self._app_data_dir, protocol_version=PROTOCOL_VERSION
         )
         self._sources = SourceService(self._db_path)
+        self._profiles = ProfileService(self._db_path)
+        self._assets = AssetService(self._db_path)
+        self._replicas = ReplicaService(self._db_path)
+        self._intake = IntakeService(self._db_path, self._assets, self._replicas)
+        self._jobs = JobService(self._db_path)
+        self._audit = AuditService(self._db_path)
         self._bootstrapped = True
 
     def close(self) -> None:
@@ -106,6 +158,12 @@ class ApplicationService:
         """
         self._projects = None
         self._sources = None
+        self._profiles = None
+        self._assets = None
+        self._replicas = None
+        self._intake = None
+        self._jobs = None
+        self._audit = None
         self._bootstrapped = False
 
     # ---- introspection ------------------------------------------------
@@ -150,6 +208,109 @@ class ApplicationService:
         """Identify a source and scan it read-only."""
         return self._source_service().inspect(params)
 
+    # ---- profile methods ---------------------------------------------
+
+    def profile_save(self, params: SaveProfileParams) -> OrganizationProfile:
+        return self._profile_service().save(params)
+
+    def profile_list(self) -> list[OrganizationProfile]:
+        return self._profile_service().list()
+
+    def profile_get(self, profile_id: int) -> OrganizationProfile:
+        return self._profile_service().get(profile_id)
+
+    # ---- asset methods -----------------------------------------------
+
+    def asset_list(self, params: ListAssetsParams) -> list[AssetSummary]:
+        return self._asset_service().list(params.project_id)
+
+    def asset_get(self, asset_id: str) -> AssetSummary:
+        return self._asset_service().get(asset_id)
+
+    def asset_adopt_source(self, source_id: int, entries: list[SourceInventoryEntry]) -> list[str]:
+        return self._asset_service().adopt_source(source_id, entries)
+
+    # ---- replica methods ---------------------------------------------
+
+    def replica_verify(self, params: VerifyReplicaParams) -> VerifyReplicaResult:
+        from pathlib import Path
+
+        return self._replica_service().verify(
+            params.replica_id, Path(params.source_path), params.checksum_algo
+        )
+
+    def replica_list(self, asset_id: str) -> list[ReplicaSummary]:
+        return self._replica_service().list(asset_id)
+
+    def replica_record(
+        self,
+        asset_id: str,
+        project_id: str,
+        path: str,
+        *,
+        checksum: str,
+        algo: str,
+        source_checksum: str,
+        verified: bool,
+    ) -> int:
+        return self._replica_service().record(
+            asset_id,
+            project_id,
+            path,
+            checksum=checksum,
+            algo=algo,
+            source_checksum=source_checksum,
+            verified=verified,
+        )
+
+    # ---- intake methods ----------------------------------------------
+
+    def intake_create_session(self, params: CreateIntakeSessionParams) -> IntakeSession:
+        return self._intake_service().create_session(params)
+
+    def intake_add_destination(self, params: AddDestinationParams) -> IntakeDestination:
+        return self._intake_service().add_destination(params)
+
+    def intake_evaluate(self, session_id: str) -> SafeToFormatEval:
+        return self._intake_service().evaluate(session_id)
+
+    def intake_adopt_source(
+        self,
+        session_id: str,
+        source_id: int,
+        entries: list[SourceInventoryEntry],
+        destination_root: str,
+        *,
+        project_id: str | None = None,
+    ) -> list[str]:
+        return self._intake_service().adopt_source(
+            session_id, source_id, entries, destination_root, project_id=project_id
+        )
+
+    # ---- job methods -------------------------------------------------
+
+    def job_create(self, params: CreateJobParams) -> JobDetail:
+        return self._job_service().create(params)
+
+    def job_list(self, project_id: str | None = None) -> list[JobDetail]:
+        return self._job_service().list(project_id)
+
+    def job_get(self, job_id: str) -> JobDetail:
+        return self._job_service().get(job_id)
+
+    def job_transition(self, params: JobTransitionParams) -> JobDetail:
+        return self._job_service().transition(params)
+
+    # ---- audit methods -----------------------------------------------
+
+    def audit_list(self, params: ListAuditParams) -> list[AuditEvent]:
+        return self._audit_service().list(params)
+
+    def audit_backfill(self) -> int:
+        return self._audit_service().backfill_legacy()
+
+    # ---- getters -----------------------------------------------------
+
     def _project_service(self) -> ProjectService:
         if self._projects is None:
             raise RuntimeError("ApplicationService.bootstrap() must be called first")
@@ -159,6 +320,36 @@ class ApplicationService:
         if self._sources is None:
             raise RuntimeError("ApplicationService.bootstrap() must be called first")
         return self._sources
+
+    def _profile_service(self) -> ProfileService:
+        if self._profiles is None:
+            raise RuntimeError("ApplicationService.bootstrap() must be called first")
+        return self._profiles
+
+    def _asset_service(self) -> AssetService:
+        if self._assets is None:
+            raise RuntimeError("ApplicationService.bootstrap() must be called first")
+        return self._assets
+
+    def _replica_service(self) -> ReplicaService:
+        if self._replicas is None:
+            raise RuntimeError("ApplicationService.bootstrap() must be called first")
+        return self._replicas
+
+    def _intake_service(self) -> IntakeService:
+        if self._intake is None:
+            raise RuntimeError("ApplicationService.bootstrap() must be called first")
+        return self._intake
+
+    def _job_service(self) -> JobService:
+        if self._jobs is None:
+            raise RuntimeError("ApplicationService.bootstrap() must be called first")
+        return self._jobs
+
+    def _audit_service(self) -> AuditService:
+        if self._audit is None:
+            raise RuntimeError("ApplicationService.bootstrap() must be called first")
+        return self._audit
 
     def list_volumes(self) -> list[MountedVolume]:
         """Return the list of mounted volumes. Empty in the foundation cut."""

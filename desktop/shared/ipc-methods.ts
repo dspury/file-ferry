@@ -103,6 +103,170 @@ export interface SourceInspectResult {
   readonly entries: readonly SourceInventoryEntry[];
 }
 
+export interface OrganizationProfile {
+  readonly id: number;
+  readonly name: string;
+  readonly version: number;
+  readonly template: Record<string, unknown>;
+  readonly conflictPolicy: string;
+  readonly mutationPolicy: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface SaveProfileParams {
+  readonly name: string;
+  readonly template: Record<string, unknown>;
+  readonly conflictPolicy?: string;
+  readonly mutationPolicy?: string;
+}
+
+export interface ListProfilesResult {
+  readonly profiles: readonly OrganizationProfile[];
+}
+
+export interface AssetSummary {
+  readonly id: string;
+  readonly sourceId: number | null;
+  readonly sourceRelativePath: string;
+  readonly observedSize: number | null;
+  readonly observedMtime: number | null;
+  readonly lifecycleState: string;
+  readonly mediaKind: string | null;
+  readonly firstSeenAt: string;
+}
+
+export interface ListAssetsParams {
+  readonly projectId?: string;
+}
+
+export interface ListAssetsResult {
+  readonly assets: readonly AssetSummary[];
+}
+
+export interface ReplicaSummary {
+  readonly id: number;
+  readonly assetId: string;
+  readonly projectId: string;
+  readonly path: string;
+  readonly checksum: string | null;
+  readonly checksumAlgo: string | null;
+  readonly verified: boolean;
+  readonly verifiedAt: string | null;
+  readonly availability: string;
+}
+
+export interface VerifyReplicaParams {
+  readonly replicaId: number;
+  readonly sourcePath: string;
+  readonly checksumAlgo: string;
+}
+
+export interface VerifyReplicaResult {
+  readonly replicaId: number;
+  readonly verified: boolean;
+  readonly checksumAlgo: string;
+  readonly sourceChecksum: string;
+  readonly replicaChecksum: string;
+}
+
+export interface ListReplicasResult {
+  readonly replicas: readonly ReplicaSummary[];
+}
+
+export interface IntakeSession {
+  readonly id: string;
+  readonly projectId: string;
+  readonly sourceId: number | null;
+  readonly kind: string;
+  readonly status: string;
+  readonly safeToFormat: boolean;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface IntakeDestination {
+  readonly id: number;
+  readonly intakeSessionId: string;
+  readonly kind: string;
+  readonly rootPath: string;
+  readonly role: string | null;
+  readonly required: boolean;
+  readonly verified: boolean;
+}
+
+export interface CreateIntakeSessionParams {
+  readonly projectId: string;
+  readonly sourceId: number;
+  readonly kind: 'offload' | 'existing_folder';
+}
+
+export interface AddDestinationParams {
+  readonly intakeSessionId: string;
+  readonly kind: 'working' | 'backup' | 'organization';
+  readonly rootPath: string;
+  readonly role?: string | null;
+  readonly required?: boolean;
+}
+
+export interface SafeToFormatEval {
+  readonly sessionId: string;
+  readonly safe: boolean;
+  readonly unmet: readonly string[];
+}
+
+export interface JobDetail {
+  readonly id: string;
+  readonly projectId: string;
+  readonly sessionId: string | null;
+  readonly command: string;
+  readonly state: string;
+  readonly currentStep: string | null;
+  readonly totalSteps: number;
+  readonly startedAt: string | null;
+  readonly updatedAt: string;
+  readonly finishedAt: string | null;
+  readonly error: string | null;
+  readonly resumable: boolean;
+}
+
+export interface CreateJobParams {
+  readonly projectId: string;
+  readonly command: string;
+  readonly argsFingerprint?: string | null;
+  readonly sessionId?: string | null;
+  readonly totalSteps?: number;
+}
+
+export interface JobTransitionParams {
+  readonly id: string;
+  readonly fromState: string;
+  readonly toState: string;
+}
+
+export interface ListJobsResult {
+  readonly jobs: readonly JobDetail[];
+}
+
+export interface AuditEvent {
+  readonly id: number;
+  readonly occurredAt: string;
+  readonly eventType: string;
+  readonly entityType: string | null;
+  readonly entityId: string | null;
+  readonly data: Record<string, unknown> | null;
+  readonly runId: number | null;
+}
+
+export interface ListAuditParams {
+  readonly entityId?: string;
+  readonly limit?: number;
+}
+
+export interface ListAuditResult {
+  readonly events: readonly AuditEvent[];
+}
+
 export interface JobSnapshot {
   readonly id: string;
   readonly state:
@@ -160,6 +324,25 @@ export interface MethodCatalog {
   'project.archive': { params: ArchiveProjectParams; result: ProjectDetail };
   'source.listVolumes': { params: Record<string, never>; result: ListVolumesResult };
   'source.inspect': { params: SourceInspectParams; result: SourceInspectResult };
+  'profile.save': { params: SaveProfileParams; result: OrganizationProfile };
+  'profile.list': { params: Record<string, never>; result: ListProfilesResult };
+  'profile.get': { params: { id: number }; result: OrganizationProfile };
+  'asset.list': { params: ListAssetsParams; result: ListAssetsResult };
+  'asset.get': { params: { assetId: string }; result: AssetSummary };
+  'replica.verify': { params: VerifyReplicaParams; result: VerifyReplicaResult };
+  'replica.list': { params: { assetId: string }; result: ListReplicasResult };
+  'intake.createSession': {
+    params: CreateIntakeSessionParams;
+    result: IntakeSession;
+  };
+  'intake.addDestination': { params: AddDestinationParams; result: IntakeDestination };
+  'intake.evaluate': { params: { sessionId: string }; result: SafeToFormatEval };
+  'job.create': { params: CreateJobParams; result: JobDetail };
+  'job.list': { params: { projectId?: string }; result: ListJobsResult };
+  'job.get': { params: { id: string }; result: JobDetail };
+  'job.transition': { params: JobTransitionParams; result: JobDetail };
+  'audit.list': { params: ListAuditParams; result: ListAuditResult };
+  'audit.backfill': { params: Record<string, never>; result: number };
   'job.subscribe': { params: { jobId: string }; result: JobSnapshot };
   'job.unsubscribe': { params: { jobId: string }; result: Record<string, never> };
 }

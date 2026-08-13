@@ -1,0 +1,268 @@
+"""Intake service — session + destinations + safe-to-format evaluation.
+
+This is the Package 2 boundary for intake: it records an intake
+session and its required/optional destinations, adopts a scanned
+source into assets (with replicas), and evaluates the ADR-0004
+safe-to-format gate. The copy engine and the planner (plan §7.1/§7.2)
+land in Package 3/4 on top of these primitives.
+"""
+
+from __future__ import annotations
+
+import sqlite3
+import uuid
+from datetime import UTC, datetime
+from pathlib import Path
+
+from media_mate.application.assets import AssetService
+from media_mate.application.policies import StoragePolicy
+from media_mate.application.replicas import ReplicaService, evaluate_gate
+from media_mate.persistence.connection import transaction
+from media_mate.persistence.repositories import intake as intake_repo
+from media_mate.persistence.repositories import projects as project_repo
+from media_mate.persistence.repositories.intake import IntakeDestinationRow, IntakeSessionRow
+from media_mate.service.protocol import (
+    AddDestinationParams,
+    CreateIntakeSessionParams,
+    IntakeDestination,
+    IntakeSession,
+    SafeToFormatEval,
+    SourceInventoryEntry,
+)
+
+
+def _now_iso() -> str:
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
+class IntakeSessionNotFoundError(KeyError):
+    """Raised when a named intake session does not exist."""
+
+
+class IntakeService:
+    """Sessions, destinations, adoption, and the safe-to-format gate."""
+
+    def __init__(
+        self,
+        db_path: Path,
+        assets: AssetService,
+        replicas: ReplicaService,
+    ) -> None:
+        self._db_path = Path(db_path)
+        self._assets = assets
+        self._replicas = replicas
+
+    # ---- session + destinations --------------------------------------
+
+    def create_session(self, params: CreateIntakeSessionParams) -> IntakeSession:
+        now = _now_iso()
+        session_id = str(uuid.uuid4())
+        row = IntakeSessionRow(
+            id=session_id,
+            project_id=params.project_id,
+            source_id=params.source_id,
+            kind=params.kind,
+            plan_fingerprint=None,
+            policy_fingerprint=None,
+            status="planned",
+            safe_to_format=0,
+            source_readable_at=now,
+            created_at=now,
+            updated_at=now,
+            completed_at=None,
+        )
+        with transaction(self._db_path) as conn:
+            if project_repo.get_project(conn, params.project_id) is None:
+                from media_mate.application.projects import ProjectNotFoundError
+
+                raise ProjectNotFoundError(params.project_id)
+            intake_repo.insert_session(conn, row)
+        return self._to_session(row)
+
+    def add_destination(self, params: AddDestinationParams) -> IntakeDestination:
+        dest = IntakeDestinationRow(
+            id=0,
+            intake_session_id=params.intake_session_id,
+            kind=params.kind,
+            root_path=params.root_path,
+            role=params.role,
+            required=1 if params.required else 0,
+            verified=0,
+            verified_at=None,
+        )
+        with transaction(self._db_path) as conn:
+            if intake_repo.get_session(conn, params.intake_session_id) is None:
+                raise IntakeSessionNotFoundError(params.intake_session_id)
+            intake_repo.insert_destination(conn, dest)
+        return IntakeDestination(
+            id=dest.id,
+            intakeSessionId=params.intake_session_id,
+            kind=params.kind,
+            rootPath=params.root_path,
+            role=params.role,
+            required=params.required,
+            verified=False,
+        )
+
+    # ---- adoption ----------------------------------------------------
+
+    def adopt_source(
+        self,
+        session_id: str,
+        source_id: int,
+        entries: list[SourceInventoryEntry],
+        destination_root: str,
+        *,
+        project_id: str | None = None,
+    ) -> list[str]:
+        """Adopt a scanned source into the project: create assets and a
+        replica for each entry under ``destination_root``.
+
+        Returns the list of asset ids. The replicas are recorded as
+        unverified; the copy engine verifies them later.
+        """
+        asset_ids = self._assets.adopt_source(source_id, entries)
+        with transaction(self._db_path) as conn:
+            session = intake_repo.get_session(conn, session_id)
+            if session is None:
+                raise IntakeSessionNotFoundError(session_id)
+            pid = project_id or session.project_id
+        for asset_id, entry in zip(asset_ids, entries, strict=True):
+            self._replicas.record(
+                asset_id,
+                pid,
+                str(Path(destination_root) / entry.path),
+                checksum="",
+                algo="xxhash64",
+                source_checksum="",
+                verified=False,
+            )
+        return asset_ids
+
+    # ---- safe-to-format gate -----------------------------------------
+
+    def evaluate(self, session_id: str) -> SafeToFormatEval:
+        """Evaluate the ADR-0004 safe-to-format gate for a session.
+
+        The session is safe only if EVERY asset in the session has a
+        verified replica in every required destination, and all other
+        gate conditions hold.
+        """
+        with transaction(self._db_path) as conn:
+            session = intake_repo.get_session(conn, session_id)
+            if session is None:
+                raise IntakeSessionNotFoundError(session_id)
+            project = project_repo.get_project(conn, session.project_id)
+            policy = self._policy_of(project.storage_policy) if project else None
+            destinations = intake_repo.list_destinations(conn, session_id)
+            source_id = session.source_id
+            assets = self._assets_for_source(conn, source_id) if source_id is not None else []
+            needs_attention_open = self._needs_attention_open(conn, session_id)
+
+        if policy is None:
+            return SafeToFormatEval(
+                sessionId=session_id,
+                safe=False,
+                unmet=["project storage policy is missing"],
+            )
+
+        required_kinds = [d.kind for d in destinations if d.required]
+        if not assets:
+            return SafeToFormatEval(
+                sessionId=session_id,
+                safe=False,
+                unmet=["session has no adopted assets to verify"],
+            )
+
+        aggregate_unmet: list[str] = []
+        all_safe = True
+        for asset_id in assets:
+            verified_kinds = self._verified_destination_kinds(asset_id, destinations)
+            meta_ok = self._replica_metadata_ok(asset_id)
+            result = evaluate_gate(
+                policy=policy,
+                required_destinations=required_kinds,
+                verified_destination_kinds=verified_kinds,
+                source_readable_at=session.source_readable_at,
+                needs_attention_open=needs_attention_open,
+                uncertain_warning=False,
+                replica_metadata_ok=meta_ok,
+            )
+            if not result.safe:
+                all_safe = False
+                aggregate_unmet.extend(result.unmet)
+
+        return SafeToFormatEval(
+            sessionId=session_id,
+            safe=all_safe,
+            unmet=_dedupe(aggregate_unmet),
+        )
+
+    # ---- helpers -----------------------------------------------------
+
+    def _verified_destination_kinds(
+        self, asset_id: str, destinations: list[IntakeDestinationRow]
+    ) -> set[str]:
+        """Return the destination kinds that hold a verified replica of an asset."""
+        kinds: set[str] = set()
+        with transaction(self._db_path) as conn:
+            replicas = [r for r in self._replicas_by_asset(conn, asset_id) if r["verified"] == 1]
+            for dest in destinations:
+                if any(r["path"].startswith(dest.root_path.rstrip("/") + "/") for r in replicas):
+                    kinds.add(dest.kind)
+        return kinds
+
+    @staticmethod
+    def _replicas_by_asset(conn: sqlite3.Connection, asset_id: str) -> list[sqlite3.Row]:
+        return conn.execute("SELECT * FROM replicas WHERE asset_id = ?", (asset_id,)).fetchall()
+
+    @staticmethod
+    def _assets_for_source(conn: sqlite3.Connection, source_id: int) -> list[str]:
+        rows = conn.execute("SELECT id FROM assets WHERE source_id = ?", (source_id,)).fetchall()
+        return [r["id"] for r in rows]
+
+    @staticmethod
+    def _needs_attention_open(conn: sqlite3.Connection, session_id: str) -> bool:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n FROM jobs WHERE session_id = ? AND state = 'needs_attention'",
+            (session_id,),
+        ).fetchone()
+        return int(row["n"]) > 0
+
+    def _replica_metadata_ok(self, asset_id: str) -> bool:
+        with transaction(self._db_path) as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS n FROM replicas WHERE asset_id = ? AND checksum_algo IS NULL",
+                (asset_id,),
+            ).fetchone()
+            return int(row["n"]) == 0
+
+    @staticmethod
+    def _policy_of(storage_policy_json: str) -> StoragePolicy | None:
+        try:
+            return StoragePolicy.model_validate_json(storage_policy_json)
+        except Exception:
+            return None
+
+    @staticmethod
+    def _to_session(row: IntakeSessionRow) -> IntakeSession:
+        return IntakeSession(
+            id=row.id,
+            projectId=row.project_id,
+            sourceId=row.source_id,
+            kind=row.kind,
+            status=row.status,
+            safeToFormat=bool(row.safe_to_format),
+            createdAt=row.created_at,
+            updatedAt=row.updated_at,
+        )
+
+
+def _dedupe(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for item in items:
+        if item not in seen:
+            seen.add(item)
+            out.append(item)
+    return out

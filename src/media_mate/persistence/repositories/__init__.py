@@ -9,6 +9,24 @@ the transaction and combine repository calls with business rules.
 See ADR-0005 (application service module structure).
 """
 
-from media_mate.persistence.repositories import projects, sources
+from media_mate.persistence.repositories import (
+    assets,
+    audit,
+    intake,
+    jobs,
+    profiles,
+    projects,
+    replicas,
+    sources,
+)
 
-__all__ = ["projects", "sources"]
+__all__ = [
+    "assets",
+    "audit",
+    "intake",
+    "jobs",
+    "profiles",
+    "projects",
+    "replicas",
+    "sources",
+]

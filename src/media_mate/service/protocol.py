@@ -211,6 +211,244 @@ class ArchiveProjectParams(FrozenModel):
     id: str
 
 
+# ---------------------------------------------------------------------------
+# organization profiles
+# ---------------------------------------------------------------------------
+
+
+class OrganizationProfile(FrozenModel):
+    """A versioned source-to-destination template."""
+
+    id: int
+    name: str
+    version: int
+    template: dict[str, Any]
+    conflict_policy: str = Field(alias="conflictPolicy")
+    mutation_policy: str = Field(alias="mutationPolicy")
+    created_at: str = Field(alias="createdAt")
+    updated_at: str = Field(alias="updatedAt")
+
+
+class SaveProfileParams(FrozenModel):
+    """The params for ``profile.save``."""
+
+    name: str
+    template: dict[str, Any]
+    conflict_policy: str = Field(default="skip", alias="conflictPolicy")
+    mutation_policy: str = Field(default="copy", alias="mutationPolicy")
+
+
+class ListProfilesResult(FrozenModel):
+    """The result of ``profile.list``."""
+
+    profiles: list[OrganizationProfile]
+
+
+# ---------------------------------------------------------------------------
+# assets
+# ---------------------------------------------------------------------------
+
+
+class AssetSummary(FrozenModel):
+    """One asset identity."""
+
+    id: str
+    source_id: int | None = Field(alias="sourceId")
+    source_relative_path: str = Field(alias="sourceRelativePath")
+    observed_size: int | None = Field(alias="observedSize")
+    observed_mtime: float | None = Field(alias="observedMtime")
+    lifecycle_state: str = Field(alias="lifecycleState")
+    media_kind: str | None = Field(alias="mediaKind")
+    first_seen_at: str = Field(alias="firstSeenAt")
+
+
+class ListAssetsParams(FrozenModel):
+    """The params for ``asset.list``."""
+
+    project_id: str | None = Field(default=None, alias="projectId")
+
+
+class ListAssetsResult(FrozenModel):
+    """The result of ``asset.list``."""
+
+    assets: list[AssetSummary]
+
+
+# ---------------------------------------------------------------------------
+# replicas + safe-to-format
+# ---------------------------------------------------------------------------
+
+
+class ReplicaSummary(FrozenModel):
+    """One physical location of one asset."""
+
+    id: int
+    asset_id: str = Field(alias="assetId")
+    project_id: str = Field(alias="projectId")
+    path: str
+    checksum: str | None
+    checksum_algo: str | None = Field(alias="checksumAlgo")
+    verified: bool
+    verified_at: str | None = Field(alias="verifiedAt")
+    availability: str
+
+
+class VerifyReplicaParams(FrozenModel):
+    """The params for ``replica.verify``."""
+
+    replica_id: int = Field(alias="replicaId")
+    source_path: str = Field(alias="sourcePath")
+    checksum_algo: str = Field(alias="checksumAlgo")
+
+
+class VerifyReplicaResult(FrozenModel):
+    """The result of ``replica.verify``."""
+
+    replica_id: int = Field(alias="replicaId")
+    verified: bool
+    checksum_algo: str = Field(alias="checksumAlgo")
+    source_checksum: str = Field(alias="sourceChecksum")
+    replica_checksum: str = Field(alias="replicaChecksum")
+
+
+class ListReplicasResult(FrozenModel):
+    """The result of ``replica.list``."""
+
+    replicas: list[ReplicaSummary]
+
+
+# ---------------------------------------------------------------------------
+# intake sessions
+# ---------------------------------------------------------------------------
+
+
+class IntakeSession(FrozenModel):
+    """An intake session (offload or adoption intent)."""
+
+    id: str
+    project_id: str = Field(alias="projectId")
+    source_id: int | None = Field(alias="sourceId")
+    kind: str
+    status: str
+    safe_to_format: bool = Field(alias="safeToFormat")
+    created_at: str = Field(alias="createdAt")
+    updated_at: str = Field(alias="updatedAt")
+
+
+class IntakeDestination(FrozenModel):
+    """A required/optional destination on an intake session."""
+
+    id: int
+    intake_session_id: str = Field(alias="intakeSessionId")
+    kind: str
+    root_path: str = Field(alias="rootPath")
+    role: str | None = None
+    required: bool
+    verified: bool
+
+
+class CreateIntakeSessionParams(FrozenModel):
+    """The params for ``intake.createSession``."""
+
+    project_id: str = Field(alias="projectId")
+    source_id: int = Field(alias="sourceId")
+    kind: Literal["offload", "existing_folder"] = "offload"
+
+
+class AddDestinationParams(FrozenModel):
+    """The params for ``intake.addDestination``."""
+
+    intake_session_id: str = Field(alias="intakeSessionId")
+    kind: Literal["working", "backup", "organization"]
+    root_path: str = Field(alias="rootPath")
+    role: str | None = None
+    required: bool = True
+
+
+class SafeToFormatEval(FrozenModel):
+    """The result of ``intake.evaluate`` — the ADR-0004 gate outcome."""
+
+    session_id: str = Field(alias="sessionId")
+    safe: bool
+    unmet: list[str]
+
+
+# ---------------------------------------------------------------------------
+# jobs
+# ---------------------------------------------------------------------------
+
+
+class JobDetail(FrozenModel):
+    """A durable job row."""
+
+    id: str
+    project_id: str = Field(alias="projectId")
+    session_id: str | None = Field(alias="sessionId")
+    command: str
+    state: str
+    current_step: str | None = Field(alias="currentStep")
+    total_steps: int = Field(alias="totalSteps")
+    started_at: str | None = Field(alias="startedAt")
+    updated_at: str = Field(alias="updatedAt")
+    finished_at: str | None = Field(alias="finishedAt")
+    error: str | None = None
+    resumable: bool = False
+
+
+class CreateJobParams(FrozenModel):
+    """The params for ``job.create``."""
+
+    project_id: str = Field(alias="projectId")
+    command: str
+    args_fingerprint: str | None = Field(default=None, alias="argsFingerprint")
+    session_id: str | None = Field(default=None, alias="sessionId")
+    total_steps: int = Field(default=0, alias="totalSteps")
+
+
+class JobTransitionParams(FrozenModel):
+    """The params for ``job.transition``."""
+
+    id: str
+    from_state: str = Field(alias="fromState")
+    to_state: str = Field(alias="toState")
+
+
+class ListJobsResult(FrozenModel):
+    """The result of ``job.list``."""
+
+    jobs: list[JobDetail]
+
+
+# ---------------------------------------------------------------------------
+# audit
+# ---------------------------------------------------------------------------
+
+
+class AuditEvent(FrozenModel):
+    """One append-only audit event."""
+
+    id: int
+    occurred_at: str = Field(alias="occurredAt")
+    event_type: str = Field(alias="eventType")
+    entity_type: str | None = Field(alias="entityType")
+    entity_id: str | None = Field(alias="entityId")
+    data: dict[str, Any] | None = None
+    run_id: int | None = Field(alias="runId")
+
+
+class ListAuditParams(FrozenModel):
+    """The params for ``audit.list``."""
+
+    entity_id: str | None = Field(default=None, alias="entityId")
+    limit: int = Field(default=200, ge=1, le=5000)
+
+
+class ListAuditResult(FrozenModel):
+    """The result of ``audit.list``."""
+
+    events: list[AuditEvent]
+
+
 class SourceInventoryEntry(FrozenModel):
     """One file found by a read-only source scan."""
 
@@ -322,8 +560,13 @@ def decode_frame(line: str) -> Frame | None:
 # import them from a single namespace.
 __all__ = [
     "PROTOCOL_VERSION",
+    "AddDestinationParams",
     "AppStatus",
     "ArchiveProjectParams",
+    "AssetSummary",
+    "AuditEvent",
+    "CreateIntakeSessionParams",
+    "CreateJobParams",
     "CreateProjectParams",
     "CreateProjectResult",
     "ErrorFrame",
@@ -331,22 +574,39 @@ __all__ = [
     "Frame",
     "FrameRoot",
     "GetCapabilities",
+    "IntakeDestination",
+    "IntakeSession",
+    "JobDetail",
     "JobEvent",
     "JobSnapshot",
+    "JobTransitionParams",
+    "ListAssetsParams",
+    "ListAssetsResult",
+    "ListAuditParams",
+    "ListAuditResult",
+    "ListJobsResult",
+    "ListProfilesResult",
     "ListProjectsResult",
+    "ListReplicasResult",
     "ListVolumesResult",
     "MountedVolume",
+    "OrganizationProfile",
     "ProjectDetail",
     "ProjectSummary",
+    "ReplicaSummary",
     "RequestFrame",
     "ResponseFrame",
     "RpcError",
     "RpcErrorCode",
+    "SafeToFormatEval",
+    "SaveProfileParams",
     "SourceInspectParams",
     "SourceInspectResult",
     "SourceInventoryEntry",
     "StoragePolicy",
     "UpdateProjectParams",
+    "VerifyReplicaParams",
+    "VerifyReplicaResult",
     "decode_frame",
     "encode_frame",
 ]

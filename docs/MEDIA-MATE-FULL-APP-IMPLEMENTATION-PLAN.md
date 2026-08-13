@@ -1,7 +1,7 @@
 # Media-mate Full App Implementation Plan
 
-> **Status:** In implementation — Packages 1–5 landed
-> **Date:** 2026-08-12
+> **Status:** **All Packages 1–9 landed** — implementation complete at `810bc7b`
+> **Date:** 2026-08-12 (updated 2026-08-14)
 > **Product target:** A sturdy local-first Electron desktop application for
 > media offload, existing-folder organization, project media management, proxy
 > generation, verification, and editorial handoff.
@@ -651,3 +651,84 @@ interfaces in one compatibility-preserving foundation change.
 
 No media-moving desktop UI should be implemented before that foundation has
 automated contract, migration, and recovery tests.
+
+---
+
+## 16. Implementation status (updated 2026-08-14)
+
+All nine work packages are **Done** (see §0 table). The build sequence in
+§10 was followed in order. What follows is the honest, current state and the
+items that are intentionally still open.
+
+### 16.1 Remaining items (operator-owned — not code)
+
+These are the §11.3 release gates that need a human, a real Apple Developer
+ID, hardware, or external review. The build configuration and procedures are
+in place; these steps cannot be completed by a repo change alone.
+
+- **Real macOS signing / notarization.** `build/electron-builder.yml` sets
+  `hardenedRuntime`, entitlements, `notarize: true`, and `dmg.sign: true`,
+  but producing a signed/notarized build requires an Apple Developer ID +
+  notarization credentials in the build environment. Until proven, local
+  builds run unsigned for development.
+- **Real-media acceptance suite (§11.2).** Proxy validation for VFR / silent /
+  multi-audio / SAR / RAW refusal, plus the live Resolve integration, are
+  still deferred to the real-media suite. The labeled Resolve import manifest
+  ships as the honest fallback until a live integration test proves import /
+  timeline behavior.
+- **Prolonged offload/proxy soak.** A long-running offload/proxy run must
+  complete with no orphaned jobs, stale sidecars, locked database, or
+  incorrect safety state.
+- **Security review.** Confirm renderer isolation, no unintended listener or
+  privileged IPC surface.
+- **Signed install + update/rollback proof.** Auto-update is disabled; when
+  enabled, it must first prove signed update artifacts, a rollback path, and
+  release verification.
+
+### 16.2 Areas flagged for deeper review
+
+These are places a deep audit should scrutinize. They are not known defects,
+but they carry the most risk / subtlety and deserve a closer look before the
+app is called stable.
+
+- **The Ingest `execute` path is a multi-call sequence, not a single atomic
+  command.** It runs `intake.createSession` → `addDestination` (per root) →
+  `intake.adoptSource` → `job.create` as four separate IPC calls from the
+  renderer. A failure partway leaves a partially-set-up session. Consider a
+  single `intake.submit`/plan-execute IPC that runs the sequence on the
+  sidecar so it is atomic and recoverable. The 7d Ingest screen builds it
+  step-by-step today.
+- **`job.retry` creates a fresh job (per the §6.4 machine where `failed` is
+  terminal).** This is correct against the frozen state machine, but the
+  fresh job drops `argsFingerprint` (not carried on `JobDetail`). Verify a
+  retry truly reuses the intended plan/fingerprint and does not silently
+  re-run with different arguments.
+- **Renderer tests run in node, not a DOM/jsdom.** Component logic is extracted
+  into pure `lib/*` modules and unit-tested, but the `.tsx` components
+  themselves have no rendering tests. A real renderer test harness
+  (jsdom + testing-library) would close the gap between pure-logic coverage
+  and actual component behavior.
+- **The Desktop CI gap.** `.github/workflows/ci.yml` runs the Python matrix
+  only; the desktop typecheck/lint/tests/build are run locally and are not yet
+  enforced in CI. Add a desktop job before relying on the desktop surface.
+- **Sidecar version strings are still `"0.0.0+foundation"`.**
+  `SIDECAR_VERSION` in `application/service.py` and the `service.py` module
+  docstring still describe the foundation cut. Refresh to a real version and
+  current description now that the app is feature-complete.
+- **`source.inspect` / volume observations and classification.** The volume
+  adapter reports observations only and never labels a card; the intake layer
+  decides. Review that no hidden heuristic labels a card anywhere.
+- **Legacy CLI `run` still composes capability modules directly** while the
+  vNext verbs call `ApplicationService`. Both are supported, but the legacy
+  `run` pipeline has not been migrated onto the durable job model. Confirm the
+  documented mapping (§9) and that a legacy `run` and a vNext job cannot
+  double-write the same project state unexpectedly.
+- **The `intake.adoptSource` params use `entries` (full inventory) over IPC**
+  — for a very large card this is a large payload. Consider passing the
+  source id and re-reading the manifest sidecar-side, or a bounded/paged
+  inventory, to avoid unbounded serialization (plan §8.3: "never serialize
+  unbounded FFmpeg output or arbitrary filesystem content to the renderer").
+- **Electron window-close semantics are keep-alive only.** `window-all-closed`
+  keeps the app running so active jobs continue; there is no tray/menu path
+  to reopen the window (the plan §8.1 calls for one). Add a tray/status-item
+  affordance before shipping.

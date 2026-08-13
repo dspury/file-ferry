@@ -215,15 +215,17 @@ media-mate log --limit 5
 ## Roadmap
 
 The next product direction is documented in
-[`docs/MEDIA-MATE-PRODUCT-DIRECTION.md`](./docs/MEDIA-MATE-PRODUCT-DIRECTION.md).
-It proposes a local-first desktop workstation for verified card offload,
-existing-folder adoption, project reconciliation, and a retained CLI/TUI. It is
-a discussion draft, not a statement of shipped behavior.
+[`docs/MEDIA-MATE-PRODUCT-DIRECTION.md`](./docs/MEDIA-MATE-PRODUCT-DIRECTION.md):
+a local-first desktop workstation for verified card offload, existing-folder
+adoption, project reconciliation, and a retained CLI/TUI.
 
 The full build plan is in
 [`docs/MEDIA-MATE-FULL-APP-IMPLEMENTATION-PLAN.md`](./docs/MEDIA-MATE-FULL-APP-IMPLEMENTATION-PLAN.md).
-It defines the proposed Electron architecture, shared Python application layer,
-media-safety contracts, delivery work, and release gates.
+**All nine implementation packages are landed** (see its §0 progress table):
+Electron shell + secure bridge, the complete desktop experience, TUI/CLI
+parity, and packaged-release hardening. The remaining items are operator-owned
+release gates (signing/notarization, real-media suite, soak, security review)
+— see §16 of the plan.
 
 Longer-term ideas (not yet scheduled):
 

@@ -45,9 +45,27 @@ export interface SidecarStatus {
 }
 
 export interface ProtocolErrorEvent {
-  readonly reason: 'unparseable_frame' | 'version_mismatch' | 'unsolicited_response';
+  readonly reason:
+    'unparseable_frame' | 'version_mismatch' | 'unsolicited_request' | 'unsolicited_response';
   readonly line: string;
   readonly at: string;
+}
+
+/**
+ * Classify an unexpected frame coming up from the sidecar.
+ *
+ * The sidecar is a JSON-RPC server: it should never send a `request`
+ * (it has no peer to call) and it should only send a `response` that
+ * matches a `pendingIds` entry. Anything else is a protocol violation;
+ * the reason lets the renderer log / recover appropriately.
+ *
+ * Pure function so the classification can be tested without spinning
+ * up a real sidecar (see tests/sidecar.test.ts).
+ */
+export function classifyUnexpectedFrame(frame: {
+  kind: string;
+}): Extract<ProtocolErrorEvent['reason'], 'unsolicited_request' | 'unsolicited_response'> {
+  return frame.kind === 'request' ? 'unsolicited_request' : 'unsolicited_response';
 }
 
 export interface SidecarEventMap {
@@ -225,7 +243,7 @@ export class SidecarSupervisor extends EventEmitter {
     if (frame.kind === 'request' || frame.kind === 'response') {
       this.emit('log', `unexpected frame kind on sidecar stdout: ${frame.kind}`);
       this.emit('protocolError', {
-        reason: frame.kind === 'request' ? 'unsolicited_response' : 'unsolicited_response',
+        reason: classifyUnexpectedFrame(frame),
         line,
         at: new Date().toISOString(),
       });

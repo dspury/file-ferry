@@ -10,6 +10,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { joinPath, resolveSidecarCommand } from '../electron/sidecar-command.js';
+import { classifyUnexpectedFrame } from '../electron/sidecar.js';
+import type { ProtocolErrorEvent } from '../electron/sidecar.js';
 import { decodeFrame, encodeFrame, type RequestFrame } from '../shared/ipc-schema.js';
 import { PROTOCOL_VERSION } from '../shared/version.js';
 
@@ -78,5 +80,28 @@ describe('protocol frame errors (decode side)', () => {
   it('rejects non-NDJSON garbage', () => {
     expect(decodeFrame('{not json\n')).toBeNull();
     expect(decodeFrame('')).toBeNull();
+  });
+});
+
+describe('classifyUnexpectedFrame', () => {
+  // Regression for the bug where both ternary branches returned
+  // 'unsolicited_response'. The kind discriminator must be honored.
+  it("classifies an unsolicited request frame as 'unsolicited_request'", () => {
+    expect(classifyUnexpectedFrame({ kind: 'request' })).toBe('unsolicited_request');
+  });
+
+  it("classifies an unsolicited response frame as 'unsolicited_response'", () => {
+    expect(classifyUnexpectedFrame({ kind: 'response' })).toBe('unsolicited_response');
+  });
+
+  it('the returned reason matches the typed ProtocolErrorEvent union', () => {
+    const reasons: ProtocolErrorEvent['reason'][] = [
+      classifyUnexpectedFrame({ kind: 'request' }),
+      classifyUnexpectedFrame({ kind: 'response' }),
+    ];
+    // Type-level check: this assignment only compiles if both values
+    // are valid members of ProtocolErrorEvent['reason'].
+    const typed: ProtocolErrorEvent['reason'][] = reasons;
+    expect(typed).toHaveLength(2);
   });
 });

@@ -6,6 +6,7 @@
  */
 import type { EventFrame } from './ipc-schema.js';
 import type { MethodName, ParamsOf, ResultOf } from './ipc-methods.js';
+import type { PickRequest, PickResult } from './dialog.js';
 
 function invoke<M extends MethodName>(_method: M, _params: ParamsOf<M>): Promise<ResultOf<M>> {
   return Promise.resolve(undefined as unknown as ResultOf<M>);
@@ -15,6 +16,11 @@ export const api = {
   app: {
     getStatus: () => invoke('app.getStatus', {}),
     getCapabilities: () => invoke('app.getCapabilities', {}),
+    openDiagnosticFolder: () => Promise.resolve({ logDir: '' }) as Promise<{ logDir: string }>,
+    diagnostics: () => Promise.resolve({ summary: '' }) as Promise<{ summary: string }>,
+  },
+  dialog: {
+    pick: (_request: PickRequest) => Promise.resolve({ path: null, cancelled: true } as PickResult),
   },
   project: {
     list: () => invoke('project.list', {}),

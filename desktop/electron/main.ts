@@ -9,8 +9,13 @@ import { app, BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron';
 import { resolve as pathResolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { SidecarSupervisor } from './sidecar.js';
+import { showPicker } from './dialogs.js';
+import { ensureLogDir, appendLog, countLogFiles, openDiagnosticFolder } from './diagnostics.js';
 import { applyContentSecurityPolicy, baseWindowOptions } from './security.js';
+import { JobSnapshotStore, replayPayload } from '../shared/replay.js';
+import { formatDiagnosticSummary } from '../shared/diagnostics.js';
 import { PROTOCOL_VERSION } from '../shared/version.js';
+import type { PickRequest } from '../shared/dialog.js';
 
 const isDev = !app.isPackaged;
 
@@ -54,10 +59,30 @@ async function createMainWindow(supervisor: SidecarSupervisor): Promise<BrowserW
 
   applyContentSecurityPolicy(window.webContents.session);
 
-  // Forward sidecar events to the renderer.
+  // Forward sidecar events to the renderer. Job-update events are also
+  // recorded into the replay store so a reloaded window can be caught up.
   supervisor.on('frame', (frame) => {
     if (frame.kind === 'event') {
+      if (frame.method === 'job.updated') {
+        const snapshot = (frame as { params: { snapshot: { id: string } } }).params?.snapshot;
+        if (snapshot && snapshot.id) {
+          snapshotStore.record(snapshot as never);
+        }
+      }
       window.webContents.send(`sidecar:event:${frame.method}`, frame);
+    }
+  });
+
+  // A renderer reload may lose its subscription but not job state
+  // (ADR-0001). On load, replay the current job snapshots so the fresh
+  // window shows live state, then it can re-subscribe for future events.
+  window.webContents.on('did-finish-load', () => {
+    const payload = replayPayload(snapshotStore);
+    for (const snapshot of payload) {
+      window.webContents.send(`sidecar:event:job.updated`, {
+        jobId: snapshot.id,
+        snapshot,
+      });
     }
   });
 
@@ -71,6 +96,10 @@ async function createMainWindow(supervisor: SidecarSupervisor): Promise<BrowserW
   return window;
 }
 
+// The store is module-scoped so it survives window recreation and the
+// app's keep-alive-on-last-window-closed policy.
+const snapshotStore = new JobSnapshotStore();
+
 async function main(): Promise<void> {
   // Single-instance lock (per ADR-0001). A second launch forwards its
   // request to the existing process instead of opening a second writer.
@@ -81,7 +110,13 @@ async function main(): Promise<void> {
   }
 
   app.on('second-instance', () => {
-    // The existing process holds the lock; the new launch is a no-op.
+    // A second launch happened; focus and restore the existing window so
+    // the user lands on the running app rather than a silent no-op.
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
   });
 
   // The desktop application does not quit when the last window closes.
@@ -93,6 +128,7 @@ async function main(): Promise<void> {
 
   await app.whenReady();
 
+  const logDir = ensureLogDir();
   const { executable, args } = resolveSidecarCommand();
   const supervisor = new SidecarSupervisor({
     executable,
@@ -102,13 +138,48 @@ async function main(): Promise<void> {
     },
   });
 
+  // Sidecar stderr/stdout go to the local diagnostic log (plan §8.1).
+  supervisor.on('log', (line) => {
+    appendLog(logDir, 'sidecar.log', line);
+  });
+
   supervisor.on('crashed', ({ exitCode }) => {
+    appendLog(logDir, 'sidecar.log', `sidecar crashed (exit=${exitCode})`);
     console.error(`sidecar crashed (exit=${exitCode}); supervisor will restart`);
   });
 
   await supervisor.start();
 
   const mainWindow = await createMainWindow(supervisor);
+
+  // Native pickers: the renderer never supplies a path; it requests a
+  // picker and receives a validated result (ADR-0001).
+  ipcMain.handle('dialog:pick', async (_event: IpcMainInvokeEvent, request: PickRequest) => {
+    const parent = BrowserWindow.fromWebContents(_event.sender);
+    return showPicker(parent, request);
+  });
+
+  // Open the local diagnostic folder.
+  ipcMain.handle('app:openDiagnosticFolder', async () => {
+    await openDiagnosticFolder(logDir);
+    return { logDir };
+  });
+
+  // Diagnostic summary for the About/Doctor surface.
+  ipcMain.handle('app:diagnostics', async () => {
+    const appDataDir = app.getPath('userData');
+    const report = {
+      platform: process.platform,
+      electronVersion: process.versions.electron ?? '',
+      protocolVersion: PROTOCOL_VERSION,
+      sidecarStatus: supervisor.status().state,
+      dbPath: pathResolve(appDataDir, 'media-mate.db'),
+      appDataDir,
+      logDir,
+      logCount: countLogFiles(logDir),
+    };
+    return { summary: formatDiagnosticSummary(report) };
+  });
 
   ipcMain.handle(
     'sidecar:request',

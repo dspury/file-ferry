@@ -10,6 +10,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { Frame, ResponseFrame, EventFrame } from '../shared/ipc-schema.js';
 import type { MethodName, ParamsOf, ResultOf } from '../shared/ipc-methods.js';
+import type { PickRequest, PickResult } from '../shared/dialog.js';
 
 interface PendingRequest {
   readonly resolve: (value: unknown) => void;
@@ -41,6 +42,13 @@ const api = {
   app: {
     getStatus: () => invoke('app.getStatus', {}),
     getCapabilities: () => invoke('app.getCapabilities', {}),
+    openDiagnosticFolder: () =>
+      ipcRenderer.invoke('app:openDiagnosticFolder') as Promise<{ logDir: string }>,
+    diagnostics: () => ipcRenderer.invoke('app:diagnostics') as Promise<{ summary: string }>,
+  },
+  dialog: {
+    pick: (request: PickRequest) =>
+      ipcRenderer.invoke('dialog:pick', request) as Promise<PickResult>,
   },
   project: {
     list: () => invoke('project.list', {}),

@@ -27,6 +27,13 @@ export interface SidecarSupervisorOptions {
   readonly cwd?: string;
   readonly maxRestarts?: number;
   readonly initialBackoffMs?: number;
+  /**
+   * Optional guard consulted before an automatic restart. Return false
+   * to defer the restart (e.g. while a job is mid-flight); the process
+   * stays stopped and the caller decides when to re-run ``start()``.
+   * Defaults to always-restart (plan §5.1: "restarts only when safe").
+   */
+  readonly restartSafe?: () => boolean;
 }
 
 export interface SidecarStatus {
@@ -64,6 +71,7 @@ export class SidecarSupervisor extends EventEmitter {
       cwd: options.cwd ?? process.cwd(),
       maxRestarts: options.maxRestarts ?? 5,
       initialBackoffMs: options.initialBackoffMs ?? 500,
+      restartSafe: options.restartSafe ?? (() => true),
     };
   }
 
@@ -215,6 +223,14 @@ export class SidecarSupervisor extends EventEmitter {
       return;
     }
     if (this.restartCount >= this.options.maxRestarts) {
+      this.state = 'stopped';
+      this.emit('stopped', undefined);
+      return;
+    }
+    // Plan §5.1: restart only when safe. If a job is mid-flight, the
+    // caller defers the restart; the process stays stopped and the
+    // caller re-runs start() when it is safe.
+    if (!this.options.restartSafe()) {
       this.state = 'stopped';
       this.emit('stopped', undefined);
       return;

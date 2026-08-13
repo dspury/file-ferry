@@ -21,13 +21,16 @@ from pathlib import Path
 from media_mate.application.assets import AssetService
 from media_mate.application.audit import AuditService
 from media_mate.application.clips import ClipService
+from media_mate.application.derivatives import DerivativeService
 from media_mate.application.intake import IntakeService
 from media_mate.application.jobs import JobService
+from media_mate.application.manifest import ManifestService
 from media_mate.application.offload import OffloadRunner
 from media_mate.application.organize import OrganizeService
 from media_mate.application.plan import IntakePlanner
 from media_mate.application.profiles import ProfileService
 from media_mate.application.projects import ProjectService
+from media_mate.application.proxy_runner import ProxyRunner
 from media_mate.application.receipts import ReceiptStore, export_html, export_markdown
 from media_mate.application.reconcile import ReconcileService
 from media_mate.application.replicas import ReplicaService
@@ -47,6 +50,7 @@ from media_mate.service.protocol import (
     CreateIntakeSessionParams,
     CreateJobParams,
     CreateProjectParams,
+    DerivativeSummary,
     DetectClipsParams,
     ExportReceiptParams,
     ExportReceiptResult,
@@ -66,11 +70,13 @@ from media_mate.service.protocol import (
     OrganizePreviewParams,
     OrganizeResult,
     ProjectDetail,
+    ProjectManifest,
     ProjectSummary,
     ReconcileAssetParams,
     ReconcileProjectParams,
     ReconcileReport,
     ReplicaSummary,
+    ResolveImportManifest,
     SafeToFormatEval,
     SaveProfileParams,
     SourceInspectParams,
@@ -114,6 +120,10 @@ METHOD_NAMES: tuple[str, ...] = (
     "organize.apply",
     "clips.detect",
     "clips.list",
+    "derivatives.list",
+    "manifest.export",
+    "manifest.handoff",
+    "manifest.resolve",
     "job.create",
     "job.list",
     "job.get",
@@ -155,6 +165,8 @@ class ApplicationService:
         self._reconcile: ReconcileService | None = None
         self._organize: OrganizeService | None = None
         self._clips: ClipService | None = None
+        self._derivatives: DerivativeService | None = None
+        self._manifest: ManifestService | None = None
 
     # ---- lifecycle ----------------------------------------------------
 
@@ -193,6 +205,8 @@ class ApplicationService:
         self._reconcile = ReconcileService(self._db_path)
         self._organize = OrganizeService()
         self._clips = ClipService(self._db_path)
+        self._derivatives = DerivativeService(self._db_path)
+        self._manifest = ManifestService(self._db_path)
         self._register_scheduler_runners()
         self._bootstrapped = True
 
@@ -215,6 +229,8 @@ class ApplicationService:
         self._reconcile = None
         self._organize = None
         self._clips = None
+        self._derivatives = None
+        self._manifest = None
         self._bootstrapped = False
 
     # ---- introspection ------------------------------------------------
@@ -413,15 +429,36 @@ class ApplicationService:
     # ---- scheduler wiring --------------------------------------------
 
     def _register_scheduler_runners(self) -> None:
-        """Wire the durable runners (offload) into the scheduler."""
-        runner = OffloadRunner(
+        """Wire the durable runners (offload, proxy) into the scheduler."""
+        offload = OffloadRunner(
             self._planner_service(),
             self._intake_service(),
             self._replica_service(),
             self._asset_service(),
             self._job_service(),
         )
-        self._scheduler_service().register_runner("offload", runner)
+        self._scheduler_service().register_runner("offload", offload)
+        proxy = ProxyRunner(
+            self._asset_service(),
+            self._derivative_service(),
+            self._intake_service(),
+            self._job_service(),
+        )
+        self._scheduler_service().register_runner("proxy", proxy)
+
+    # ---- derivatives / manifest --------------------------------------
+
+    def derivatives_list(self, asset_id: str) -> list[DerivativeSummary]:
+        return self._derivative_service().list(asset_id)
+
+    def manifest_export(self, project_id: str) -> ProjectManifest:
+        return self._manifest_service().export_project(project_id)
+
+    def manifest_handoff(self, project_id: str) -> str:
+        return self._manifest_service().export_handoff(project_id)
+
+    def manifest_resolve(self, project_id: str) -> ResolveImportManifest:
+        return self._manifest_service().export_resolve_manifest(project_id)
 
     # ---- audit methods -----------------------------------------------
 
@@ -492,6 +529,16 @@ class ApplicationService:
         if self._clips is None:
             raise RuntimeError("ApplicationService.bootstrap() must be called first")
         return self._clips
+
+    def _derivative_service(self) -> DerivativeService:
+        if self._derivatives is None:
+            raise RuntimeError("ApplicationService.bootstrap() must be called first")
+        return self._derivatives
+
+    def _manifest_service(self) -> ManifestService:
+        if self._manifest is None:
+            raise RuntimeError("ApplicationService.bootstrap() must be called first")
+        return self._manifest
 
     def scheduler(self) -> JobScheduler:
         """Expose the scheduler so runners can be registered at startup."""

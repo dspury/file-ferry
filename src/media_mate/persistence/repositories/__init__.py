@@ -12,6 +12,7 @@ See ADR-0005 (application service module structure).
 from media_mate.persistence.repositories import (
     assets,
     audit,
+    derivatives,
     intake,
     jobs,
     profiles,
@@ -23,6 +24,7 @@ from media_mate.persistence.repositories import (
 __all__ = [
     "assets",
     "audit",
+    "derivatives",
     "intake",
     "jobs",
     "profiles",

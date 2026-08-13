@@ -410,6 +410,56 @@ export interface DetectClipsParams {
   readonly sourceId: number;
 }
 
+export interface DerivativeSummary {
+  readonly id: number;
+  readonly assetId: string;
+  readonly kind: string;
+  readonly outputPath: string;
+  readonly settingsFingerprint: string | null;
+  readonly status: string;
+  readonly readiness: number;
+}
+
+export interface ManifestAsset {
+  readonly id: string;
+  readonly sourceRelativePath: string;
+  readonly observedSize: number | null;
+  readonly lifecycleState: string;
+  readonly mediaKind: string | null;
+}
+
+export interface ManifestReplica {
+  readonly assetId: string;
+  readonly path: string;
+  readonly checksum: string | null;
+  readonly checksumAlgo: string | null;
+  readonly verified: boolean;
+  readonly availability: string;
+}
+
+export interface ProjectManifest {
+  readonly projectId: string;
+  readonly projectName: string;
+  readonly status: string;
+  readonly exportedAt: string;
+  readonly manifestVersion: number;
+  readonly assets: readonly ManifestAsset[];
+  readonly replicas: readonly ManifestReplica[];
+  readonly warnings: readonly string[];
+}
+
+export interface ResolveClip {
+  readonly name: string;
+  readonly path: string;
+  readonly proxyPath: string | null;
+}
+
+export interface ResolveImportManifest {
+  readonly label: string;
+  readonly projectId: string;
+  readonly clips: readonly ResolveClip[];
+}
+
 export interface JobSnapshot {
   readonly id: string;
   readonly state:
@@ -495,6 +545,10 @@ export interface MethodCatalog {
   'organize.apply': { params: OrganizeApplyParams; result: OrganizeResult };
   'clips.detect': { params: DetectClipsParams; result: LogicalClip[] };
   'clips.list': { params: DetectClipsParams; result: LogicalClip[] };
+  'derivatives.list': { params: { assetId: string }; result: DerivativeSummary[] };
+  'manifest.export': { params: { projectId: string }; result: ProjectManifest };
+  'manifest.handoff': { params: { projectId: string }; result: string };
+  'manifest.resolve': { params: { projectId: string }; result: ResolveImportManifest };
   'audit.list': { params: ListAuditParams; result: ListAuditResult };
   'audit.backfill': { params: Record<string, never>; result: number };
   'job.subscribe': { params: { jobId: string }; result: JobSnapshot };

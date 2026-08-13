@@ -77,6 +77,14 @@ export const api = {
     detect: (sourceId: number) => invoke('clips.detect', { sourceId }),
     list: (sourceId: number) => invoke('clips.list', { sourceId }),
   },
+  derivatives: {
+    list: (assetId: string) => invoke('derivatives.list', { assetId }),
+  },
+  manifest: {
+    export: (projectId: string) => invoke('manifest.export', { projectId }),
+    handoff: (projectId: string) => invoke('manifest.handoff', { projectId }),
+    resolve: (projectId: string) => invoke('manifest.resolve', { projectId }),
+  },
   audit: {
     list: (params?: ParamsOf<'audit.list'>) => invoke('audit.list', params ?? {}),
     backfill: () => invoke('audit.backfill', {}),

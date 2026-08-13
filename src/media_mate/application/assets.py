@@ -8,6 +8,7 @@ Re-scanning is idempotent by ``(source_id, source_relative_path)``.
 
 from __future__ import annotations
 
+import builtins
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -84,6 +85,15 @@ class AssetService:
         with transaction(self._db_path) as conn:
             rows = asset_repo.list_assets(conn, project_id)
         return [self._to_model(r) for r in rows]
+
+    def list_by_source(self, source_id: int) -> builtins.list[AssetSummary]:
+        """Return every asset adopted from a source."""
+        with transaction(self._db_path) as conn:
+            rows = conn.execute(
+                "SELECT * FROM assets WHERE source_id = ? ORDER BY source_relative_path ASC",
+                (source_id,),
+            ).fetchall()
+        return [self._to_model(asset_repo.AssetRow.from_row(r)) for r in rows]
 
     def get_by_path(self, source_id: int, rel_path: str) -> AssetSummary | None:
         """Return the asset for a source-relative path, if it exists."""

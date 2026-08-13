@@ -666,6 +666,82 @@ class DetectClipsParams(FrozenModel):
     source_id: int = Field(alias="sourceId")
 
 
+# ---------------------------------------------------------------------------
+# derivatives
+# ---------------------------------------------------------------------------
+
+
+class DerivativeSummary(FrozenModel):
+    """Per-asset proxy / derived output state."""
+
+    id: int
+    asset_id: str = Field(alias="assetId")
+    kind: str
+    output_path: str = Field(alias="outputPath")
+    settings_fingerprint: str | None = Field(alias="settingsFingerprint")
+    status: str
+    readiness: float
+
+
+# ---------------------------------------------------------------------------
+# project manifest / handoff export
+# ---------------------------------------------------------------------------
+
+
+class ManifestAsset(FrozenModel):
+    """One asset in a portable project manifest."""
+
+    id: str
+    source_relative_path: str = Field(alias="sourceRelativePath")
+    observed_size: int | None = Field(alias="observedSize")
+    lifecycle_state: str = Field(alias="lifecycleState")
+    media_kind: str | None = Field(alias="mediaKind")
+
+
+class ManifestReplica(FrozenModel):
+    """One replica in a portable project manifest."""
+
+    asset_id: str = Field(alias="assetId")
+    path: str
+    checksum: str | None
+    checksum_algo: str | None = Field(alias="checksumAlgo")
+    verified: bool
+    availability: str
+
+
+class ProjectManifest(FrozenModel):
+    """A portable, reviewable JSON manifest for a project (§4.5, §7.4)."""
+
+    project_id: str = Field(alias="projectId")
+    project_name: str = Field(alias="projectName")
+    status: str
+    exported_at: str = Field(alias="exportedAt")
+    manifest_version: int = Field(alias="manifestVersion")
+    assets: list[ManifestAsset]
+    replicas: list[ManifestReplica]
+    warnings: list[str]
+
+
+class ResolveClip(FrozenModel):
+    """One clip in a Resolve import manifest."""
+
+    name: str
+    path: str
+    proxy_path: str | None = Field(alias="proxyPath")
+
+
+class ResolveImportManifest(FrozenModel):
+    """A clearly-labeled manifest for Resolve import — NOT a created project.
+
+    Per plan §7.4: until live Resolve integration is proven, the output is
+    a manifest for import, never a claim of a created Resolve project.
+    """
+
+    label: str
+    project_id: str = Field(alias="projectId")
+    clips: list[ResolveClip]
+
+
 class SourceInventoryEntry(FrozenModel):
     """One file found by a read-only source scan."""
 
@@ -791,6 +867,7 @@ __all__ = [
     "CreateJobParams",
     "CreateProjectParams",
     "CreateProjectResult",
+    "DerivativeSummary",
     "DetectClipsParams",
     "ErrorFrame",
     "EventFrame",
@@ -816,6 +893,8 @@ __all__ = [
     "ListReplicasResult",
     "ListVolumesResult",
     "LogicalClip",
+    "ManifestAsset",
+    "ManifestReplica",
     "MountedVolume",
     "OrganizationProfile",
     "OrganizeApplyParams",
@@ -827,6 +906,7 @@ __all__ = [
     "PlanDestination",
     "PlanEntry",
     "ProjectDetail",
+    "ProjectManifest",
     "ProjectSummary",
     "ReconcileAssetParams",
     "ReconcileEntry",
@@ -834,6 +914,8 @@ __all__ = [
     "ReconcileReport",
     "ReplicaSummary",
     "RequestFrame",
+    "ResolveClip",
+    "ResolveImportManifest",
     "ResponseFrame",
     "RpcError",
     "RpcErrorCode",

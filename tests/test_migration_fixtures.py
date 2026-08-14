@@ -54,9 +54,10 @@ def test_upgrade_from_legacy_shape_preserves_data(tmp_path: Path) -> None:
         )
         conn.commit()
 
-    # Upgrade to the current head (version 2).
+    # Upgrade to the current head (version 3 after the
+    # safe-to-format fingerprint migration landed).
     applied = runner.apply_pending(db, discovered, backups)
-    assert applied and applied[-1].version == 2
+    assert applied and applied[-1].version == 3
 
     with sqlite3.connect(db) as conn:
         conn.row_factory = sqlite3.Row
@@ -64,6 +65,12 @@ def test_upgrade_from_legacy_shape_preserves_data(tmp_path: Path) -> None:
             assert name in _tables(db), f"legacy table {name} lost"
         for name in VNEXT_TABLES:
             assert name in _tables(db), f"vNext table {name} missing"
+        # The fingerprint column landed on intake_sessions.
+        cols = {
+            row["name"]
+            for row in conn.execute("PRAGMA table_info(intake_sessions)").fetchall()
+        }
+        assert "volume_fingerprint_at_scan" in cols
         # Legacy data survived the migration.
         row = conn.execute("SELECT command FROM runs WHERE command = 'probe'").fetchone()
         assert row is not None

@@ -22,6 +22,12 @@ class IntakeSessionRow:
     created_at: str
     updated_at: str
     completed_at: str | None
+    # Added in migration 003. Captured at session-create time from the
+    # source's ``volume_fingerprint`` so ADR-0004 condition (4)
+    # ("uncertain warning if the source's volume fingerprint changed
+    # since the scan began") can be evaluated. Nullable for sessions
+    # created before migration 003 ran.
+    volume_fingerprint_at_scan: str | None
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> IntakeSessionRow:
@@ -51,8 +57,9 @@ def insert_session(conn: sqlite3.Connection, session: IntakeSessionRow) -> None:
         """
         INSERT INTO intake_sessions (
             id, project_id, source_id, kind, plan_fingerprint, policy_fingerprint,
-            status, safe_to_format, source_readable_at, created_at, updated_at, completed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            status, safe_to_format, source_readable_at, created_at, updated_at,
+            completed_at, volume_fingerprint_at_scan
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             session.id,
@@ -67,6 +74,7 @@ def insert_session(conn: sqlite3.Connection, session: IntakeSessionRow) -> None:
             session.created_at,
             session.updated_at,
             session.completed_at,
+            session.volume_fingerprint_at_scan,
         ),
     )
 

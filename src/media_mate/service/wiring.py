@@ -252,6 +252,17 @@ def _build_handlers(service: ApplicationService) -> dict[str, Handler]:
         service.job_cancel(p)
         return {}
 
+    def job_dispatch(params: dict[str, Any]) -> dict[str, Any]:
+        job_id = params.get("id")
+        if not isinstance(job_id, str) or not job_id:
+            rpc_error("invalid_params", "missing id")
+        service.job_dispatch(job_id)
+        return {}
+
+    def job_dispatch_next(_: dict[str, Any]) -> dict[str, Any]:
+        service.job_dispatch_next()
+        return {}
+
     def job_recover(_: dict[str, Any]) -> list[str]:
         return service.job_recover()
 
@@ -385,6 +396,8 @@ def _build_handlers(service: ApplicationService) -> dict[str, Handler]:
         "job.get": job_get,
         "job.transition": job_transition,
         "job.cancel": job_cancel,
+        "job.dispatch": job_dispatch,
+        "job.dispatchNext": job_dispatch_next,
         "job.recover": job_recover,
         "job.resume": job_resume,
         "job.retry": job_retry,

@@ -11,15 +11,18 @@ from __future__ import annotations
 
 import sqlite3
 import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
 from media_mate.application.assets import AssetService
 from media_mate.application.policies import StoragePolicy
 from media_mate.application.replicas import ReplicaService, evaluate_gate
+from media_mate.application.sources import _volume_fingerprint
 from media_mate.persistence.connection import transaction
 from media_mate.persistence.repositories import intake as intake_repo
 from media_mate.persistence.repositories import projects as project_repo
+from media_mate.persistence.repositories import sources as source_repo
 from media_mate.persistence.repositories.intake import IntakeDestinationRow, IntakeSessionRow
 from media_mate.service.protocol import (
     AddDestinationParams,
@@ -47,35 +50,68 @@ class IntakeService:
         db_path: Path,
         assets: AssetService,
         replicas: ReplicaService,
+        *,
+        # Injectable so tests can stub the filesystem check. ADR-0004
+        # requires recomputing the source's volume fingerprint at the
+        # end of the run so the gate can detect a card that was still
+        # being written to during the offload.
+        volume_fingerprint_of: Callable[[Path], str] | None = None,
     ) -> None:
         self._db_path = Path(db_path)
         self._assets = assets
         self._replicas = replicas
+        self._volume_fingerprint_of = volume_fingerprint_of or _volume_fingerprint
+
+    def _capture_volume_fingerprint(
+        self, conn: sqlite3.Connection, source_id: int | None
+    ) -> str | None:
+        """Return the scan-time fingerprint of a source, or ``None``.
+
+        Prefers the value already stored on the source row (the same
+        value the scanner wrote); falls back to a live recompute if
+        the source's row has no fingerprint yet (older DB).
+        """
+        if source_id is None:
+            return None
+        row = source_repo.get_source(conn, source_id)
+        if row is None:
+            return None
+        if row.volume_fingerprint:
+            return row.volume_fingerprint
+        try:
+            return self._volume_fingerprint_of(Path(row.root_path))
+        except OSError:
+            return None
 
     # ---- session + destinations --------------------------------------
 
     def create_session(self, params: CreateIntakeSessionParams) -> IntakeSession:
         now = _now_iso()
         session_id = str(uuid.uuid4())
-        row = IntakeSessionRow(
-            id=session_id,
-            project_id=params.project_id,
-            source_id=params.source_id,
-            kind=params.kind,
-            plan_fingerprint=None,
-            policy_fingerprint=None,
-            status="planned",
-            safe_to_format=0,
-            source_readable_at=now,
-            created_at=now,
-            updated_at=now,
-            completed_at=None,
-        )
         with transaction(self._db_path) as conn:
             if project_repo.get_project(conn, params.project_id) is None:
                 from media_mate.application.projects import ProjectNotFoundError
 
                 raise ProjectNotFoundError(params.project_id)
+            # ADR-0004 condition (4): capture the source's volume
+            # fingerprint at session-start so the gate can detect a
+            # change later.
+            fingerprint_at_scan = self._capture_volume_fingerprint(conn, params.source_id)
+            row = IntakeSessionRow(
+                id=session_id,
+                project_id=params.project_id,
+                source_id=params.source_id,
+                kind=params.kind,
+                plan_fingerprint=None,
+                policy_fingerprint=None,
+                status="planned",
+                safe_to_format=0,
+                source_readable_at=now,
+                created_at=now,
+                updated_at=now,
+                completed_at=None,
+                volume_fingerprint_at_scan=fingerprint_at_scan,
+            )
             intake_repo.insert_session(conn, row)
         return self._to_session(row)
 
@@ -183,6 +219,11 @@ class IntakeService:
             source_id = session.source_id
             assets = self._assets_for_source(conn, source_id) if source_id is not None else []
             needs_attention_open = self._needs_attention_open(conn, session_id)
+            # ADR-0004 condition (4): compare the scan-time fingerprint
+            # to a fresh recomputation on the source root. If the
+            # fingerprint changed, the source may have continued to be
+            # written during the offload and the gate should fail.
+            uncertain_warning = self._fingerprint_changed(conn, session)
 
         if policy is None:
             return SafeToFormatEval(
@@ -210,7 +251,7 @@ class IntakeService:
                 verified_destination_kinds=verified_kinds,
                 source_readable_at=session.source_readable_at,
                 needs_attention_open=needs_attention_open,
-                uncertain_warning=False,
+                uncertain_warning=uncertain_warning,
                 replica_metadata_ok=meta_ok,
             )
             if not result.safe:
@@ -222,6 +263,32 @@ class IntakeService:
             safe=all_safe,
             unmet=_dedupe(aggregate_unmet),
         )
+
+    def _fingerprint_changed(
+        self, conn: sqlite3.Connection, session: IntakeSessionRow
+    ) -> bool:
+        """Return True if the source's volume fingerprint changed since scan.
+
+        Returns False for sessions whose source has no fingerprint at
+        scan time (sessions that predate migration 003); the gate falls
+        back to its pre-PR behavior in that case. Returns True if the
+        source row is missing, because that is itself evidence of a
+        state change we can't reason about.
+        """
+        if session.source_id is None:
+            return False
+        source = source_repo.get_source(conn, session.source_id)
+        if source is None:
+            return True
+        at_scan = session.volume_fingerprint_at_scan
+        if at_scan is None:
+            return False
+        # _volume_fingerprint returns the literal string "unknown" when
+        # the path is stat-inaccessible. That will compare unequal to
+        # any value observed at scan time, which is exactly the safe
+        # answer for a card that was ejected mid-offload.
+        current = self._volume_fingerprint_of(Path(source.root_path))
+        return current != at_scan
 
     # ---- helpers -----------------------------------------------------
 

@@ -597,6 +597,8 @@ export interface MethodCatalog {
   'job.get': { params: { id: string }; result: JobDetail };
   'job.transition': { params: JobTransitionParams; result: JobDetail };
   'job.cancel': { params: CancelJobParams; result: Record<string, never> };
+  'job.dispatch': { params: { id: string }; result: Record<string, never> };
+  'job.dispatchNext': { params: Record<string, never>; result: Record<string, never> };
   'job.recover': { params: Record<string, never>; result: string[] };
   'job.resume': { params: { id: string }; result: JobDetail };
   'job.retry': { params: { id: string }; result: JobDetail };

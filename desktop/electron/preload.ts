@@ -90,6 +90,12 @@ const api = {
     get: (id: string) => invoke('job.get', { id }),
     transition: (params: ParamsOf<'job.transition'>) => invoke('job.transition', params),
     cancel: (id: string) => invoke('job.cancel', { id }),
+    // Background dispatcher hooks. ``create`` already wakes the
+    // dispatcher, so ``dispatch`` is a safety net; ``dispatchNext`` is
+    // the explicit "I'm back, drain it" affordance for a renderer that
+    // just regained focus after long idle.
+    dispatch: (id: string) => invoke('job.dispatch', { id }),
+    dispatchNext: () => invoke('job.dispatchNext', {}),
     recover: () => invoke('job.recover', {}),
     resume: (id: string) => invoke('job.resume', { id }),
     retry: (id: string) => invoke('job.retry', { id }),

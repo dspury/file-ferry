@@ -69,6 +69,18 @@ class TestEveryMethodRegistered:
         finally:
             svc.close()
 
+    def test_job_dispatch_methods_are_advertised(self, tmp_path: Path) -> None:
+        """``job.dispatch`` and ``job.dispatchNext`` are exposed via capabilities.
+
+        Discovered during review of #60 -- the IPC catalog previously
+        omitted ``job.dispatch`` even though
+        :class:`ApplicationService` exposed a ``job_dispatch`` method,
+        which meant the renderer's ``job.subscribe`` listener sat on an
+        empty stream. This regression test pins the surface.
+        """
+        assert "job.dispatch" in METHOD_NAMES
+        assert "job.dispatchNext" in METHOD_NAMES
+
     def test_app_get_status_returns_capabilities(self, tmp_path: Path) -> None:
         svc = _service(tmp_path)
         try:

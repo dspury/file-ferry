@@ -21,6 +21,7 @@ from media_mate.application.assets import AssetService
 from media_mate.application.audit import AuditService
 from media_mate.application.clips import ClipService
 from media_mate.application.derivatives import DerivativeService
+from media_mate.application.dispatcher import JobDispatcher
 from media_mate.application.intake import IntakeService
 from media_mate.application.jobs import JobService
 from media_mate.application.manifest import ManifestService
@@ -142,6 +143,8 @@ METHOD_NAMES: tuple[str, ...] = (
     "job.get",
     "job.transition",
     "job.cancel",
+    "job.dispatch",
+    "job.dispatchNext",
     "job.recover",
     "job.resume",
     "job.retry",
@@ -193,6 +196,7 @@ class ApplicationService:
         self._manifest: ManifestService | None = None
         self._volume_adapter: SystemVolumeAdapter | None = None
         self._volume_observer: VolumeObserver | None = None
+        self._dispatcher: JobDispatcher | None = None
 
     # ---- lifecycle ----------------------------------------------------
 
@@ -236,14 +240,34 @@ class ApplicationService:
         self._volume_adapter = SystemVolumeAdapter()
         self._volume_observer = VolumeObserver(self._volume_adapter)
         self._register_scheduler_runners()
+        # Plan §6.4 / §5.1: a sidecar-internal dispatcher picks up
+        # jobs that have moved into the queued state. Without this,
+        # nothing triggers the registered runners -- the renderer can
+        # see queued jobs but never the result. The dispatcher's loop
+        # blocks on a wake event so it costs nothing between jobs.
+        self._dispatcher = JobDispatcher(self._scheduler)
+        self._dispatcher.start()
         self._bootstrapped = True
+
+    def shutdown(self) -> None:
+        """Stop the background dispatcher and release resources.
+
+        Called on sidecar shutdown. Idempotent; safe to call multiple
+        times. Does NOT close the database connection -- callers that
+        want that should follow up with ``close``.
+        """
+        if self._dispatcher is not None:
+            self._dispatcher.stop()
+            self._dispatcher = None
 
     def close(self) -> None:
         """Release any resources held by the service.
 
         Services open short-lived connections per operation; ``close``
-        only clears the bootstrapped services.
+        only clears the bootstrapped services. Stops the dispatcher
+        first to avoid in-flight jobs using cleared services.
         """
+        self.shutdown()
         self._projects = None
         self._sources = None
         self._profiles = None
@@ -401,7 +425,12 @@ class ApplicationService:
     # ---- job methods -------------------------------------------------
 
     def job_create(self, params: CreateJobParams) -> JobDetail:
-        return self._job_service().create(params)
+        # Plan §6.4: the dispatcher drains queued jobs lazily in response
+        # to this wake. Anything that creates a job -- the IPC handler,
+        # the CLI, a future plan-build flow -- gets automatic dispatch.
+        job = self._job_service().create(params)
+        self._dispatcher_service().kick()
+        return job
 
     def job_list(self, project_id: str | None = None) -> list[JobDetail]:
         return self._job_service().list(project_id)
@@ -417,20 +446,47 @@ class ApplicationService:
         return self._scheduler_service().request_cancel(params.id)
 
     def job_dispatch(self, job_id: str) -> JobDetail:
-        """Run one queued job through its registered runner."""
+        """Synchronously dispatch one queued job through the scheduler.
+
+        Provided as an IPC method (``job.dispatch``) for clients that
+        want a "kick this specific job" affordance. The background
+        :class:`JobDispatcher` will also run the job on its next tick,
+        so this is a safety net rather than the primary path.
+        """
         return self._scheduler_service().dispatch(job_id)
+
+    def job_dispatch_next(self) -> dict[str, object]:
+        """Kick the background dispatcher.
+
+        Returns a status dict describing the dispatcher state. Matches
+        the ``job.dispatchNext`` IPC method.
+        """
+        self._dispatcher_service().kick()
+        return {"kicked": True}
 
     def job_recover(self) -> list[str]:
         """Mark jobs interrupted by a restart as needs_attention."""
-        return self._scheduler_service().recover()
+        recovered = self._scheduler_service().recover()
+        # Recovering a job does not put it back in queued; the operator
+        # must explicitly ``resume`` it. No kick here on purpose.
+        return recovered
 
     def job_resume(self, job_id: str) -> JobDetail:
         """Resume an attention job at a safe boundary (plan §6.4)."""
-        return self._scheduler_service().resume(job_id)
+        job = self._scheduler_service().resume(job_id)
+        # resume transitions the job back into "running" inside the
+        # scheduler, but a future resume from a fresh state will land
+        # in queued; either way, a kick is harmless and idempotent.
+        self._dispatcher_service().kick()
+        return job
 
     def job_retry(self, job_id: str) -> JobDetail:
         """Retry a failed job with a fresh attempt (plan §6.4)."""
-        return self._scheduler_service().retry(job_id)
+        job = self._scheduler_service().retry(job_id)
+        # retry creates a brand-new queued job; kick so the new attempt
+        # does not have to wait for the next event.
+        self._dispatcher_service().kick()
+        return job
 
     # ---- plan / receipt ----------------------------------------------
 
@@ -576,6 +632,11 @@ class ApplicationService:
             raise RuntimeError("ApplicationService.bootstrap() must be called first")
         return self._scheduler
 
+    def _dispatcher_service(self) -> JobDispatcher:
+        if self._dispatcher is None:
+            raise RuntimeError("ApplicationService.bootstrap() must be called first")
+        return self._dispatcher
+
     def _reconcile_service(self) -> ReconcileService:
         if self._reconcile is None:
             raise RuntimeError("ApplicationService.bootstrap() must be called first")
@@ -604,6 +665,15 @@ class ApplicationService:
     def scheduler(self) -> JobScheduler:
         """Expose the scheduler so runners can be registered at startup."""
         return self._scheduler_service()
+
+    def dispatcher(self) -> JobDispatcher:
+        """Expose the background dispatcher.
+
+        Mostly useful for tests and tooling (e.g. ``svc.dispatcher().kick()``
+        from a repl). Production code should rely on the implicit kicks
+        from ``job.create`` / ``job.retry`` / ``job.resume``.
+        """
+        return self._dispatcher_service()
 
     def _audit_service(self) -> AuditService:
         if self._audit is None:

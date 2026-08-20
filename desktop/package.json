@@ -1,7 +1,9 @@
 {
   "name": "ferry-desktop",
+  "productName": "ferry",
   "version": "0.0.0",
   "description": "Electron desktop shell for ferry (vNext foundation)",
+  "main": "dist/electron/main.js",
   "private": true,
   "license": "MIT",
   "scripts": {

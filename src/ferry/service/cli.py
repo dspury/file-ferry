@@ -9,8 +9,13 @@ from stdin and emits a single response frame on stdout.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from _typeshed import SupportsWrite
 
 from ferry.application.service import ApplicationService
 from ferry.service import PROTOCOL_VERSION
@@ -27,6 +32,31 @@ def _default_db_path() -> Path:
         "Windows": Path.home() / "AppData" / "Local",
     }.get(_platform.system(), Path.home() / ".local" / "share")
     return base / "ferry" / "ferry.db"
+
+
+def warn_on_host_protocol_mismatch(
+    declared: str | None, stream: SupportsWrite[str] = sys.stderr
+) -> bool:
+    """Report a host/sidecar protocol-version disagreement. Returns True if warned.
+
+    The desktop shell passes its own ``PROTOCOL_VERSION`` as
+    ``FERRY_PROTOCOL_VERSION`` when it spawns us. Negotiation itself stays in
+    the frames (ADR-0002: the lower-version endpoint declines with
+    ``version_mismatch``), so a disagreement is not fatal here — but saying so
+    once at startup beats leaving the operator to infer it from every request
+    failing. Electron pipes our stderr into ``sidecar.log``.
+    """
+    if declared is None or declared.strip() == "":
+        return False
+    if declared.strip() == str(PROTOCOL_VERSION):
+        return False
+    print(
+        f"warning: host declares protocol version {declared.strip()!r}, "
+        f"this sidecar speaks {PROTOCOL_VERSION}; requests will be declined "
+        f"with version_mismatch until the two agree",
+        file=stream,
+    )
+    return True
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -53,6 +83,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.version:
         print(f"ferry service protocol version: {PROTOCOL_VERSION}")
         return 0
+
+    warn_on_host_protocol_mismatch(os.environ.get("FERRY_PROTOCOL_VERSION"))
 
     db_path = args.db or _default_db_path()
     service = ApplicationService(db_path=db_path, app_data_dir=args.app_data or db_path.parent)

@@ -24,7 +24,7 @@ Rename the project from `media-mate` to `ferry` and make the DaVinci Resolve int
 - [x] `src/media_mate/` → `src/ferry/` (rename directory)
 - [x] All internal imports (`from media_mate.X` → `from ferry.X`)
 - [x] `README.md` — all references, install instructions, badges, CLI examples
-- [x] `CHANGELOG.md` (if exists) — note the rename *(no CHANGELOG.md; recorded as `SPEC.md` §18 "v0.3.0 — Rename to ferry")*
+- [x] `CHANGELOG.md` (if exists) — note the rename *(no CHANGELOG.md; recorded as `SPEC.md` §19 "v0.3.0 — Rename to ferry")*
 - [x] CI workflow (`.github/workflows/ci.yml`) — any hardcoded paths or package names
 - [x] Tests — all imports and references
 - [x] `LICENSE` — check if name is referenced *(checked: no project name in it, unchanged)*
@@ -169,13 +169,9 @@ package for the Electron shell).
   `resolve_create()`; `run --resolve-project` used the same top-level import.
   Both now go through `cli._load_create_resolve_project()`.
 
-### Known open items (deferred by D to a later pass)
+### Known open items — fixed in a follow-up pass
 
-- `desktop/package.json` has no `main` field, so electron-builder has no entry
-  point to package. Predates the rename.
-- `resolveSidecarCommand(isPackaged=false, …)` returns `process.execPath` — the
-  Electron binary, not Python — with `['-m', 'ferry.service']`. The dev sidecar
-  launch cannot work as written. Predates the rename.
-- Electron sets `FERRY_PROTOCOL_VERSION` in the sidecar environment; nothing on
-  the Python side reads it.
-- `SPEC.md` has two sections numbered `## 13.`.
+All four are done; see the "desktop shell boot path" commit. Fixing them
+surfaced five further defects that had never been reachable because the shell
+had never started. Full list in that commit message; the security-relevant one
+is written up as [ADR-0006](docs/adr/0006-development-csp-relaxation.md).

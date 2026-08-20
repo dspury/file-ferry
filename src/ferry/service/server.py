@@ -9,6 +9,7 @@ event emission. The actual method handlers are wired in by the
 from __future__ import annotations
 
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import IO, NoReturn
 
 from ferry.service import PROTOCOL_VERSION
@@ -42,6 +43,14 @@ class SidecarServer:
     def run(self, stdin: IO[str], stdout: IO[str]) -> int:
         """Run the server until EOF on stdin. Returns the exit code."""
         self._out = stdout
+        # The supervisor holds every request until it sees this frame -- it is
+        # how the shell learns the sidecar has finished bootstrapping and is
+        # reading stdin (ADR-0002; `sidecar.ready` in the capability catalog).
+        # Without it the desktop rejects everything with "sidecar not ready".
+        self.send_event(
+            "sidecar.ready",
+            {"timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z")},
+        )
         for line in stdin:
             frame = decode_frame(line)
             if frame is None:

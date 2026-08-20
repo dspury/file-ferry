@@ -5,9 +5,12 @@
  * be verified without launching Electron (plan §10.6.3: package and
  * launch the frozen sidecar in development and production).
  *
- * Development launches `python -m ferry.service` against the
- * workspace (so the sidecar picks up source changes). Packaged builds
- * run a platform-matched frozen executable placed at
+ * Development launches `python -m ferry.service` against the workspace, so
+ * the sidecar picks up source changes. The interpreter is the workspace
+ * virtualenv when one is present (that is the one with the editable install),
+ * otherwise `python3` from PATH; `FERRY_PYTHON` overrides both.
+ *
+ * Packaged builds run a platform-matched frozen executable placed at
  * `resources/sidecar/{arch}/ferry-service` by electron-builder
  * (see `desktop/build/electron-builder.yml` extraResources).
  */
@@ -15,10 +18,27 @@
 export interface SidecarCommand {
   readonly executable: string;
   readonly args: string[];
+  /** Working directory for the child; only set in development. */
+  readonly cwd?: string;
 }
 
 /** An injected path-existence predicate (defaults to node fs). */
 export type ExistsFn = (path: string) => boolean;
+
+export interface SidecarCommandInput {
+  /** Mirrors `app.isPackaged`. */
+  readonly isPackaged: boolean;
+  /** Mirrors `process.resourcesPath` (packaged only). */
+  readonly resourcesPath: string;
+  /** Repo root; used in development to find the workspace virtualenv. */
+  readonly workspaceRoot: string;
+  /** Mirrors `process.platform`. */
+  readonly platform: NodeJS.Platform;
+  /** `FERRY_PYTHON`, when the operator pinned an interpreter. */
+  readonly pythonOverride?: string | undefined;
+  /** Injected existence check (for tests). */
+  readonly exists?: ExistsFn;
+}
 
 function defaultExists(path: string): boolean {
   // Injected at call sites in the real main; default lazily requires fs.
@@ -28,28 +48,45 @@ function defaultExists(path: string): boolean {
 }
 
 /**
- * Build the launch command.
+ * Pick the interpreter to run `-m ferry.service` with in development.
  *
- * @param isPackaged mirrors ``app.isPackaged``
- * @param resourcesPath mirrors ``process.resourcesPath`` (packaged only)
- * @param processExecPath mirrors ``process.execPath``
- * @param exists optional injected existence check (for tests)
+ * The workspace virtualenv is preferred because that is where
+ * `pip install -e .` puts the package; a bare `python3` only works if the
+ * operator installed ferry into whatever interpreter PATH resolves to.
  */
-export function resolveSidecarCommand(
-  isPackaged: boolean,
-  resourcesPath: string,
-  processExecPath: string,
+export function resolveDevPython(
+  workspaceRoot: string,
+  platform: NodeJS.Platform,
+  pythonOverride?: string | undefined,
   exists: ExistsFn = defaultExists,
-): SidecarCommand {
-  if (!isPackaged) {
+): string {
+  if (pythonOverride) return pythonOverride;
+  const venv =
+    platform === 'win32'
+      ? joinPath(workspaceRoot, '.venv', 'Scripts', 'python.exe')
+      : joinPath(workspaceRoot, '.venv', 'bin', 'python');
+  if (exists(venv)) return venv;
+  return platform === 'win32' ? 'python' : 'python3';
+}
+
+/** Build the launch command. */
+export function resolveSidecarCommand(input: SidecarCommandInput): SidecarCommand {
+  const exists = input.exists ?? defaultExists;
+  if (!input.isPackaged) {
     return {
-      executable: processExecPath,
+      executable: resolveDevPython(
+        input.workspaceRoot,
+        input.platform,
+        input.pythonOverride,
+        exists,
+      ),
       args: ['-m', 'ferry.service'],
+      cwd: input.workspaceRoot,
     };
   }
   const candidates = [
-    joinPath(resourcesPath, 'sidecar', 'ferry-service'),
-    joinPath(resourcesPath, 'sidecar', 'ferry-service.exe'),
+    joinPath(input.resourcesPath, 'sidecar', 'ferry-service'),
+    joinPath(input.resourcesPath, 'sidecar', 'ferry-service.exe'),
   ];
   for (const candidate of candidates) {
     if (exists(candidate)) {

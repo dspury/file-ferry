@@ -479,7 +479,7 @@ color while metadata remains naturally monospace.
 
 ---
 
-## 13. PyPI publish
+## 14. PyPI publish
 
 ferry ships to PyPI under the name `ferry`. Install becomes:
 
@@ -496,7 +496,7 @@ Build via `python -m build`, publish via `twine upload` (or `pyproject.toml`-dri
 
 ---
 
-## 14. GitHub Actions CI
+## 15. GitHub Actions CI
 
 Workflow at `.github/workflows/ci.yml`. Matrix:
 
@@ -507,7 +507,7 @@ Plus a smoke test that runs `ferry --help` and a small end-to-end probe of a syn
 
 ---
 
-## 15. Open questions — resolved during build
+## 16. Open questions — resolved during build
 
 1. **Click vs Typer.** → **Click.** Chosen for its maturity, stable API, and rich output ecosystem (Rich). Typer rejected.
 2. **Checksum algo default.** → **xxhash.** Implemented as default; sha256 available as opt-in. Speed difference is real and meaningful for large folders.
@@ -516,7 +516,7 @@ Plus a smoke test that runs `ferry --help` and a small end-to-end probe of a syn
 
 ---
 
-## 16. Future work (v2+ candidates)
+## 17. Future work (v2+ candidates)
 
 - Scene detection (PySceneDetect)
 - Audio loudness analysis (LUFS / true peak)
@@ -529,7 +529,7 @@ Plus a smoke test that runs `ferry --help` and a small end-to-end probe of a syn
 
 ---
 
-## 17. Build order — completed
+## 18. Build order — completed
 
 All items shipped in v0.1.0:
 
@@ -547,7 +547,7 @@ All items shipped in v0.1.0:
 
 ---
 
-## 18. Changes in v0.2.x — v0.3.x
+## 19. Changes in v0.2.x — v0.3.x
 
 ### v0.2.2 — Bug fixes and probe enrichment
 
@@ -790,7 +790,7 @@ this document and the README.
 
 ---
 
-## 19. Open issues — v0.3 candidates
+## 20. Open issues — v0.3 candidates
 
 The following issues are acknowledged and targeted for v0.3. Each requires a spec change or design decision before implementation.
 
@@ -856,7 +856,7 @@ The following issues are acknowledged and targeted for v0.3. Each requires a spe
 
 ---
 
-## 20. What you sign off on by approving this doc
+## 21. What you sign off on by approving this doc
 
 All items below were approved at spec time and shipped in v0.1.0:
 
@@ -866,7 +866,7 @@ All items below were approved at spec time and shipped in v0.1.0:
 - Data model as sketched in §7
 - Tech stack as defined in §9
 - Safety constraints in §11
-- Versioning rule in §12 (MAJOR=0 until D approves)
+- Versioning rule in §13 (MAJOR=0 until D approves)
 - License: MIT
 - Repo location: `dspury/ferry`
 - Name: `ferry`
@@ -874,9 +874,9 @@ All items below were approved at spec time and shipped in v0.1.0:
 
 All items below were approved and shipped in v0.2.2:
 
-- Bug fixes in §18
-- New capabilities in §18
-- Data model additions in §18
-- v0.3 candidates as documented in §19
+- Bug fixes in §19
+- New capabilities in §19
+- Data model additions in §19
+- v0.3 candidates as documented in §20
 
 Shipped as approved ✓

@@ -11,7 +11,7 @@ ARCH=arm64 PLATFORM=mac scripts/package-release.sh
 ```
 
 `scripts/package-release.sh`:
-1. Freezes the Python sidecar into `desktop/sidecar/{arch}/media-mate-service`
+1. Freezes the Python sidecar into `desktop/sidecar/{arch}/ferry-service`
    (PyInstaller onefile) — the same `build:sidecar` used by `package:*`.
 2. Stamps release provenance (version, git commit, build time, arch) into
    `desktop/shared/release.ts` via `scripts/stamp-release.js`. The runtime
@@ -24,7 +24,7 @@ ARCH=arm64 PLATFORM=mac scripts/package-release.sh
 ## Validate a packaged build
 
 ```bash
-scripts/verify-packaged.sh release/mac-arm64/media-mate.app
+scripts/verify-packaged.sh release/mac-arm64/ferry.app
 ```
 
 `scripts/verify-packaged.sh` asserts:
@@ -46,8 +46,8 @@ scripts/clean-app-data.sh            # dry run: what would be removed
 scripts/clean-app-data.sh --apply    # actually clear app data
 ```
 
-This removes the legacy config/audit db (`~/.media-mate`) and the Electron
-userData dir (`~/Library/Application Support/media-mate`, where receipts,
+This removes the legacy config/audit db (`~/.ferry`) and the Electron
+userData dir (`~/Library/Application Support/ferry`, where receipts,
 logs, and the vNext db live). After it, the next launch is a pristine first
 run that exercises fresh migrations from an empty store.
 
@@ -93,10 +93,10 @@ development.
 
 | Surface | Location |
 | --- | --- |
-| Legacy config + audit db | `~/.media-mate/` |
-| Electron userData (receipts, logs, vNext db) | `~/Library/Application Support/media-mate/` (macOS) |
-| Diagnostic logs | `~/Library/Application Support/media-mate/logs/` |
-| Sidecar frozen binary (packaged) | `Contents/Resources/sidecar/{arch}/media-mate-service` |
+| Legacy config + audit db | `~/.ferry/` |
+| Electron userData (receipts, logs, vNext db) | `~/Library/Application Support/ferry/` (macOS) |
+| Diagnostic logs | `~/Library/Application Support/ferry/logs/` |
+| Sidecar frozen binary (packaged) | `Contents/Resources/sidecar/{arch}/ferry-service` |
 
 ## Release / update policy (plan §10 Pkg9 step 4)
 

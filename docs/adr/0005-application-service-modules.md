@@ -9,7 +9,7 @@
 The plan §5.2 sketches a target layout:
 
 ```
-src/media_mate/
+src/ferry/
   application/     project, source, intake, plan, job, receipt services
   persistence/     database connection, migrations, repositories, backup
   service/         JSON-RPC protocol, server, sidecar bootstrap
@@ -33,10 +33,10 @@ before code is written.
 
 ## Decision
 
-**Frozen layout** (relative to `src/media_mate/`):
+**Frozen layout** (relative to `src/ferry/`):
 
 ```
-src/media_mate/
+src/ferry/
 ├── __init__.py                 # unchanged; __version__
 ├── cli.py                      # thin client over application services
 ├── tui.py                      # thin client over application services
@@ -87,7 +87,7 @@ src/media_mate/
 │   ├── __init__.py
 │   ├── protocol.py             # JSON-RPC envelope + message types
 │   ├── server.py               # async server; reads stdin, writes stdout
-│   ├── cli.py                  # `python -m media_mate.service`
+│   ├── cli.py                  # `python -m ferry.service`
 │   └── client.py               # in-process typed client (CLI/TUI use)
 │
 └── capabilities/               # NEW: namespace for the existing modules
@@ -105,7 +105,7 @@ directly. **No mass-rename.** No re-export churn. No deprecation
 aliases that do nothing.
 
 **In-process client.** The CLI and TUI use the in-process typed
-client (`media_mate.service.client.ApplicationClient`) to invoke
+client (`ferry.service.client.ApplicationClient`) to invoke
 application services. This client speaks the same protocol the
 desktop sidecar exposes, but in-process. The protocol types are
 shared. This is what makes the desktop shell and the CLI / TUI
@@ -155,8 +155,8 @@ Neutral:
 
 ## References
 
-- `docs/MEDIA-MATE-FULL-APP-IMPLEMENTATION-PLAN.md` §5.2, §9
-- `docs/MEDIA-MATE-PRODUCT-DIRECTION.md` §8
+- `docs/FERRY-FULL-APP-IMPLEMENTATION-PLAN.md` §5.2, §9
+- `docs/FERRY-PRODUCT-DIRECTION.md` §8
 - v0.2.4 `SPEC.md` §10 (existing layout)
 - ADR-0001 (desktop shell — the sidecar imports this module structure)
 - ADR-0002 (IPC protocol — the protocol types live in `service/protocol.py`)

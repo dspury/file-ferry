@@ -1,5 +1,5 @@
-appId: io.github.dspury.media-mate
-productName: media-mate
+appId: io.github.dspury.ferry
+productName: ferry
 copyright: Copyright © 2026 Lunar Park
 
 directories:
@@ -23,7 +23,7 @@ extraResources:
   - from: 'sidecar/${arch}'
     to: 'sidecar'
     filter:
-      - 'media-mate-service*'
+      - 'ferry-service*'
 
 mac:
   category: public.app-category.video

@@ -1,4 +1,4 @@
-"""Tests for the sidecar handler wiring (``media_mate.service.wiring``).
+"""Tests for the sidecar handler wiring (``ferry.service.wiring``).
 
 The wiring is what turns an otherwise ``method_not_found``-only server
 into a real sidecar: it registers a handler for every method in the
@@ -16,10 +16,10 @@ import io
 import json
 from pathlib import Path
 
-from media_mate.application.service import METHOD_NAMES, ApplicationService
-from media_mate.service.protocol import PROTOCOL_VERSION
-from media_mate.service.server import SidecarServer
-from media_mate.service.wiring import wire_server
+from ferry.application.service import METHOD_NAMES, ApplicationService
+from ferry.service.protocol import PROTOCOL_VERSION
+from ferry.service.server import SidecarServer
+from ferry.service.wiring import wire_server
 
 
 def _serve(service: ApplicationService, request_line: str) -> str:
@@ -32,16 +32,19 @@ def _serve(service: ApplicationService, request_line: str) -> str:
 
 
 def _request(method: str, params: dict | None = None) -> str:
-    return json.dumps(
-        {
-            "jsonrpc": "2.0",
-            "v": PROTOCOL_VERSION,
-            "kind": "request",
-            "id": "w-test",
-            "method": method,
-            "params": params or {},
-        }
-    ) + "\n"
+    return (
+        json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "v": PROTOCOL_VERSION,
+                "kind": "request",
+                "id": "w-test",
+                "method": method,
+                "params": params or {},
+            }
+        )
+        + "\n"
+    )
 
 
 def _parse(response: str) -> dict:
@@ -210,9 +213,7 @@ class TestPackage7Methods:
     def test_settings_update_validates_params(self, tmp_path: Path) -> None:
         svc = _service(tmp_path)
         try:
-            resp = _parse(
-                _serve(svc, _request("settings.update", {"proxyHeight": "not-a-number"}))
-            )
+            resp = _parse(_serve(svc, _request("settings.update", {"proxyHeight": "not-a-number"})))
             assert resp["kind"] == "error"
             assert resp["error"]["code"] == "invalid_params"
         finally:

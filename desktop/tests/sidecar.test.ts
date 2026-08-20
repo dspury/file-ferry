@@ -16,23 +16,23 @@ import { decodeFrame, encodeFrame, type RequestFrame } from '../shared/ipc-schem
 import { PROTOCOL_VERSION } from '../shared/version.js';
 
 describe('resolveSidecarCommand', () => {
-  it('uses python -m media_mate.service in development', () => {
+  it('uses python -m ferry.service in development', () => {
     const cmd = resolveSidecarCommand(false, '/resources', '/usr/local/bin/node', () => false);
     expect(cmd.executable).toBe('/usr/local/bin/node');
-    expect(cmd.args).toEqual(['-m', 'media_mate.service']);
+    expect(cmd.args).toEqual(['-m', 'ferry.service']);
   });
 
   it('resolves the frozen executable in a packaged build', () => {
-    const exists = (p: string) => p.endsWith('/sidecar/media-mate-service');
+    const exists = (p: string) => p.endsWith('/sidecar/ferry-service');
     const cmd = resolveSidecarCommand(true, '/app/Resources', '/app/electron', exists);
-    expect(cmd.executable).toBe('/app/Resources/sidecar/media-mate-service');
+    expect(cmd.executable).toBe('/app/Resources/sidecar/ferry-service');
     expect(cmd.args).toEqual([]);
   });
 
   it('prefers the .exe candidate on Windows', () => {
-    const exists = (p: string) => p.endsWith('media-mate-service.exe');
+    const exists = (p: string) => p.endsWith('ferry-service.exe');
     const cmd = resolveSidecarCommand(true, 'C:/app/Resources', 'C:/app/electron', exists);
-    expect(cmd.executable).toBe('C:/app/Resources/sidecar/media-mate-service.exe');
+    expect(cmd.executable).toBe('C:/app/Resources/sidecar/ferry-service.exe');
   });
 
   it('throws when no frozen executable exists', () => {

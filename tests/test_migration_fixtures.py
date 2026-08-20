@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from media_mate.persistence import runner
+from ferry.persistence import runner
 
 VNEXT_TABLES = ("projects", "sources", "assets", "replicas", "jobs", "operation_receipts")
 LEGACY_TABLES = ("runs", "files", "probes", "legacy_resolve_projects")
@@ -67,8 +67,7 @@ def test_upgrade_from_legacy_shape_preserves_data(tmp_path: Path) -> None:
             assert name in _tables(db), f"vNext table {name} missing"
         # The fingerprint column landed on intake_sessions.
         cols = {
-            row["name"]
-            for row in conn.execute("PRAGMA table_info(intake_sessions)").fetchall()
+            row["name"] for row in conn.execute("PRAGMA table_info(intake_sessions)").fetchall()
         }
         assert "volume_fingerprint_at_scan" in cols
         # Legacy data survived the migration.

@@ -7,13 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from media_mate.application.policies import PolicyValidationError
-from media_mate.application.projects import (
+from ferry.application.policies import PolicyValidationError
+from ferry.application.projects import (
     ProjectNotFoundError,
     ProjectService,
     ProjectValidationError,
 )
-from media_mate.service.protocol import (
+from ferry.service.protocol import (
     CreateProjectParams,
     StoragePolicy,
     UpdateProjectParams,
@@ -35,8 +35,8 @@ SAME_VOLUME_POLICY = StoragePolicy(
 
 @pytest.fixture
 def service(tmp_path: Path) -> ProjectService:
-    db_path = tmp_path / "media-mate.db"
-    from media_mate.application.service import ApplicationService
+    db_path = tmp_path / "ferry.db"
+    from ferry.application.service import ApplicationService
 
     boot = ApplicationService(db_path=db_path, app_data_dir=tmp_path / "app_data")
     boot.bootstrap()
@@ -96,7 +96,7 @@ def test_create_writes_receipt(service: ProjectService, tmp_path: Path) -> None:
     assert on_disk["finalState"] == "created"
     assert on_disk["actual"][0]["project_id"] == detail.id
 
-    with sqlite3.connect(tmp_path / "media-mate.db") as conn:
+    with sqlite3.connect(tmp_path / "ferry.db") as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute(
             "SELECT kind, receipt_hash, export_version FROM operation_receipts "

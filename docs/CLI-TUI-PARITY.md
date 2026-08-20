@@ -10,11 +10,11 @@ The **legacy standalone verbs are preserved and unchanged**: `probe`,
 `organize`, `proxy`, `resolve create`, `verify`, `log`, and `run`. Existing
 automation that calls these does **not** need to change and is **not**
 forced to launch Electron. The legacy audit log at
-`~/.media-mate/media-mate.db` and the existing CLI/TUI behavior are
+`~/.ferry/ferry.db` and the existing CLI/TUI behavior are
 untouched.
 
 The **vNext verbs are additive**. They call the same
-`media_mate.application.service.ApplicationService` the sidecar uses, so
+`ferry.application.service.ApplicationService` the sidecar uses, so
 the CLI and desktop are behaviorally identical — the CLI is not a second
 implementation.
 
@@ -24,20 +24,20 @@ All accept `--json` for machine-readable output unless noted.
 
 | Command | Purpose |
 | --- | --- |
-| `media-mate project list` | List projects (rich table or `--json`) |
-| `media-mate project create NAME --working DIR [--backup DIR]` | Create a project |
-| `media-mate project get ID` | Show one project |
-| `media-mate source inspect PATH [--kind card\|existing_media]` | Read-only source scan |
-| `media-mate source list-volumes` | List mounted volumes |
-| `media-mate intake plan PROJECT SOURCE --working DIR [--backup DIR]` | Build a reviewable plan (no writes) |
-| `media-mate jobs list [--project ID]` | List durable jobs |
-| `media-mate jobs resume ID` | Resume an attention job |
-| `media-mate jobs retry ID` | Retry a failed job (fresh attempt) |
-| `media-mate receipt export OPERATION [--format markdown\|html]` | Export a receipt |
-| `media-mate reconcile project ID` | Reconcile a project's replicas |
+| `ferry project list` | List projects (rich table or `--json`) |
+| `ferry project create NAME --working DIR [--backup DIR]` | Create a project |
+| `ferry project get ID` | Show one project |
+| `ferry source inspect PATH [--kind card\|existing_media]` | Read-only source scan |
+| `ferry source list-volumes` | List mounted volumes |
+| `ferry intake plan PROJECT SOURCE --working DIR [--backup DIR]` | Build a reviewable plan (no writes) |
+| `ferry jobs list [--project ID]` | List durable jobs |
+| `ferry jobs resume ID` | Resume an attention job |
+| `ferry jobs retry ID` | Retry a failed job (fresh attempt) |
+| `ferry receipt export OPERATION [--format markdown\|html]` | Export a receipt |
+| `ferry reconcile project ID` | Reconcile a project's replicas |
 
 > The vNext verbs read/write the same SQLite database the legacy CLI uses
-> (`--db`, default `~/.media-mate/media-mate.db`), so legacy and vNext
+> (`--db`, default `~/.ferry/ferry.db`), so legacy and vNext
 > surfaces coexist on one store. The vNext database schema is created and
 > migrated on first use by the application-service bootstrap.
 
@@ -49,7 +49,7 @@ durable jobs from the same `ApplicationService` the sidecar uses. It is a
 read-only recovery/activity surface; the full pipeline workspace,
 audit-log, and settings screens are unchanged.
 
-`media-mate --no-tui` remains the stable escape hatch that keeps you in
+`ferry --no-tui` remains the stable escape hatch that keeps you in
 CLI mode and prints help instead of launching the TUI.
 
 ## Migration behavior

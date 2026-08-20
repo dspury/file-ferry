@@ -4,8 +4,8 @@
 # Electron launches in packaged builds (plan §10.6.3).
 #
 # Output:
-#   desktop/sidecar/{arch}/media-mate-service        (macOS/Linux)
-#   desktop/sidecar/{arch}/media-mate-service.exe    (Windows)
+#   desktop/sidecar/{arch}/ferry-service        (macOS/Linux)
+#   desktop/sidecar/{arch}/ferry-service.exe    (Windows)
 #
 # electron-builder's extraResources copies `sidecar/{arch}` to
 # `Contents/Resources/sidecar/{arch}` in the packaged app, which is
@@ -47,4 +47,4 @@ mkdir -p "$OUT_DIR" "$WORK_DIR"
   --noconfirm \
   "$SPEC"
 
-echo "done: $OUT_DIR/media-mate-service"
+echo "done: $OUT_DIR/ferry-service"

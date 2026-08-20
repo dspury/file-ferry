@@ -7,15 +7,15 @@ from pathlib import Path
 
 import pytest
 
-from media_mate.application.manifest import ManifestError, ManifestService
-from media_mate.application.replicas import ReplicaService, compute_checksum
+from ferry.application.manifest import ManifestError, ManifestService
+from ferry.application.replicas import ReplicaService, compute_checksum
 
 
 @pytest.fixture
 def db(tmp_path: Path) -> Path:
-    from media_mate.application.service import ApplicationService
+    from ferry.application.service import ApplicationService
 
-    db = tmp_path / "media-mate.db"
+    db = tmp_path / "ferry.db"
     boot = ApplicationService(db_path=db, app_data_dir=tmp_path / "app")
     boot.bootstrap()
     boot.close()

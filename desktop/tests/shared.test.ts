@@ -108,7 +108,7 @@ describe('diagnostics helpers', () => {
       electronVersion: '33.2.0',
       protocolVersion: 1,
       sidecarStatus: 'ready',
-      dbPath: '/data/media-mate.db',
+      dbPath: '/data/ferry.db',
       appDataDir: '/data',
       logDir: '/data/logs',
       logCount: 3,

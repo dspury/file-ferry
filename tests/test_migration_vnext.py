@@ -10,7 +10,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from media_mate.application.service import ApplicationService
+from ferry.application.service import ApplicationService
 
 VNEXT_TABLES = (
     "projects",
@@ -44,7 +44,7 @@ LEGACY_TABLES = (
 
 
 def _service(tmp_path: Path) -> tuple[ApplicationService, Path]:
-    db = tmp_path / "media-mate.db"
+    db = tmp_path / "ferry.db"
     app_data = tmp_path / "app_data"
     service = ApplicationService(db_path=db, app_data_dir=app_data)
     service.bootstrap()
@@ -121,7 +121,7 @@ def test_foreign_keys_enforced(tmp_path: Path) -> None:
 
 
 def test_downgrade_drops_vnext(tmp_path: Path) -> None:
-    from media_mate.persistence import runner
+    from ferry.persistence import runner
 
     service, db = _service(tmp_path)
     service.close()

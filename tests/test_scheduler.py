@@ -7,16 +7,16 @@ from pathlib import Path
 
 import pytest
 
-from media_mate.application.jobs import InvalidTransitionError, JobService
-from media_mate.application.scheduler import JobScheduler, VolumeLimiter
-from media_mate.service.protocol import CreateJobParams, JobTransitionParams
+from ferry.application.jobs import InvalidTransitionError, JobService
+from ferry.application.scheduler import JobScheduler, VolumeLimiter
+from ferry.service.protocol import CreateJobParams, JobTransitionParams
 
 
 @pytest.fixture
 def db(tmp_path: Path) -> Path:
-    from media_mate.application.service import ApplicationService
+    from ferry.application.service import ApplicationService
 
-    db = tmp_path / "media-mate.db"
+    db = tmp_path / "ferry.db"
     boot = ApplicationService(db_path=db, app_data_dir=tmp_path / "app")
     boot.bootstrap()
     boot.close()
@@ -187,6 +187,7 @@ def test_recover_marks_interrupted_as_needs_attention(db: Path) -> None:
 
 
 # ---- resume / retry (plan §6.4, Package 7) ---------------------------
+
 
 def _attention_job(db: Path, jobs: JobService) -> str:
     """Create a job stuck in needs_attention with a runner registered."""

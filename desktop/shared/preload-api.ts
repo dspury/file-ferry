@@ -112,4 +112,4 @@ export const api = {
   },
 };
 
-export type MediaMateAPI = typeof api;
+export type FerryAPI = typeof api;

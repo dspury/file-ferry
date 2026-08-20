@@ -1,6 +1,6 @@
-# media-mate Walkthrough
+# ferry Walkthrough
 
-A visual end-to-end walkthrough of media-mate's full pipeline, using the test dataset in this folder.
+A visual end-to-end walkthrough of ferry's full pipeline, using the test dataset in this folder.
 
 ## Test dataset
 
@@ -32,7 +32,7 @@ cd examples/
 Extracts codec, resolution, frame rate, color space, audio channels, duration, and file size from every file.
 
 ```
-$ media-mate probe test-dataset/raw/
+$ ferry probe test-dataset/raw/
 
   Probed 5 file(s)
   ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━┓
@@ -51,7 +51,7 @@ $ media-mate probe test-dataset/raw/
 Moves files into a structured layout: `<codec_family>/<resolution_bucket>/<filename>`. Subdirectory structure is preserved.
 
 ```
-$ media-mate organize test-dataset/raw/ --root test-dataset/output/organized/
+$ ferry organize test-dataset/raw/ --root test-dataset/output/organized/
 
   Copied 5 file(s), skipped 0, 2,847,362 bytes total
 ```
@@ -79,7 +79,7 @@ output/organized/
 Generates ProRes 422 Proxy files at 1080p for every source file. Aspect ratio is preserved (letter-boxed if needed). Skips files that already have a proxy.
 
 ```
-$ media-mate proxy test-dataset/output/organized/ --out test-dataset/output/proxies/
+$ ferry proxy test-dataset/output/organized/ --out test-dataset/output/proxies/
 
   Generated 5 proxy file(s)
 ```
@@ -99,7 +99,7 @@ output/proxies/
 Creates a Resolve project programmatically. When Resolve is available (and running), the project is created live. When it's not available, a JSON manifest is written so you can recreate the project manually.
 
 ```
-$ media-mate resolve create test-dataset/output/organized/ \
+$ ferry resolve create test-dataset/output/organized/ \
     --project "Demo-Project" \
     --resolution 1080 \
     --fps 24 \
@@ -115,7 +115,7 @@ $ media-mate resolve create test-dataset/output/organized/ \
 Computes checksums for every file. First run creates a baseline; subsequent runs compare against it and report what changed.
 
 ```
-$ media-mate verify test-dataset/output/organized/
+$ ferry verify test-dataset/output/organized/
 
   Clean: 5 file(s) verified
 ```
@@ -145,19 +145,19 @@ test-dataset/output/
 
 ## Audit log
 
-Every step writes to the SQLite audit log at `~/.media-mate/media-mate.db`. Query it any time:
+Every step writes to the SQLite audit log at `~/.ferry/ferry.db`. Query it any time:
 
 ```
-$ media-mate log
+$ ferry log
 
   ┏━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-  ┃ ID ┃ Started              ┃ Status  ┃ Command                                   ┃
+  ┃ ID ┃ Started             ┃ Status  ┃ Command                                  ┃
   ┡━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-  │ 6  │ 2026-07-05T00:00:00Z│ success │ media-mate verify .../organized          │
-  │ 5  │ 2026-07-05T00:00:01Z│ success │ media-mate resolve create .../organized   │
-  │ 4  │ 2026-07-05T00:00:00Z│ success │ media-mate proxy .../organized --out ...  │
-  │ 3  │ 2026-07-05T00:00:00Z│ success │ media-mate organize ...raw --root ...     │
-  │ 2  │ 2026-07-05T00:00:00Z│ success │ media-mate probe .../raw                  │
+  │ 6  │ 2026-07-05T00:00:00Z│ success │ ferry verify .../organized               │
+  │ 5  │ 2026-07-05T00:00:01Z│ success │ ferry resolve create .../organized       │
+  │ 4  │ 2026-07-05T00:00:00Z│ success │ ferry proxy .../organized --out ...      │
+  │ 3  │ 2026-07-05T00:00:00Z│ success │ ferry organize ...raw --root ...         │
+  │ 2  │ 2026-07-05T00:00:00Z│ success │ ferry probe .../raw                      │
   └────┴─────────────────────┴─────────┴──────────────────────────────────────────┘
 ```
 
@@ -167,5 +167,5 @@ The log is the system of record — back it up, copy it between machines, query 
 
 ```bash
 rm -rf test-dataset/output/
-media-mate log  # still shows history
+ferry log  # still shows history
 ```

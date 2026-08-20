@@ -1,7 +1,7 @@
 /**
  * IPC contract tests. The TypeScript types in `shared/ipc-schema.ts`
  * and `shared/ipc-methods.ts` are one side of the contract; the
- * pydantic models in `src/media_mate/service/protocol.py` are the
+ * pydantic models in `src/ferry/service/protocol.py` are the
  * other. These tests prove the TypeScript side parses and emits
  * frames that round-trip through the same code paths the sidecar
  * will receive.

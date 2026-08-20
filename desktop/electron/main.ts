@@ -30,7 +30,7 @@ async function createMainWindow(supervisor: SidecarSupervisor): Promise<BrowserW
     ...baseWindowOptions(),
     width: 1280,
     height: 800,
-    title: 'media-mate',
+    title: 'ferry',
     webPreferences: {
       preload: pathResolve(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -120,7 +120,7 @@ async function main(): Promise<void> {
     executable,
     args,
     env: {
-      MEDIA_MATE_PROTOCOL_VERSION: String(PROTOCOL_VERSION),
+      FERRY_PROTOCOL_VERSION: String(PROTOCOL_VERSION),
     },
   });
 
@@ -159,7 +159,7 @@ async function main(): Promise<void> {
       electronVersion: process.versions.electron ?? '',
       protocolVersion: PROTOCOL_VERSION,
       sidecarStatus: supervisor.status().state,
-      dbPath: pathResolve(appDataDir, 'media-mate.db'),
+      dbPath: pathResolve(appDataDir, 'ferry.db'),
       appDataDir,
       logDir,
       logCount: countLogFiles(logDir),

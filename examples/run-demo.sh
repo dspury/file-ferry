@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# run-demo.sh — run a full media-mate pipeline on the test dataset
+# run-demo.sh — run a full ferry pipeline on the test dataset
 #
-# Requirements: ffmpeg on PATH, media-mate installed (pip install -e .)
+# Requirements: ffmpeg on PATH, ferry installed (pip install -e .)
 #
 # This script:
 #   1. Cleans up any previous run output
@@ -20,11 +20,11 @@ TEST_DATASET="$SCRIPT_DIR/test-dataset"
 RAW="$TEST_DATASET/raw"
 OUT="$TEST_DATASET/output"
 
-# Allow running from anywhere; cd to project root so media-mate works
+# Allow running from anywhere; cd to project root so ferry works
 cd "$PROJECT_ROOT"
 
 echo "========================================"
-echo " media-mate demo pipeline"
+echo " ferry demo pipeline"
 echo "========================================"
 echo ""
 
@@ -32,19 +32,19 @@ echo ""
 rm -rf "$OUT"
 
 echo "--- Step 1: probe ---"
-media-mate probe "$RAW"
+ferry probe "$RAW"
 echo ""
 
 echo "--- Step 2: organize ---"
-media-mate organize "$RAW" --root "$OUT/organized"
+ferry organize "$RAW" --root "$OUT/organized"
 echo ""
 
 echo "--- Step 3: proxy (ProRes 422 Proxy, 1080p) ---"
-media-mate proxy "$OUT/organized" --out "$OUT/proxies"
+ferry proxy "$OUT/organized" --out "$OUT/proxies"
 echo ""
 
 echo "--- Step 4: resolve project ---"
-media-mate resolve create "$OUT/organized" \
+ferry resolve create "$OUT/organized" \
     --project "Demo-Project" \
     --resolution 1080 \
     --fps 24 \
@@ -53,11 +53,11 @@ media-mate resolve create "$OUT/organized" \
 echo ""
 
 echo "--- Step 5: verify ---"
-media-mate verify "$OUT/organized"
+ferry verify "$OUT/organized"
 echo ""
 
 echo "--- Audit log ---"
-media-mate log
+ferry log
 echo ""
 
 echo "========================================"

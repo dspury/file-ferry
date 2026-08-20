@@ -23,7 +23,7 @@ import type { JobDetail } from '../../../shared/ipc-methods.js';
 const FILTERS: JobFilter[] = ['all', 'active', 'attention', 'failed', 'finished'];
 
 export function Activity(): JSX.Element {
-  const jobs = useAsync(() => window.mediaMate.job.list());
+  const jobs = useAsync(() => window.ferry.job.list());
   const [filter, setFilter] = useState<JobFilter>('all');
   const [query, setQuery] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
@@ -45,7 +45,7 @@ export function Activity(): JSX.Element {
   const exportReceipt = async (operationId: string) => {
     setActionError(null);
     try {
-      const result = await window.mediaMate.receipt.export({
+      const result = await window.ferry.receipt.export({
         operationId,
         format: 'markdown',
       });
@@ -106,9 +106,9 @@ export function Activity(): JSX.Element {
                 <ActivityRow
                   key={j.id}
                   job={j}
-                  onCancel={() => act(() => window.mediaMate.job.cancel(j.id))}
-                  onResume={() => act(() => window.mediaMate.job.resume(j.id))}
-                  onRetry={() => act(() => window.mediaMate.job.retry(j.id))}
+                  onCancel={() => act(() => window.ferry.job.cancel(j.id))}
+                  onResume={() => act(() => window.ferry.job.resume(j.id))}
+                  onRetry={() => act(() => window.ferry.job.retry(j.id))}
                   onReceipt={() => exportReceipt(j.id)}
                 />
               ))}

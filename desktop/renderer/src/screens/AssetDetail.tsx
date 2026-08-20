@@ -12,16 +12,13 @@ import { assetOverview, replicaHealth, proxyReadiness } from '../lib/asset.js';
 export function AssetDetail(): JSX.Element {
   // TODO(7c): replace the prompt with real navigation from Projects. The
   // first asset is shown as a safe default so the screen is navigable.
-  const assets = useAsync(() => window.mediaMate.asset.list());
+  const assets = useAsync(() => window.ferry.asset.list());
   const assetId = assets.data?.assets[0]?.id;
 
-  const asset = useAsync(() => window.mediaMate.asset.get(assetId ?? ''), [assetId]);
-  const replicas = useAsync(() => window.mediaMate.replica.list(assetId ?? ''), [assetId]);
-  const derivatives = useAsync(() => window.mediaMate.derivatives.list(assetId ?? ''), [assetId]);
-  const clips = useAsync(
-    () => window.mediaMate.clips.list(assetId ? Number(assetId) : 0),
-    [assetId],
-  );
+  const asset = useAsync(() => window.ferry.asset.get(assetId ?? ''), [assetId]);
+  const replicas = useAsync(() => window.ferry.replica.list(assetId ?? ''), [assetId]);
+  const derivatives = useAsync(() => window.ferry.derivatives.list(assetId ?? ''), [assetId]);
+  const clips = useAsync(() => window.ferry.clips.list(assetId ? Number(assetId) : 0), [assetId]);
 
   if (assets.loading || !assetId) {
     return <LoadingState message="Loading assets…" />;

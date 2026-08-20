@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from media_mate.application.sources import SourceService
-from media_mate.service.protocol import SourceInspectParams
+from ferry.application.sources import SourceService
+from ferry.service.protocol import SourceInspectParams
 
 
 @pytest.fixture
@@ -27,9 +27,9 @@ def source_tree(tmp_path: Path) -> Path:
 
 
 def _svc(tmp_path: Path) -> SourceService:
-    db_path = tmp_path / "media-mate.db"
+    db_path = tmp_path / "ferry.db"
     # Bootstrap the schema (migration 001 + 002) before using the source repo.
-    from media_mate.application.service import ApplicationService
+    from ferry.application.service import ApplicationService
 
     boot = ApplicationService(db_path=db_path, app_data_dir=tmp_path / "app")
     boot.bootstrap()
@@ -52,7 +52,7 @@ def test_inspect_scans_without_writing(tmp_path: Path, source_tree: Path) -> Non
 def test_inspect_persists_source_row(tmp_path: Path, source_tree: Path) -> None:
     svc = _svc(tmp_path)
     result = svc.inspect(SourceInspectParams(path=str(source_tree), kind="card"))
-    with sqlite3.connect(tmp_path / "media-mate.db") as conn:
+    with sqlite3.connect(tmp_path / "ferry.db") as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute("SELECT * FROM sources WHERE id = ?", (result.source_id,)).fetchone()
         assert row is not None

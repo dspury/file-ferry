@@ -3,7 +3,7 @@
 # Reset app data to a pristine first-run state (plan §10 Pkg9 step 3:
 # clean-app-data test procedure).
 #
-# Deletes the user's media-mate app data so a packaged build can be tested
+# Deletes the user's ferry app data so a packaged build can be tested
 # for true first-run behavior (fresh migrations, no stale state). By
 # default this is a DRY RUN that only prints what it would delete; pass
 # --apply to actually remove it.
@@ -12,8 +12,8 @@
 set -euo pipefail
 
 TARGETS=(
-  "$HOME/.media-mate"                    # legacy config + audit db
-  "$HOME/Library/Application Support/media-mate"  # Electron userData (receipts/logs/db)
+  "$HOME/.ferry"                    # legacy config + audit db
+  "$HOME/Library/Application Support/ferry"  # Electron userData (receipts/logs/db)
 )
 
 APPLY=0

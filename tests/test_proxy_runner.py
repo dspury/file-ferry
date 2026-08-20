@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from media_mate.application.service import ApplicationService
-from media_mate.service.protocol import (
+from ferry.application.service import ApplicationService
+from ferry.service.protocol import (
     AddDestinationParams,
     CreateIntakeSessionParams,
     CreateJobParams,
@@ -26,7 +26,7 @@ SAME_VOLUME_POLICY = StoragePolicy(
 
 
 def _setup(tmp_path: Path, *, proxy_fn=None):
-    svc = ApplicationService(db_path=tmp_path / "media-mate.db", app_data_dir=tmp_path / "app")
+    svc = ApplicationService(db_path=tmp_path / "ferry.db", app_data_dir=tmp_path / "app")
     svc.bootstrap()
     working = tmp_path / "proj" / "working"
     backup = tmp_path / "proj" / "backup"
@@ -79,7 +79,7 @@ def _setup(tmp_path: Path, *, proxy_fn=None):
 
 def _wrap_proxy(svc, fn):
     """Replace the registered ProxyRunner with one using ``fn``."""
-    from media_mate.application.proxy_runner import ProxyRunner
+    from ferry.application.proxy_runner import ProxyRunner
 
     return ProxyRunner(
         svc._asset_service(),

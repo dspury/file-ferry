@@ -70,7 +70,7 @@ describe('diagnostics', () => {
       generatedAt: '2026-08-12T17:30:00Z',
       appVersion: '0.0.0',
     });
-    expect(text).toContain('media-mate diagnostic report');
+    expect(text).toContain('ferry diagnostic report');
     expect(text).toContain('platform=darwin');
     expect(text).toContain('app version: 0.0.0');
   });
@@ -82,7 +82,7 @@ describe('diagnostics', () => {
   });
 
   it('diagnosticFileName is stamp-derived and safe', () => {
-    expect(diagnosticFileName('2026-08-12T17:30:00Z')).toMatch(/media-mate-diagnostics-\d+\.txt/);
+    expect(diagnosticFileName('2026-08-12T17:30:00Z')).toMatch(/ferry-diagnostics-\d+\.txt/);
     expect(diagnosticFileName('bad')).toContain('unknown');
   });
 });

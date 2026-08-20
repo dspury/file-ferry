@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import pytest
 
-from media_mate.application.policies import (
+from ferry.application.policies import (
     PolicyValidationError,
     default_policy,
     is_stricter_or_equal,
     validate_policy,
     weaker_fields,
 )
-from media_mate.service.protocol import StoragePolicy
+from ferry.service.protocol import StoragePolicy
 
 
 def test_default_policy_is_the_floor() -> None:

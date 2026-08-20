@@ -20,7 +20,7 @@ const MODES = ['copy', 'move', 'link'];
 const CONFLICTS = ['skip', 'overwrite', 'rename'];
 
 export function Settings(): JSX.Element {
-  const loaded = useAsync(() => window.mediaMate.settings.get());
+  const loaded = useAsync(() => window.ferry.settings.get());
   const [form, setForm] = useState<AppSettings | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
@@ -59,7 +59,7 @@ export function Settings(): JSX.Element {
     setSaveError(null);
     setSavedMsg(null);
     try {
-      const updated = await window.mediaMate.settings.update({
+      const updated = await window.ferry.settings.update({
         proxyCodec: form.proxyCodec,
         proxyHeight: form.proxyHeight,
         checksumAlgo: form.checksumAlgo,
@@ -189,7 +189,7 @@ export function Settings(): JSX.Element {
 }
 
 function DiagnosticsPanel(): JSX.Element {
-  const diag = useAsync(() => window.mediaMate.app.diagnostics());
+  const diag = useAsync(() => window.ferry.app.diagnostics());
   const [copied, setCopied] = useState(false);
 
   if (diag.loading) {
@@ -229,7 +229,7 @@ function DiagnosticsPanel(): JSX.Element {
         <button className="btn" onClick={copy} disabled={!canCopy(report)}>
           {copied ? 'Copied' : 'Copy diagnostics'}
         </button>
-        <button className="btn" onClick={() => void window.mediaMate.app.openDiagnosticFolder()}>
+        <button className="btn" onClick={() => void window.ferry.app.openDiagnosticFolder()}>
           Open diagnostics folder
         </button>
         <span className="muted">Save as: {diagnosticFileName(report.generatedAt)}</span>

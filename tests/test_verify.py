@@ -10,13 +10,13 @@ from pathlib import Path
 import pytest
 import xxhash
 
-from media_mate.log import LogStore
-from media_mate.models import (
+from ferry.log import LogStore
+from ferry.models import (
     ChecksumAlgo,
-    MediaMateConfig,
+    FerryConfig,
     VerificationSnapshotRecord,
 )
-from media_mate.verify import (
+from ferry.verify import (
     VerifyError,
     _exit_code,
     _iter_files,
@@ -146,7 +146,7 @@ class TestIterFiles:
 
 @pytest.fixture
 def store_dir(tmp_path_factory) -> Path:
-    return tmp_path_factory.mktemp("media_mate_store")
+    return tmp_path_factory.mktemp("ferry_store")
 
 
 def _make_store(store_dir: Path) -> LogStore:
@@ -305,7 +305,7 @@ class TestVerifyFolder:
         (folder / "a").write_bytes(b"hello")
         store = _make_store(store_dir)
 
-        cfg = MediaMateConfig(checksum_algo=ChecksumAlgo.SHA256)
+        cfg = FerryConfig(checksum_algo=ChecksumAlgo.SHA256)
         report = verify_folder(folder, store, config=cfg)
 
         # Snapshot algo should match config
@@ -323,7 +323,7 @@ class TestVerifyFolder:
         verify_folder(folder, store)
 
         # Second run with sha256 — mismatch
-        cfg = MediaMateConfig(checksum_algo=ChecksumAlgo.SHA256)
+        cfg = FerryConfig(checksum_algo=ChecksumAlgo.SHA256)
         with pytest.raises(VerifyError) as exc_info:
             verify_folder(folder, store, config=cfg)
         assert "existing baseline" in exc_info.value.args[0]
@@ -525,7 +525,7 @@ class TestConfigHashProvenance:
         (folder / "a").write_bytes(b"hello")
         store = _make_store(store_dir)
 
-        cfg = MediaMateConfig(checksum_algo=ChecksumAlgo.SHA256)
+        cfg = FerryConfig(checksum_algo=ChecksumAlgo.SHA256)
         verify_folder(folder, store, config=cfg)
 
         with sqlite3.connect(store.db_path) as conn:
@@ -536,8 +536,8 @@ class TestConfigHashProvenance:
     def test_different_configs_yield_different_hashes(
         self, tmp_path: Path, store_dir: Path
     ) -> None:
-        a = MediaMateConfig(checksum_algo=ChecksumAlgo.XXHASH)
-        b = MediaMateConfig(checksum_algo=ChecksumAlgo.SHA256)
+        a = FerryConfig(checksum_algo=ChecksumAlgo.XXHASH)
+        b = FerryConfig(checksum_algo=ChecksumAlgo.SHA256)
         assert a.config_hash() != b.config_hash()
 
 

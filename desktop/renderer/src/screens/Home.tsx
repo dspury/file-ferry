@@ -17,9 +17,9 @@ import {
 import type { JobDetail } from '../../../shared/ipc-methods.js';
 
 export function Home(): JSX.Element {
-  const jobs = useAsync(() => window.mediaMate.job.list());
-  const volumes = useAsync(() => window.mediaMate.source.listVolumes());
-  const assets = useAsync(() => window.mediaMate.asset.list());
+  const jobs = useAsync(() => window.ferry.job.list());
+  const volumes = useAsync(() => window.ferry.source.listVolumes());
+  const assets = useAsync(() => window.ferry.asset.list());
 
   const loading = jobs.loading || volumes.loading || assets.loading;
   const error = jobs.error ?? volumes.error ?? assets.error;

@@ -7,9 +7,9 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
-from media_mate.models import (
+from ferry.models import (
     ChecksumAlgo,
-    MediaMateConfig,
+    FerryConfig,
     MediaProbe,
     OrganizeConfig,
     OrganizeOpRecord,
@@ -109,9 +109,9 @@ class TestOrganize:
         assert r.operation == "copy"
 
 
-class TestMediaMateConfig:
+class TestFerryConfig:
     def test_defaults(self) -> None:
-        cfg = MediaMateConfig()
+        cfg = FerryConfig()
         assert cfg.proxy_codec == "ProRes422Proxy"
         assert cfg.proxy_height == 1080
         assert cfg.checksum_algo == ChecksumAlgo.XXHASH
@@ -120,7 +120,7 @@ class TestMediaMateConfig:
 
     def test_extra_fields_forbidden(self) -> None:
         with pytest.raises(ValidationError):
-            MediaMateConfig(unknown_field="boom")  # type: ignore[call-arg]
+            FerryConfig(unknown_field="boom")  # type: ignore[call-arg]
 
     def test_invalid_resolution_rejected(self) -> None:
         with pytest.raises(ValidationError):

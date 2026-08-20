@@ -5,13 +5,13 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from media_mate.application.derivatives import DerivativeService
+from ferry.application.derivatives import DerivativeService
 
 
 def _service(tmp_path: Path) -> DerivativeService:
-    from media_mate.application.service import ApplicationService
+    from ferry.application.service import ApplicationService
 
-    db = tmp_path / "media-mate.db"
+    db = tmp_path / "ferry.db"
     boot = ApplicationService(db_path=db, app_data_dir=tmp_path / "app")
     boot.bootstrap()
     boot.close()

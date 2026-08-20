@@ -5,10 +5,10 @@
  * be verified without launching Electron (plan §10.6.3: package and
  * launch the frozen sidecar in development and production).
  *
- * Development launches `python -m media_mate.service` against the
+ * Development launches `python -m ferry.service` against the
  * workspace (so the sidecar picks up source changes). Packaged builds
  * run a platform-matched frozen executable placed at
- * `resources/sidecar/{arch}/media-mate-service` by electron-builder
+ * `resources/sidecar/{arch}/ferry-service` by electron-builder
  * (see `desktop/build/electron-builder.yml` extraResources).
  */
 
@@ -44,12 +44,12 @@ export function resolveSidecarCommand(
   if (!isPackaged) {
     return {
       executable: processExecPath,
-      args: ['-m', 'media_mate.service'],
+      args: ['-m', 'ferry.service'],
     };
   }
   const candidates = [
-    joinPath(resourcesPath, 'sidecar', 'media-mate-service'),
-    joinPath(resourcesPath, 'sidecar', 'media-mate-service.exe'),
+    joinPath(resourcesPath, 'sidecar', 'ferry-service'),
+    joinPath(resourcesPath, 'sidecar', 'ferry-service.exe'),
   ];
   for (const candidate of candidates) {
     if (exists(candidate)) {

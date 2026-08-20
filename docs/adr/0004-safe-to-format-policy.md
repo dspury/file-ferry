@@ -15,7 +15,7 @@ policy, never a hidden weaker one."
 The plan §6.3: "a replica becomes verified only after the source and
 destination checksum agree under a receipt-recorded algorithm."
 
-The product direction §3.1: "Media-mate must never say a card is safe
+The product direction §3.1: "Ferry must never say a card is safe
 to format until the configured offload policy is satisfied."
 
 "Verified" must therefore be precisely defined; "safe to format"
@@ -152,13 +152,13 @@ Negative:
 Neutral:
 
 - The CLI parity (per the plan §9) exposes the same gate via the
-  same `media-mate jobs` command. The desktop UI is the primary
+  same `ferry jobs` command. The desktop UI is the primary
   surface, but the gate is not desktop-specific.
 
 ## References
 
-- `docs/MEDIA-MATE-FULL-APP-IMPLEMENTATION-PLAN.md` §2.6, §6.3,
+- `docs/FERRY-FULL-APP-IMPLEMENTATION-PLAN.md` §2.6, §6.3,
   §7.2, §11.2
-- `docs/MEDIA-MATE-PRODUCT-DIRECTION.md` §3.1, §6.1, §6.2
+- `docs/FERRY-PRODUCT-DIRECTION.md` §3.1, §6.1, §6.2
 - ADR-0003 (persistence model — `replicas` table, `intake_sessions`
   table)

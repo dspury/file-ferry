@@ -5,8 +5,8 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from media_mate.application.service import ApplicationService
-from media_mate.service.protocol import (
+from ferry.application.service import ApplicationService
+from ferry.service.protocol import (
     AddDestinationParams,
     CreateIntakeSessionParams,
     CreateProjectParams,
@@ -26,13 +26,13 @@ SAME_VOLUME_POLICY = StoragePolicy(
 
 
 def _bootstrapped(tmp_path: Path) -> ApplicationService:
-    svc = ApplicationService(db_path=tmp_path / "media-mate.db", app_data_dir=tmp_path / "app")
+    svc = ApplicationService(db_path=tmp_path / "ferry.db", app_data_dir=tmp_path / "app")
     svc.bootstrap()
     return svc
 
 
 def _setup(tmp_path: Path):
-    svc = ApplicationService(db_path=tmp_path / "media-mate.db", app_data_dir=tmp_path / "app")
+    svc = ApplicationService(db_path=tmp_path / "ferry.db", app_data_dir=tmp_path / "app")
     svc.bootstrap()
 
     # A project with relaxed same-volume policy.
@@ -192,7 +192,7 @@ def test_create_session_captures_volume_fingerprint(tmp_path: Path) -> None:
         CreateIntakeSessionParams(projectId=pid, sourceId=inspected.source_id, kind="offload")
     )
 
-    with sqlite3.connect(tmp_path / "media-mate.db") as conn:
+    with sqlite3.connect(tmp_path / "ferry.db") as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute(
             "SELECT volume_fingerprint_at_scan FROM intake_sessions WHERE id = ?",
@@ -248,7 +248,7 @@ def test_gate_fails_when_source_row_is_missing(tmp_path: Path) -> None:
 
     # Delete the source row to simulate a "we lost the scan-time row"
     # condition (e.g. the source row was archived before evaluation).
-    with sqlite3.connect(tmp_path / "media-mate.db") as conn:
+    with sqlite3.connect(tmp_path / "ferry.db") as conn:
         conn.execute("DELETE FROM sources WHERE id = ?", (inspected.source_id,))
         conn.commit()
 
@@ -272,7 +272,7 @@ def test_gate_does_not_flip_on_legacy_session_without_fingerprint(tmp_path: Path
     # Inject a session row directly with no fingerprint_at_scan,
     # simulating a database that has not yet run migration 003 for
     # some session, or a session created before the migration.
-    with sqlite3.connect(tmp_path / "media-mate.db") as conn:
+    with sqlite3.connect(tmp_path / "ferry.db") as conn:
         now = "2026-08-13T12:00:00Z"
         conn.execute(
             "INSERT INTO intake_sessions ("

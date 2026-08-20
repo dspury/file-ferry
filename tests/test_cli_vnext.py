@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from media_mate.cli import main
+from ferry.cli import main
 
 
 @pytest.fixture

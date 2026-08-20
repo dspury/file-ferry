@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from media_mate.application.policies import default_policy
-from media_mate.application.receipts import build_receipt, export_html, export_markdown
+from ferry.application.policies import default_policy
+from ferry.application.receipts import build_receipt, export_html, export_markdown
 
 
 def _receipt():
@@ -23,7 +23,7 @@ def _receipt():
 
 def test_markdown_contains_key_fields() -> None:
     md = export_markdown(_receipt())
-    assert "# Media-mate operation receipt (intake)" in md
+    assert "# Ferry operation receipt (intake)" in md
     assert "op-xyz" in md
     assert "succeeded" in md
     assert "xxhash64" in md

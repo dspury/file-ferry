@@ -7,12 +7,12 @@
 #   - the frozen sidecar launches and serves the JSON-RPC protocol
 #   - app resources are present outside app.asar where required
 #
-# Usage:  scripts/verify-packaged.sh /path/to/media-mate.app
+# Usage:  scripts/verify-packaged.sh /path/to/ferry.app
 set -euo pipefail
 
 APP="${1:-}"
 if [[ -z "$APP" || ! -d "$APP" ]]; then
-  echo "usage: $0 /path/to/media-mate.app" >&2
+  echo "usage: $0 /path/to/ferry.app" >&2
   exit 2
 fi
 
@@ -23,7 +23,7 @@ echo "==> verifying packaged app: $APP"
 SIDECAR_DIR="$APP/Contents/Resources/sidecar"
 echo "--- sidecar resources at $SIDECAR_DIR ---"
 if [[ -d "$SIDECAR_DIR" ]]; then
-  find "$SIDECAR_DIR" -name 'media-mate-service*' -type f
+  find "$SIDECAR_DIR" -name 'ferry-service*' -type f
 else
   echo "FAIL: no sidecar resources dir" >&2
   FAIL=1
@@ -31,7 +31,7 @@ fi
 
 # 2. The frozen sidecar launches and serves the protocol.
 echo "--- frozen sidecar smoke test ---"
-SIDECAR="$(find "$SIDECAR_DIR" -name 'media-mate-service' -type f | head -1 || true)"
+SIDECAR="$(find "$SIDECAR_DIR" -name 'ferry-service' -type f | head -1 || true)"
 if [[ -n "$SIDECAR" && -x "$SIDECAR" ]]; then
   OUT="$(echo '{"jsonrpc":"2.0","v":1,"kind":"request","id":"v","method":"app.getCapabilities","params":{}}' \
     | "$SIDECAR" --once --db /tmp/mm-verify.db 2>/dev/null || true)"

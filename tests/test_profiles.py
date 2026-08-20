@@ -6,15 +6,15 @@ from pathlib import Path
 
 import pytest
 
-from media_mate.application.profiles import ProfileNotFoundError, ProfileService
-from media_mate.service.protocol import SaveProfileParams
+from ferry.application.profiles import ProfileNotFoundError, ProfileService
+from ferry.service.protocol import SaveProfileParams
 
 
 @pytest.fixture
 def service(tmp_path: Path) -> ProfileService:
-    from media_mate.application.service import ApplicationService
+    from ferry.application.service import ApplicationService
 
-    db = tmp_path / "media-mate.db"
+    db = tmp_path / "ferry.db"
     boot = ApplicationService(db_path=db, app_data_dir=tmp_path / "app")
     boot.bootstrap()
     boot.close()

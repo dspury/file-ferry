@@ -1,8 +1,8 @@
-# media-mate — Spec v0.2.4
+# ferry — Spec v0.3.0
 
-> **Name:** `media-mate`
-> **Repo location:** `dspury/media-mate`
-> **Version:** 0.2.4
+> **Name:** `ferry`
+> **Repo location:** `dspury/ferry`
+> **Version:** 0.3.0
 > **Status:** Released — stable
 
 ---
@@ -11,7 +11,7 @@
 
 **A zero-cost CLI for post-production media ops: probe, organize, generate proxies, build DaVinci Resolve projects, and verify backups — all logged to a local SQLite audit trail.**
 
-The killer demo: drop a folder of raw media in, run `media-mate run`, and walk away with organized folders, ready-to-edit proxies, a Resolve project file pre-wired with bins and a timeline, and a queryable SQLite audit log proving exactly what happened.
+The killer demo: drop a folder of raw media in, run `ferry run`, and walk away with organized folders, ready-to-edit proxies, a Resolve project file pre-wired with bins and a timeline, and a queryable SQLite audit log proving exactly what happened.
 
 ---
 
@@ -28,12 +28,12 @@ The killer demo: drop a folder of raw media in, run `media-mate run`, and walk a
 ## 3. Goals
 
 1. **Zero cost to run.** Every dependency is open-source or free. No API keys, no cloud accounts, no paid SaaS.
-2. **Single-operator CLI + TUI.** Sharp CLI for scripting and automation; interactive Textual TUI (`media-mate tui`) for ad-hoc use. No web UI.
+2. **Single-operator CLI + TUI.** Sharp CLI for scripting and automation; interactive Textual TUI (`ferry tui`) for ad-hoc use. No web UI.
 3. **Composable pipeline.** Each capability (probe / organize / proxy / resolve / verify) is independent and can be run standalone or chained.
 4. **Auditable by default.** Every operation writes to a local SQLite log. The log is the system of record for "what happened to my media."
 5. **Safe to open-source.** No hardcoded paths, hostnames, NAS shares, IPs, or proprietary references anywhere.
 6. **Industry-tool native.** DaVinci Resolve integration where it adds value, FFmpeg fallback where it doesn't.
-7. **Reproducible.** Re-running a `media-mate run` on the same input produces the same output and the same log row, modulo timestamps.
+7. **Reproducible.** Re-running a `ferry run` on the same input produces the same output and the same log row, modulo timestamps.
 
 ---
 
@@ -75,7 +75,7 @@ JSON-serializable, queryable in SQLite.
 
 ### 5.2 Organize
 
-Auto-organize a folder of media into a structured layout based on configurable rules. Default rule: `<root>/<source_relpath>/<filename><ext>` — the source's subfolder structure is preserved under the destination root (mirrors how DITs think about cards/scenes/takes). Rules live in a config file (`media-mate.toml`) and can be overridden per-project (e.g. `{root}/{codec_family}/{resolution_bucket}/{filename}{ext}`). Sources are copied by default so raw camera media stays untouched; `--move` (or `mode = "move"` in config) relocates instead.
+Auto-organize a folder of media into a structured layout based on configurable rules. Default rule: `<root>/<source_relpath>/<filename><ext>` — the source's subfolder structure is preserved under the destination root (mirrors how DITs think about cards/scenes/takes). Rules live in a config file (`ferry.toml`) and can be overridden per-project (e.g. `{root}/{codec_family}/{resolution_bucket}/{filename}{ext}`). Sources are copied by default so raw camera media stays untouched; `--move` (or `mode = "move"` in config) relocates instead.
 
 **Note:** `--dry-run` is supported — preview the organization plan before touching any files.
 
@@ -103,13 +103,13 @@ Programmatically create a Resolve project (`.drp`) from a manifest + a config. S
 
 ### 5.5 Backup verification
 
-Compute fast checksums (xxhash by default; sha256 optional) of all files in a folder; store in SQLite. `media-mate verify` compares current state vs recorded state and reports missing / modified / added files with structured exit codes (0 = clean, 1 = missing, 2 = modified, 3 = added). Designed for shell scripting and cron.
+Compute fast checksums (xxhash by default; sha256 optional) of all files in a folder; store in SQLite. `ferry verify` compares current state vs recorded state and reports missing / modified / added files with structured exit codes (0 = clean, 1 = missing, 2 = modified, 3 = added). Designed for shell scripting and cron.
 
 **Baseline mutability:** Verification does NOT automatically update the stored baseline on mismatch. A mismatch is always reported as an error until explicitly acknowledged. This prevents silent bit-rot: a corrupted file that was missed once does not suppress future detections by overwriting the baseline.
 
 ### 5.6 SQLite audit log (the system of record)
 
-Every operation writes to a local SQLite database (`~/.media-mate/media-mate.db` by default). Schema covers: runs, files, probes, proxies, projects, verifications, errors. Queryable via `media-mate log` subcommand (e.g., `media-mate log --since 1d --missing`).
+Every operation writes to a local SQLite database (`~/.ferry/ferry.db` by default). Schema covers: runs, files, probes, proxies, projects, verifications, errors. Queryable via `ferry log` subcommand (e.g., `ferry log --since 1d --missing`).
 
 ---
 
@@ -117,11 +117,11 @@ Every operation writes to a local SQLite database (`~/.media-mate/media-mate.db`
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                   media-mate CLI + TUI                       │
-│            (Click for CLI; Textual for TUI)                  │
-│                                                               │
-│    CLI:   media-mate probe / organize / proxy / verify ...  │
-│    TUI:   media-mate tui   (interactive full-screen app)     │
+│                       ferry CLI + TUI                        │
+│               (Click for CLI; Textual for TUI)               │
+│                                                              │
+│    CLI:   ferry probe / organize / proxy / verify ...        │
+│    TUI:   ferry tui   (interactive full-screen app)          │
 └──────┬──────────┬──────────┬──────────┬───────────┬──────────┘
        │          │          │          │           │
        ▼          ▼          ▼          ▼           ▼
@@ -152,20 +152,20 @@ Each box is a Python module with its own tests. The CLI and TUI both compose the
 
 ## 7. Data model (SQLite schema sketch)
 
-The schema lives in `src/media_mate/log.py` (`SCHEMA_SQL` +
+The schema lives in `src/ferry/log.py` (`SCHEMA_SQL` +
 `LogStore._migrate`). The version is recorded in `schema_meta`
 and bumped via additive migrations when columns are added — never
 drop or rename, only `ALTER TABLE ADD COLUMN`. See `SCHEMA_VERSION`
 for the current value.
 
 ```sql
--- One row per media-mate run
+-- One row per ferry run
 CREATE TABLE runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     started_at TEXT NOT NULL,
     finished_at TEXT,
-    command TEXT NOT NULL,           -- e.g., "media-mate run /path/to/folder"
-    config_hash TEXT,                -- hash of the media-mate.toml used
+    command TEXT NOT NULL,           -- e.g., "ferry run /path/to/folder"
+    config_hash TEXT,                -- hash of the ferry.toml used
     status TEXT NOT NULL,            -- running | success | failed | partial
     error TEXT
 );
@@ -180,7 +180,7 @@ CREATE TABLE files (
     last_seen_run INTEGER REFERENCES runs(id)
 );
 
--- Probe results — populated by `media-mate probe`.
+-- Probe results — populated by `ferry probe`.
 -- Every column beyond `id`/`file_id`/`run_id`/`probed_at` is nullable
 -- (or default-safe for `is_vfr`) so historical rows survive schema
 -- additions unchanged.
@@ -317,33 +317,33 @@ CREATE INDEX IF NOT EXISTS idx_verif_snap_folder  ON verification_snapshots(fold
 
 ```bash
 # Probe a single file
-media-mate probe clip.mov
+ferry probe clip.mov
 
 # Probe a folder, write to log
-media-mate probe ./raw/
+ferry probe ./raw/
 
-# Organize a folder using rules in media-mate.toml
-media-mate organize ./raw/ --root ./organized/
+# Organize a folder using rules in ferry.toml
+ferry organize ./raw/ --root ./organized/
 
 # Preview organize without touching files
-media-mate organize ./raw/ --root ./organized/ --dry-run
+ferry organize ./raw/ --root ./organized/ --dry-run
 
 # Generate proxies for everything in a folder
-media-mate proxy ./organized/ --out ./proxies/
+ferry proxy ./organized/ --out ./proxies/
 
 # Create a Resolve project from a folder
-media-mate resolve create ./organized/ --project "Episode-12" --resolution 1080 --fps 24
+ferry resolve create ./organized/ --project "Episode-12" --resolution 1080 --fps 24
 
 # Verify a backup
-media-mate verify ./raw/
+ferry verify ./raw/
 
 # Query the audit log
-media-mate log --since 1d
-media-mate log --missing
-media-mate log --proxies --format json
+ferry log --since 1d
+ferry log --missing
+ferry log --proxies --format json
 
 # Full pipeline
-media-mate run ./raw/ --organize --proxy --resolve-project --verify
+ferry run ./raw/ --organize --proxy --resolve-project --verify
 ```
 
 ---
@@ -354,7 +354,7 @@ media-mate run ./raw/ --organize --proxy --resolve-project --verify
 |---|---|---|---|
 | Language | Python 3.11+ | PSF | Free |
 | CLI framework | Click + Rich (TTY output) | BSD / MIT | Free |
-| TUI framework | Textual (full-screen TUI, `media-mate tui`) | MIT | Free |
+| TUI framework | Textual (full-screen TUI, `ferry tui`) | MIT | Free |
 | Media probe | ffprobe (via ffmpeg) | LGPL/GPL | Free |
 | Transcode / proxy | ffmpeg | LGPL/GPL | Free |
 | Checksum | xxhash (python-xxhash) | BSD | Free |
@@ -372,16 +372,16 @@ media-mate run ./raw/ --organize --proxy --resolve-project --verify
 ## 10. Repo layout
 
 ```
-media-mate/
+ferry/
 ├── README.md
 ├── LICENSE                 (MIT)
 ├── pyproject.toml
-├── media-mate.toml.example
+├── ferry.toml.example
 ├── SPEC.md                 (this document)
-├── src/media_mate/
+├── src/ferry/
 │   ├── __init__.py
 │   ├── cli.py              (Click entrypoint)
-│   ├── config.py           (media-mate.toml loader)
+│   ├── config.py           (ferry.toml loader)
 │   ├── probe.py            (ffprobe wrapper)
 │   ├── organize.py         (file organizer)
 │   ├── proxy.py            (proxy generation)
@@ -408,7 +408,7 @@ media-mate/
 
 ## 11. Safety constraints (hard rules)
 
-1. **No hardcoded paths.** Everything configurable via CLI args, env vars, or `media-mate.toml`.
+1. **No hardcoded paths.** Everything configurable via CLI args, env vars, or `ferry.toml`.
 2. **No hostnames, IPs, NAS shares, or cloud account refs.** Anywhere in the code, docs, or tests.
 3. **No proprietary branding or team references.** Anywhere.
 4. **Public tools only.** FFmpeg, ffprobe, pydantic, Click, DaVinci Resolve (free), Python ecosystem.
@@ -420,9 +420,9 @@ media-mate/
 
 ## 12. First-class terminal interface
 
-`media-mate` with no arguments launches the Textual workstation. Automation and
-the existing command surface remain available as subcommands; `media-mate
---no-tui` explicitly stays in CLI mode and prints command help. `media-mate tui`
+`ferry` with no arguments launches the Textual workstation. Automation and
+the existing command surface remain available as subcommands; `ferry
+--no-tui` explicitly stays in CLI mode and prints command help. `ferry tui`
 remains as a compatibility alias. Global `--db` and `--config` options are passed
 through to the TUI.
 
@@ -470,7 +470,7 @@ color while metadata remains naturally monospace.
 
 ## 13. Versioning rule
 
-**media-mate ships as a beta indefinitely.** The version scheme is `MAJOR.MINOR.PATCH`:
+**ferry ships as a beta indefinitely.** The version scheme is `MAJOR.MINOR.PATCH`:
 
 - **MAJOR** stays at **0** indefinitely. **Never bump to 1.0.0 without D's explicit approval.**
 - **PATCH** bumps (0.1.0 → 0.1.1) are fine for bug fixes — autonomous.
@@ -481,16 +481,16 @@ color while metadata remains naturally monospace.
 
 ## 13. PyPI publish
 
-media-mate ships to PyPI under the name `media-mate`. Install becomes:
+ferry ships to PyPI under the name `ferry`. Install becomes:
 
 ```bash
-pip install media-mate
-media-mate --help
+pip install ferry
+ferry --help
 ```
 
-- Python package import name: `media_mate`
-- CLI command: `media-mate`
-- PyPI package name: `media-mate`
+- Python package import name: `ferry`
+- CLI command: `ferry`
+- PyPI package name: `ferry`
 
 Build via `python -m build`, publish via `twine upload` (or `pyproject.toml`-driven trusted publishing on GH Actions).
 
@@ -503,7 +503,7 @@ Workflow at `.github/workflows/ci.yml`. Matrix:
 - Python 3.10, 3.11, 3.12
 - Each matrix entry: install deps → `pytest` → `ruff check` → `ruff format --check`
 
-Plus a smoke test that runs `media-mate --help` and a small end-to-end probe of a synthetic fixture.
+Plus a smoke test that runs `ferry --help` and a small end-to-end probe of a synthetic fixture.
 
 ---
 
@@ -533,7 +533,7 @@ Plus a smoke test that runs `media-mate --help` and a small end-to-end probe of 
 
 All items shipped in v0.1.0:
 
-1. ✅ Scaffold `media-mate/` (pyproject.toml, src layout, tests/, ruff config)
+1. ✅ Scaffold `ferry/` (pyproject.toml, src layout, tests/, ruff config)
 2. ✅ CI workflow with paths-filter
 3. ✅ `models.py` + `log.py` (the data layer everything else depends on)
 4. ✅ `probe.py` + tests (simplest capability, validates the pipeline)
@@ -547,7 +547,7 @@ All items shipped in v0.1.0:
 
 ---
 
-## 18. Changes in v0.2.x
+## 18. Changes in v0.2.x — v0.3.x
 
 ### v0.2.2 — Bug fixes and probe enrichment
 
@@ -606,7 +606,7 @@ redesign** below), and preps the repo for public release (see
   provenance wiring called `config.config_hash()` instead of
   `cfg.config_hash()`, crashing whenever `config=None` (the default). Fixed;
   restores the 5 resolve tests.
-- **Invalid shipped config examples.** `media-mate.toml.example` and the
+- **Invalid shipped config examples.** `ferry.toml.example` and the
   README config block placed `proxy_codec`/`proxy_height`/`checksum_algo`
   under `[organize]` (silently dropped) or a `[proxy]` table (hard
   `ValidationError`, because the loader left the table for `extra="forbid"`
@@ -683,7 +683,7 @@ tests, ruff, and mypy strict still clean.
 - **Attribution pseudonymized.** The author's real email was dropped from
   `pyproject.toml`; the author field now reads `name = "Lunar Park"`.
   The `LICENSE` copyright line was updated to match. The GitHub handle
-  (`dspury`) and repo URL (`github.com/dspury/media-mate`) are unchanged
+  (`dspury`) and repo URL (`github.com/dspury/ferry`) are unchanged
   because those are the actual repo location.
 
 ---
@@ -739,6 +739,54 @@ external camera card appeared to "not probe or execute" from the TUI.
   and always restores the Run button. Corrupt/foreign audit databases
   degrade gracefully instead of crashing screens.
 - The MEDIA BROWSER directory tree hides dotfiles and system folders.
+
+---
+
+### v0.3.0 — Rename to ferry
+
+The project was renamed from `media-mate` to `ferry`. No features were removed
+and no behavior changed; only identity and packaging moved. One name is used
+everywhere — the PyPI distribution, the import name, the CLI command and the
+desktop product are all `ferry`.
+
+**Identity**
+
+| What | Old | New |
+|------|-----|-----|
+| PyPI / repo name | `media-mate` | `ferry` |
+| Python package | `media_mate` | `ferry` |
+| CLI command | `media-mate` | `ferry` |
+| Service entry point | `media-mate-service` | `ferry-service` |
+| Config model | `MediaMateConfig` | `FerryConfig` |
+| Preload bridge | `window.mediaMate` | `window.ferry` |
+| Desktop product name | `media-mate` | `ferry` |
+
+**Paths and environment**
+
+| What | Old | New |
+|------|-----|-----|
+| Project config file | `./media-mate.toml` | `./ferry.toml` |
+| Home config | `~/.media-mate/config.toml` | `~/.ferry/config.toml` |
+| Legacy audit db | `~/.media-mate/media-mate.db` | `~/.ferry/ferry.db` |
+| Desktop app data (macOS) | `~/Library/Application Support/media-mate/` | `~/Library/Application Support/ferry/` |
+| Db backup prefix | `media-mate-{ISO8601}-pre-{NNN}.db` | `ferry-{ISO8601}-pre-{NNN}.db` |
+| Env overrides | `MEDIA_MATE_CONFIG`, `MEDIA_MATE_DB`, `MEDIA_MATE_PROTOCOL_VERSION` | `FERRY_CONFIG`, `FERRY_DB`, `FERRY_PROTOCOL_VERSION` |
+
+There is no automatic migration: the new binary reads the new paths, so a v0.2.x
+user keeps their old data at the old paths until they move it. The README
+documents the two `mv` commands that carry it over. `ferry.toml` is read from
+the working directory exactly as `media-mate.toml` was.
+
+**DaVinci Resolve is now explicitly optional.** The Resolve API adapter is
+imported lazily by both the CLI and the TUI, so nothing in the import graph
+touches `DaVinciResolveScript` unless a Resolve command actually runs. Resolve
+has no pip dependency — it is detected at runtime — and the manifest-first
+fallback (§5) already covers the "Resolve not installed" case. `[resolve]` and
+`[tui]` extras exist to record intent; neither installs anything.
+
+**`docs/archive/` was removed.** The frozen `SPEC_v0.2.2.md`, `architecture.md`
+and `sample-run.md` described the tool under its old name and were superseded by
+this document and the README.
 
 ---
 
@@ -820,8 +868,8 @@ All items below were approved at spec time and shipped in v0.1.0:
 - Safety constraints in §11
 - Versioning rule in §12 (MAJOR=0 until D approves)
 - License: MIT
-- Repo location: `dspury/media-mate`
-- Name: `media-mate`
+- Repo location: `dspury/ferry`
+- Name: `ferry`
 - First tagged version: 0.1.0
 
 All items below were approved and shipped in v0.2.2:

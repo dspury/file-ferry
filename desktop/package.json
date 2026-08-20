@@ -1,7 +1,7 @@
 {
-  "name": "media-mate-desktop",
+  "name": "ferry-desktop",
   "version": "0.0.0",
-  "description": "Electron desktop shell for media-mate (vNext foundation)",
+  "description": "Electron desktop shell for ferry (vNext foundation)",
   "private": true,
   "license": "MIT",
   "scripts": {

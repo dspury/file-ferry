@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from media_mate.application.offload import copy_file_atomic, verify_copy
-from media_mate.application.service import ApplicationService
-from media_mate.service.protocol import (
+from ferry.application.offload import copy_file_atomic, verify_copy
+from ferry.application.service import ApplicationService
+from ferry.service.protocol import (
     AddDestinationParams,
     CancelJobParams,
     CreateIntakeSessionParams,
@@ -30,7 +30,7 @@ SAME_VOLUME_POLICY = StoragePolicy(
 
 
 def _setup(tmp_path: Path):
-    svc = ApplicationService(db_path=tmp_path / "media-mate.db", app_data_dir=tmp_path / "app")
+    svc = ApplicationService(db_path=tmp_path / "ferry.db", app_data_dir=tmp_path / "app")
     svc.bootstrap()
     working = tmp_path / "proj" / "working"
     backup = tmp_path / "proj" / "backup"

@@ -148,9 +148,9 @@ const api = {
   },
 };
 
-export type MediaMateAPI = typeof api;
+export type FerryAPI = typeof api;
 
-contextBridge.exposeInMainWorld('mediaMate', api);
+contextBridge.exposeInMainWorld('ferry', api);
 
 // Type-only re-export so the renderer can `declare` the global.
 export type { Frame, ResponseFrame, EventFrame };

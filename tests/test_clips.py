@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from media_mate.application.clips import ClipService, clip_key, detect_groups
-from media_mate.application.service import ApplicationService
+from ferry.application.clips import ClipService, clip_key, detect_groups
+from ferry.application.service import ApplicationService
 
 
 def test_clip_key_strips_number_run() -> None:
@@ -27,7 +27,7 @@ def test_detect_groups_groups_spanned() -> None:
 
 @pytest.fixture
 def db(tmp_path: Path) -> Path:
-    db = tmp_path / "media-mate.db"
+    db = tmp_path / "ferry.db"
     boot = ApplicationService(db_path=db, app_data_dir=tmp_path / "app")
     boot.bootstrap()
     boot.close()

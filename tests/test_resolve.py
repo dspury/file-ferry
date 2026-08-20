@@ -9,12 +9,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from media_mate.log import LogStore
-from media_mate.models import (
-    MediaMateConfig,
+from ferry.log import LogStore
+from ferry.models import (
+    FerryConfig,
     ResolveProjectSpec,
 )
-from media_mate.resolve import (
+from ferry.resolve import (
     ResolveError,
     _bin_for,
     build_project_manifest,
@@ -235,7 +235,7 @@ class TestWriteManifest:
 class TestFindResolve:
     def test_returns_none_when_module_missing(self) -> None:
         # Block the import by passing a non-existent resolve_path
-        cfg = MediaMateConfig(resolve_path="/nonexistent/resolve")
+        cfg = FerryConfig(resolve_path="/nonexistent/resolve")
         with patch.dict("sys.modules", {"DaVinciResolveScript": None}):
             assert find_resolve(cfg) is None
 
@@ -246,7 +246,7 @@ class TestFindResolve:
         assert result is fake_module
 
     def test_prepends_resolve_path_to_sys_path(self) -> None:
-        cfg = MediaMateConfig(resolve_path="/custom/resolve")
+        cfg = FerryConfig(resolve_path="/custom/resolve")
         fake_modules_dir = MagicMock()
         fake_modules_dir.is_dir.return_value = True
 
@@ -268,7 +268,7 @@ class TestFindResolve:
 
 @pytest.fixture
 def store_dir(tmp_path_factory) -> Path:
-    return tmp_path_factory.mktemp("media_mate_store")
+    return tmp_path_factory.mktemp("ferry_store")
 
 
 def _make_store(store_dir: Path) -> LogStore:
@@ -347,7 +347,7 @@ class TestCreateResolveProject:
         store = _make_store(store_dir)
 
         # Mock find_resolve to return None
-        with patch("media_mate.resolve.find_resolve", return_value=None):
+        with patch("ferry.resolve.find_resolve", return_value=None):
             result = create_resolve_project(spec, source, None, store)
 
         assert result.resolve_version is None
@@ -377,7 +377,7 @@ class TestCreateResolveProject:
 
         module, _resolve, pm, _media_pool = _make_mock_resolve_module(version="20.0")
 
-        with patch("media_mate.resolve.find_resolve", return_value=module):
+        with patch("ferry.resolve.find_resolve", return_value=module):
             result = create_resolve_project(spec, source, None, store)
 
         assert result.resolve_version == "20.0"
@@ -402,7 +402,7 @@ class TestCreateResolveProject:
         # Resolve "available" but CreateProject returns None
         module, _, _, _ = _make_mock_resolve_module(create_project_succeeds=False)
 
-        with patch("media_mate.resolve.find_resolve", return_value=module):
+        with patch("ferry.resolve.find_resolve", return_value=module):
             result = create_resolve_project(spec, source, None, store)
 
         # Fell back to manifest
@@ -427,7 +427,7 @@ class TestCreateResolveProject:
         )
         store = _make_store(store_dir)
 
-        with patch("media_mate.resolve.find_resolve", return_value=None):
+        with patch("ferry.resolve.find_resolve", return_value=None):
             create_resolve_project(spec, source, None, store)
 
         # When Resolve was never available, we just wrote a manifest — that's success.
@@ -450,7 +450,7 @@ class TestCreateResolveProject:
         )
         store = _make_store(store_dir)
 
-        with patch("media_mate.resolve.find_resolve", return_value=None):
+        with patch("ferry.resolve.find_resolve", return_value=None):
             create_resolve_project(spec, source, proxies, store)
 
         # Manifest should have the proxy clip

@@ -1,13 +1,13 @@
 /**
  * Desktop shell. Renders the nav, header, and the active screen based on
  * the URL hash. It does not import filesystem, database, or node APIs; it
- * only consumes the `window.mediaMate` API exposed by the preload.
+ * only consumes the `window.ferry` API exposed by the preload.
  *
  * Package 7a: the shell, nav, and design system are wired here; the
  * screens are placeholders until 7b/7c/7d.
  */
 import { useEffect, useMemo, useState } from 'react';
-import type { MediaMateAPI } from '../../shared/preload-api.js';
+import type { FerryAPI } from '../../shared/preload-api.js';
 import { activeViewId, navigateTo, type ViewDef } from './views.js';
 import { viewIndex, moveIndex, keyToAction } from './lib/nav.js';
 import { Onboarding } from './screens/Onboarding.js';
@@ -21,7 +21,7 @@ import { Settings } from './screens/Settings.js';
 
 declare global {
   interface Window {
-    readonly mediaMate: MediaMateAPI;
+    readonly ferry: FerryAPI;
   }
 }
 
@@ -48,7 +48,7 @@ export function App(): JSX.Element {
 
   useEffect(() => {
     let cancelled = false;
-    window.mediaMate.app
+    window.ferry.app
       .getStatus()
       .then((s) => {
         if (!cancelled) setStatus(`protocol v${s.protocolVersion}`);
@@ -86,7 +86,7 @@ export function App(): JSX.Element {
       </a>
       <nav className="nav" aria-label="Primary">
         <div className="nav__brand">
-          media-mate
+          ferry
           <small>vNext desktop</small>
         </div>
         <div role="menu" aria-label="Views">

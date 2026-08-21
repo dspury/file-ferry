@@ -9,12 +9,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ferry.log import LogStore
-from ferry.models import (
+from file_ferry.log import LogStore
+from file_ferry.models import (
     FerryConfig,
     ResolveProjectSpec,
 )
-from ferry.resolve import (
+from file_ferry.resolve import (
     ResolveError,
     _bin_for,
     build_project_manifest,
@@ -347,7 +347,7 @@ class TestCreateResolveProject:
         store = _make_store(store_dir)
 
         # Mock find_resolve to return None
-        with patch("ferry.resolve.find_resolve", return_value=None):
+        with patch("file_ferry.resolve.find_resolve", return_value=None):
             result = create_resolve_project(spec, source, None, store)
 
         assert result.resolve_version is None
@@ -377,7 +377,7 @@ class TestCreateResolveProject:
 
         module, _resolve, pm, _media_pool = _make_mock_resolve_module(version="20.0")
 
-        with patch("ferry.resolve.find_resolve", return_value=module):
+        with patch("file_ferry.resolve.find_resolve", return_value=module):
             result = create_resolve_project(spec, source, None, store)
 
         assert result.resolve_version == "20.0"
@@ -402,7 +402,7 @@ class TestCreateResolveProject:
         # Resolve "available" but CreateProject returns None
         module, _, _, _ = _make_mock_resolve_module(create_project_succeeds=False)
 
-        with patch("ferry.resolve.find_resolve", return_value=module):
+        with patch("file_ferry.resolve.find_resolve", return_value=module):
             result = create_resolve_project(spec, source, None, store)
 
         # Fell back to manifest
@@ -427,7 +427,7 @@ class TestCreateResolveProject:
         )
         store = _make_store(store_dir)
 
-        with patch("ferry.resolve.find_resolve", return_value=None):
+        with patch("file_ferry.resolve.find_resolve", return_value=None):
             create_resolve_project(spec, source, None, store)
 
         # When Resolve was never available, we just wrote a manifest — that's success.
@@ -450,7 +450,7 @@ class TestCreateResolveProject:
         )
         store = _make_store(store_dir)
 
-        with patch("ferry.resolve.find_resolve", return_value=None):
+        with patch("file_ferry.resolve.find_resolve", return_value=None):
             create_resolve_project(spec, source, proxies, store)
 
         # Manifest should have the proxy clip

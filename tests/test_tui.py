@@ -9,10 +9,10 @@ from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 
-from ferry.config import load_config, save_config
-from ferry.models import ChecksumAlgo, FerryConfig, OrganizeResult
-from ferry.organize import compute_output_tree
-from ferry.tui import (
+from file_ferry.config import load_config, save_config
+from file_ferry.models import ChecksumAlgo, FerryConfig, OrganizeResult
+from file_ferry.organize import compute_output_tree
+from file_ferry.tui import (
     HomeScreen,
     LogScreen,
     MediaMateApp,
@@ -171,7 +171,7 @@ def test_run_queue_isolates_multi_folder_outputs(tmp_path: Path) -> None:
 
     with (
         patch.object(PipelineScreen, "app", new_callable=PropertyMock, return_value=fake_app),
-        patch("ferry.organize.organize_path", side_effect=fake_organize),
+        patch("file_ferry.organize.organize_path", side_effect=fake_organize),
     ):
         screen._run_queue(["organize"], _options(out_root))
 
@@ -213,8 +213,8 @@ def test_run_queue_skips_downstream_when_organize_is_dry_run(tmp_path: Path) -> 
 
     with (
         patch.object(PipelineScreen, "app", new_callable=PropertyMock, return_value=fake_app),
-        patch("ferry.proxy.generate_proxies", side_effect=fake_proxy),
-        patch("ferry.verify.verify_folder", side_effect=fake_verify),
+        patch("file_ferry.proxy.generate_proxies", side_effect=fake_proxy),
+        patch("file_ferry.verify.verify_folder", side_effect=fake_verify),
     ):
         screen._run_queue(["organize", "proxy", "verify"], _options(out_root, dry_run=True))
 
@@ -281,8 +281,8 @@ class TestListExternalDrives:
             return Path(text)
 
         with (
-            patch("ferry.tui.Path", side_effect=fake_path_factory),
-            patch("ferry.tui.platform.system", return_value="Darwin"),
+            patch("file_ferry.tui.Path", side_effect=fake_path_factory),
+            patch("file_ferry.tui.platform.system", return_value="Darwin"),
         ):
             drives = list_external_drives()
 
@@ -308,7 +308,7 @@ class TestListExternalDrives:
 
         with (
             patch.dict("os.environ", {"USER": user}, clear=False),
-            patch("ferry.tui.Path") as path_cls,
+            patch("file_ferry.tui.Path") as path_cls,
         ):
             # Map exact strings (no substring matching — /media/alice is a
             # suffix of /run/media/alice, so naive .replace() corrupts it).
@@ -322,7 +322,7 @@ class TestListExternalDrives:
 
             path_cls.side_effect = factory
 
-            with patch("ferry.tui.platform.system", return_value="Linux"):
+            with patch("file_ferry.tui.platform.system", return_value="Linux"):
                 drives = list_external_drives()
 
         names = sorted(d.name for d in drives)
@@ -332,8 +332,8 @@ class TestListExternalDrives:
 
     def test_linux_returns_empty_when_no_user_media_dir(self, tmp_path: Path) -> None:
         with (
-            patch("ferry.tui.platform.system", return_value="Linux"),
-            patch("ferry.tui.Path", side_effect=lambda p: Path(str(p))),
+            patch("file_ferry.tui.platform.system", return_value="Linux"),
+            patch("file_ferry.tui.Path", side_effect=lambda p: Path(str(p))),
         ):
             drives = list_external_drives()
         assert drives == []
@@ -349,7 +349,7 @@ class TestListExternalDrives:
 
         with (
             patch.dict("os.environ", {"SYSTEMDRIVE": "C:"}, clear=False),
-            patch("ferry.tui.platform.system", return_value="Windows"),
+            patch("file_ferry.tui.platform.system", return_value="Windows"),
             patch.object(Path, "exists", fake_stat),
             patch.object(Path, "is_dir", fake_stat),
         ):
@@ -359,12 +359,12 @@ class TestListExternalDrives:
         assert names == ["D:", "E:"]
 
     def test_returns_empty_for_unknown_platform(self) -> None:
-        with patch("ferry.tui.platform.system", return_value="Plan9"):
+        with patch("file_ferry.tui.platform.system", return_value="Plan9"):
             assert list_external_drives() == []
 
     def test_drive_label_falls_back_when_disk_usage_fails(self, tmp_path: Path) -> None:
         # disk_usage raises (e.g. drive unmounted between detection and display).
-        with patch("ferry.tui.shutil.disk_usage", side_effect=OSError("not mounted")):
+        with patch("file_ferry.tui.shutil.disk_usage", side_effect=OSError("not mounted")):
             label = _drive_label(tmp_path / "Card")
         assert label == "Card"
 
@@ -372,7 +372,7 @@ class TestListExternalDrives:
         drive = tmp_path / "Camera Card"
         drive.mkdir()
         with patch(
-            "ferry.tui.shutil.disk_usage",
+            "file_ferry.tui.shutil.disk_usage",
             return_value=SimpleNamespace(free=552 * 1024**3, total=1800 * 1024**3),
         ):
             label = _drive_label(drive)
@@ -387,7 +387,7 @@ class TestListExternalDrives:
 
         async def run() -> None:
             app = MediaMateApp(tmp_path / "audit.db")
-            with patch("ferry.tui.list_external_drives", return_value=fake_drives):
+            with patch("file_ferry.tui.list_external_drives", return_value=fake_drives):
                 async with app.run_test(size=(120, 40)) as pilot:
                     await pilot.press("r")
                     screen = app.screen
@@ -409,7 +409,7 @@ class TestListExternalDrives:
 
         async def run() -> None:
             app = MediaMateApp(tmp_path / "audit.db")
-            with patch("ferry.tui.list_external_drives", return_value=[]):
+            with patch("file_ferry.tui.list_external_drives", return_value=[]):
                 async with app.run_test(size=(120, 40)) as pilot:
                     await pilot.press("r")
                     screen = app.screen
@@ -451,7 +451,7 @@ class TestPipelineDispatch:
             app = MediaMateApp(tmp_path / "audit.db")
             async with app.run_test(size=(120, 40)) as pilot:
                 await pilot.pause()
-                from ferry.tui import _PipelineItemContext
+                from file_ferry.tui import _PipelineItemContext
 
                 ctx = _PipelineItemContext(
                     item=QueueItem(path=tmp_path / "src"),
@@ -481,7 +481,7 @@ class TestPipelineDispatch:
     def test_dispatch_rejects_unknown_step(self, tmp_path: Path) -> None:
         async def run() -> None:
             MediaMateApp(tmp_path / "audit.db")
-            from ferry.tui import _PipelineItemContext
+            from file_ferry.tui import _PipelineItemContext
 
             ctx = _PipelineItemContext(
                 item=QueueItem(path=tmp_path / "src"),
@@ -520,7 +520,7 @@ class TestDryRunSkipSemantics:
         return PipelineOptions(**defaults)
 
     def _make_ctx(self, tmp_path: Path, dry_run: bool, organize_ran: bool):
-        from ferry.tui import _PipelineItemContext
+        from file_ferry.tui import _PipelineItemContext
 
         return _PipelineItemContext(
             item=QueueItem(path=tmp_path / "src"),
@@ -568,8 +568,8 @@ class TestDryRunSkipSemantics:
         async def run() -> None:
             MediaMateApp(tmp_path / "audit.db")
             screen = PipelineScreen()
-            with patch("ferry.proxy.generate_proxies") as mock_proxies:
-                from ferry.proxy import ProxyBatchResult
+            with patch("file_ferry.proxy.generate_proxies") as mock_proxies:
+                from file_ferry.proxy import ProxyBatchResult
 
                 mock_proxies.return_value = ProxyBatchResult(
                     results=[], failures=[], skipped=[], already_existed=[]
@@ -592,8 +592,8 @@ class TestDryRunSkipSemantics:
         async def run() -> None:
             MediaMateApp(tmp_path / "audit.db")
             screen = PipelineScreen()
-            with patch("ferry.proxy.generate_proxies") as mock_proxies:
-                from ferry.proxy import ProxyBatchResult
+            with patch("file_ferry.proxy.generate_proxies") as mock_proxies:
+                from file_ferry.proxy import ProxyBatchResult
 
                 mock_proxies.return_value = ProxyBatchResult(
                     results=[], failures=[], skipped=[], already_existed=[]

@@ -7,13 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from ferry.application.audit import AuditService
-from ferry.service.protocol import ListAuditParams
+from file_ferry.application.audit import AuditService
+from file_ferry.service.protocol import ListAuditParams
 
 
 @pytest.fixture
 def db(tmp_path: Path) -> Path:
-    from ferry.application.service import ApplicationService
+    from file_ferry.application.service import ApplicationService
 
     db = tmp_path / "ferry.db"
     boot = ApplicationService(db_path=db, app_data_dir=tmp_path / "app")

@@ -10,7 +10,7 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from ferry.application.service import ApplicationService
+from file_ferry.application.service import ApplicationService
 
 VNEXT_TABLES = (
     "projects",
@@ -121,7 +121,7 @@ def test_foreign_keys_enforced(tmp_path: Path) -> None:
 
 
 def test_downgrade_drops_vnext(tmp_path: Path) -> None:
-    from ferry.persistence import runner
+    from file_ferry.persistence import runner
 
     service, db = _service(tmp_path)
     service.close()

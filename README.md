@@ -1,9 +1,9 @@
-# ferry
+# file-ferry
 
-[![Version](https://img.shields.io/badge/version-0.3.0-blue)](https://github.com/dspury/ferry)
+[![Version](https://img.shields.io/badge/version-0.3.0-blue)](https://github.com/dspury/file-ferry)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/dspury/ferry/ci.yml?style=flat-square)](https://github.com/dspury/ferry/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/dspury/file-ferry/ci.yml?style=flat-square)](https://github.com/dspury/file-ferry/actions/workflows/ci.yml)
 
 > A CLI + interactive TUI for the boring-but-critical infrastructure underneath video post-production: probe camera cards, organize them, generate proxies, spin up a DaVinci Resolve project, and verify backups — every step logged to a local SQLite audit trail.
 
@@ -41,8 +41,8 @@ ferry --no-tui run ./raw/
 
 ```bash
 # 1. Get the code
-git clone https://github.com/dspury/ferry.git
-cd ferry
+git clone https://github.com/dspury/file-ferry.git
+cd file-ferry
 
 # 2. Install (use pipx for an isolated install, or pip if you don't have it)
 pipx install .
@@ -150,8 +150,8 @@ Exit codes from `verify`: `0` = clean, `1` = missing, `2` = modified, `3` = adde
 **Install:**
 
 ```bash
-git clone https://github.com/dspury/ferry.git
-cd ferry
+git clone https://github.com/dspury/file-ferry.git
+cd file-ferry
 pipx install .                # clean isolated install
 #   — or —
 pip install .                 # into your current environment
@@ -160,8 +160,8 @@ pip install .                 # into your current environment
 **From a working tree (development):**
 
 ```bash
-git clone https://github.com/dspury/ferry.git
-cd ferry
+git clone https://github.com/dspury/file-ferry.git
+cd file-ferry
 pip install -e ".[dev]"
 ```
 
@@ -235,12 +235,12 @@ ferry log --limit 5
 ## Roadmap
 
 The next product direction is documented in
-[`docs/FERRY-PRODUCT-DIRECTION.md`](./docs/FERRY-PRODUCT-DIRECTION.md):
+[`docs/FILE-FERRY-PRODUCT-DIRECTION.md`](./docs/FILE-FERRY-PRODUCT-DIRECTION.md):
 a local-first desktop workstation for verified card offload, existing-folder
 adoption, project reconciliation, and a retained CLI/TUI.
 
 The full build plan is in
-[`docs/FERRY-FULL-APP-IMPLEMENTATION-PLAN.md`](./docs/FERRY-FULL-APP-IMPLEMENTATION-PLAN.md).
+[`docs/FILE-FERRY-FULL-APP-IMPLEMENTATION-PLAN.md`](./docs/FILE-FERRY-FULL-APP-IMPLEMENTATION-PLAN.md).
 **All nine implementation packages are landed** (see its §0 progress table):
 Electron shell + secure bridge, the complete desktop experience, TUI/CLI
 parity, and packaged-release hardening. The remaining items are operator-owned
@@ -258,13 +258,13 @@ Longer-term ideas (not yet scheduled):
 
 ## Contributing
 
-Open source under the MIT license. Issues and PRs welcome on [GitHub](https://github.com/dspury/ferry).
+Open source under the MIT license. Issues and PRs welcome on [GitHub](https://github.com/dspury/file-ferry).
 
 Development setup:
 
 ```bash
-git clone https://github.com/dspury/ferry.git
-cd ferry
+git clone https://github.com/dspury/file-ferry.git
+cd file-ferry
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"

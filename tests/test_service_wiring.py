@@ -1,4 +1,4 @@
-"""Tests for the sidecar handler wiring (``ferry.service.wiring``).
+"""Tests for the sidecar handler wiring (``file_ferry.service.wiring``).
 
 The wiring is what turns an otherwise ``method_not_found``-only server
 into a real sidecar: it registers a handler for every method in the
@@ -16,10 +16,10 @@ import io
 import json
 from pathlib import Path
 
-from ferry.application.service import METHOD_NAMES, ApplicationService
-from ferry.service.protocol import PROTOCOL_VERSION
-from ferry.service.server import SidecarServer
-from ferry.service.wiring import wire_server
+from file_ferry.application.service import METHOD_NAMES, ApplicationService
+from file_ferry.service.protocol import PROTOCOL_VERSION
+from file_ferry.service.server import SidecarServer
+from file_ferry.service.wiring import wire_server
 
 
 def _serve(service: ApplicationService, request_line: str) -> str:

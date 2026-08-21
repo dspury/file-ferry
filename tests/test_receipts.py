@@ -6,9 +6,9 @@ import json
 import sqlite3
 from pathlib import Path
 
-from ferry.application.policies import default_policy
-from ferry.application.receipts import ReceiptStore, build_receipt
-from ferry.persistence.connection import open_connection, transaction
+from file_ferry.application.policies import default_policy
+from file_ferry.application.receipts import ReceiptStore, build_receipt
+from file_ferry.persistence.connection import open_connection, transaction
 
 
 def test_receipt_hash_is_deterministic_and_path_independent() -> None:

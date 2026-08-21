@@ -563,7 +563,7 @@ export interface DoctorResult {
  * Adding a method:
  *   1. Add the entry here with its params and result interfaces.
  *   2. Add the matching pydantic models in
- *      `src/ferry/service/protocol.py`.
+ *      `src/file_ferry/service/protocol.py`.
  *   3. Add a corresponding test in `tests/ipc-contract.test.ts`.
  */
 export interface MethodCatalog {

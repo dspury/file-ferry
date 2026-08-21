@@ -7,15 +7,15 @@ from pathlib import Path
 
 import pytest
 
-from ferry.application.jobs import InvalidTransitionError, JobNotFoundError, JobService
-from ferry.service.protocol import CreateJobParams, JobTransitionParams
+from file_ferry.application.jobs import InvalidTransitionError, JobNotFoundError, JobService
+from file_ferry.service.protocol import CreateJobParams, JobTransitionParams
 
 
 @pytest.fixture
 def service(tmp_path: Path) -> JobService:
     import sqlite3 as _s
 
-    from ferry.application.service import ApplicationService
+    from file_ferry.application.service import ApplicationService
 
     db = tmp_path / "ferry.db"
     boot = ApplicationService(db_path=db, app_data_dir=tmp_path / "app")

@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from ferry.application.clips import ClipService, clip_key, detect_groups
-from ferry.application.service import ApplicationService
+from file_ferry.application.clips import ClipService, clip_key, detect_groups
+from file_ferry.application.service import ApplicationService
 
 
 def test_clip_key_strips_number_run() -> None:

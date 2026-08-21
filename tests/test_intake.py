@@ -5,8 +5,8 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from ferry.application.service import ApplicationService
-from ferry.service.protocol import (
+from file_ferry.application.service import ApplicationService
+from file_ferry.service.protocol import (
     AddDestinationParams,
     CreateIntakeSessionParams,
     CreateProjectParams,

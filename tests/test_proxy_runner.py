@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ferry.application.service import ApplicationService
-from ferry.service.protocol import (
+from file_ferry.application.service import ApplicationService
+from file_ferry.service.protocol import (
     AddDestinationParams,
     CreateIntakeSessionParams,
     CreateJobParams,
@@ -79,7 +79,7 @@ def _setup(tmp_path: Path, *, proxy_fn=None):
 
 def _wrap_proxy(svc, fn):
     """Replace the registered ProxyRunner with one using ``fn``."""
-    from ferry.application.proxy_runner import ProxyRunner
+    from file_ferry.application.proxy_runner import ProxyRunner
 
     return ProxyRunner(
         svc._asset_service(),

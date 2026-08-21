@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
-from ferry.models import (
+from file_ferry.models import (
     ChecksumAlgo,
     FerryConfig,
     MediaProbe,

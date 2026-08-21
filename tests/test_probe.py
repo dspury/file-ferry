@@ -9,8 +9,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ferry.log import LogStore
-from ferry.probe import (
+from file_ferry.log import LogStore
+from file_ferry.probe import (
     ProbeError,
     _parse_ffprobe_output,
     _parse_frame_rate,
@@ -235,18 +235,18 @@ class TestParseFfprobeOutput:
 
 class TestFindFfprobe:
     def test_finds_on_path(self) -> None:
-        with patch("ferry.probe.shutil.which") as mock_which:
+        with patch("file_ferry.probe.shutil.which") as mock_which:
             mock_which.return_value = "/usr/bin/ffprobe"
             result = find_ffprobe()
             assert result == "/usr/bin/ffprobe"
 
     def test_falls_back_to_ffmpeg_dir(self) -> None:
-        with patch("ferry.probe.shutil.which") as mock_which:
+        with patch("file_ferry.probe.shutil.which") as mock_which:
             # First call (ffprobe from config dir) returns None, second (which("ffprobe")) returns None too,
             # then we'd check the config-derived path which is a real file.
             mock_which.side_effect = [None, None]
 
-            from ferry.models import FerryConfig
+            from file_ferry.models import FerryConfig
 
             with patch("pathlib.Path.is_file", return_value=True):
                 config = FerryConfig(ffmpeg_path="/usr/local/bin/ffmpeg")
@@ -257,7 +257,7 @@ class TestFindFfprobe:
 
     def test_raises_when_not_found(self) -> None:
         with (
-            patch("ferry.probe.shutil.which") as mock_which,
+            patch("file_ferry.probe.shutil.which") as mock_which,
             patch("pathlib.Path.is_file", return_value=False),
             pytest.raises(ProbeError),
         ):
@@ -275,7 +275,7 @@ class TestProbeFile:
         p = tmp_path / "clip.mov"
         p.write_bytes(b"fake")
 
-        with patch("ferry.probe.subprocess.run") as mock_run:
+        with patch("file_ferry.probe.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
                 returncode=0,
                 stdout=json.dumps(SAMPLE_FFPROBE_VIDEO_AUDIO),
@@ -289,7 +289,7 @@ class TestProbeFile:
         p = tmp_path / "clip.mov"
         p.write_bytes(b"fake")
 
-        with patch("ferry.probe.subprocess.run") as mock_run:
+        with patch("file_ferry.probe.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
                 returncode=0,
                 stdout=json.dumps(SAMPLE_FFPROBE_VIDEO_AUDIO),
@@ -309,7 +309,7 @@ class TestProbeFile:
         p = tmp_path / "bad.mov"
         p.write_bytes(b"garbage")
 
-        with patch("ferry.probe.subprocess.run") as mock_run:
+        with patch("file_ferry.probe.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
                 returncode=1,
                 stdout="",
@@ -323,7 +323,7 @@ class TestProbeFile:
         p = tmp_path / "clip.mov"
         p.write_bytes(b"fake")
 
-        with patch("ferry.probe.subprocess.run") as mock_run:
+        with patch("file_ferry.probe.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
                 returncode=0,
                 stdout="this is not json",
@@ -337,7 +337,7 @@ class TestProbeFile:
         p = tmp_path / "clip.mov"
         p.write_bytes(b"fake")
 
-        with patch("ferry.probe.subprocess.run") as mock_run:
+        with patch("file_ferry.probe.subprocess.run") as mock_run:
             mock_run.side_effect = FileNotFoundError("ffprobe missing")
             with pytest.raises(ProbeError):
                 probe_file(p)
@@ -383,7 +383,7 @@ class TestProbePath:
         p.write_bytes(b"fake")
         store = _make_store(store_dir)
 
-        with patch("ferry.probe.subprocess.run") as mock_run:
+        with patch("file_ferry.probe.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
                 returncode=0,
                 stdout=json.dumps(SAMPLE_FFPROBE_VIDEO_AUDIO),
@@ -405,7 +405,7 @@ class TestProbePath:
         (sub / "c.mxf").write_bytes(b"c")
         store = _make_store(store_dir)
 
-        with patch("ferry.probe.subprocess.run") as mock_run:
+        with patch("file_ferry.probe.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
                 returncode=0,
                 stdout=json.dumps(SAMPLE_FFPROBE_VIDEO_AUDIO),
@@ -446,7 +446,7 @@ class TestProbePath:
                 )
             return MagicMock(returncode=1, stdout="", stderr="Invalid data")
 
-        with patch("ferry.probe.subprocess.run", side_effect=fake_run):
+        with patch("file_ferry.probe.subprocess.run", side_effect=fake_run):
             results = probe_path(tmp_path, store)
 
         # Exactly one of the two files succeeded
@@ -461,7 +461,7 @@ class TestProbePath:
         (tmp_path / "bad2.mov").write_bytes(b"bad2")
         store = _make_store(store_dir)
 
-        with patch("ferry.probe.subprocess.run") as mock_run:
+        with patch("file_ferry.probe.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="Invalid data")
             results = probe_path(tmp_path, store)
 
@@ -494,7 +494,7 @@ class TestProbePath:
         (trashes / "gone.mov").write_bytes(b"deleted")
         store = _make_store(store_dir)
 
-        with patch("ferry.probe.subprocess.run") as mock_run:
+        with patch("file_ferry.probe.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
                 returncode=0,
                 stdout=json.dumps(SAMPLE_FFPROBE_VIDEO_AUDIO),
@@ -514,7 +514,7 @@ class TestProbePath:
         (hidden_root / "clip.mov").write_bytes(b"real")
         store = _make_store(store_dir)
 
-        with patch("ferry.probe.subprocess.run") as mock_run:
+        with patch("file_ferry.probe.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
                 returncode=0,
                 stdout=json.dumps(SAMPLE_FFPROBE_VIDEO_AUDIO),
@@ -540,7 +540,7 @@ class TestProbePath:
             return MagicMock(returncode=1, stdout="", stderr="Invalid data")
 
         seen: list[tuple[str, str | None]] = []
-        with patch("ferry.probe.subprocess.run", side_effect=fake_run):
+        with patch("file_ferry.probe.subprocess.run", side_effect=fake_run):
             probe_path(tmp_path, store, on_file=lambda f, err: seen.append((f.name, err)))
 
         assert ("good.mov", None) in seen
@@ -552,26 +552,26 @@ class TestProbePath:
 
 class TestIsSystemArtifact:
     def test_dot_prefixed_components(self, tmp_path: Path) -> None:
-        from ferry.probe import is_system_artifact
+        from file_ferry.probe import is_system_artifact
 
         assert is_system_artifact(tmp_path / "._clip.MP4", tmp_path)
         assert is_system_artifact(tmp_path / ".DS_Store", tmp_path)
         assert is_system_artifact(tmp_path / ".Trashes" / "501" / "x.mov", tmp_path)
 
     def test_named_artifacts(self, tmp_path: Path) -> None:
-        from ferry.probe import is_system_artifact
+        from file_ferry.probe import is_system_artifact
 
         assert is_system_artifact(tmp_path / "$RECYCLE.BIN" / "x.mp4", tmp_path)
         assert is_system_artifact(tmp_path / "System Volume Information" / "y", tmp_path)
         assert is_system_artifact(tmp_path / "Thumbs.db", tmp_path)
 
     def test_real_media_is_not_junk(self, tmp_path: Path) -> None:
-        from ferry.probe import is_system_artifact
+        from file_ferry.probe import is_system_artifact
 
         assert not is_system_artifact(tmp_path / "CANON R5 — Oct 17" / "C9927.MP4", tmp_path)
 
     def test_hidden_scan_root_does_not_poison_children(self, tmp_path: Path) -> None:
-        from ferry.probe import is_system_artifact
+        from file_ferry.probe import is_system_artifact
 
         root = tmp_path / ".staging"
         assert not is_system_artifact(root / "clip.mov", root)

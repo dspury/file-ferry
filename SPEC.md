@@ -1,7 +1,7 @@
-# ferry — Spec v0.3.0
+# file-ferry — Spec v0.3.0
 
-> **Name:** `ferry`
-> **Repo location:** `dspury/ferry`
+> **Name:** `file-ferry`
+> **Repo location:** `dspury/file-ferry`
 > **Version:** 0.3.0
 > **Status:** Released — stable
 
@@ -152,7 +152,7 @@ Each box is a Python module with its own tests. The CLI and TUI both compose the
 
 ## 7. Data model (SQLite schema sketch)
 
-The schema lives in `src/ferry/log.py` (`SCHEMA_SQL` +
+The schema lives in `src/file_ferry/log.py` (`SCHEMA_SQL` +
 `LogStore._migrate`). The version is recorded in `schema_meta`
 and bumped via additive migrations when columns are added — never
 drop or rename, only `ALTER TABLE ADD COLUMN`. See `SCHEMA_VERSION`
@@ -372,13 +372,13 @@ ferry run ./raw/ --organize --proxy --resolve-project --verify
 ## 10. Repo layout
 
 ```
-ferry/
+file-ferry/
 ├── README.md
 ├── LICENSE                 (MIT)
 ├── pyproject.toml
 ├── ferry.toml.example
 ├── SPEC.md                 (this document)
-├── src/ferry/
+├── src/file_ferry/
 │   ├── __init__.py
 │   ├── cli.py              (Click entrypoint)
 │   ├── config.py           (ferry.toml loader)
@@ -470,7 +470,7 @@ color while metadata remains naturally monospace.
 
 ## 13. Versioning rule
 
-**ferry ships as a beta indefinitely.** The version scheme is `MAJOR.MINOR.PATCH`:
+**file-ferry ships as a beta indefinitely.** The version scheme is `MAJOR.MINOR.PATCH`:
 
 - **MAJOR** stays at **0** indefinitely. **Never bump to 1.0.0 without D's explicit approval.**
 - **PATCH** bumps (0.1.0 → 0.1.1) are fine for bug fixes — autonomous.
@@ -481,22 +481,30 @@ color while metadata remains naturally monospace.
 
 ## 14. PyPI publish
 
-ferry ships to PyPI as **`ferry-media`**. The bare `ferry` name is held by an
-unrelated, long-abandoned package (OpenCore's Docker tooling, last released in
-2014), and PyPI does not reclaim names on request. The distribution name is
-therefore the only place the project is not simply called `ferry` — the import
-name, the CLI command and the repo all are. A distribution name that differs
-from its import name is ordinary (`beautifulsoup4` imports as `bs4`).
+The project is **`file-ferry`**; the command you type is **`ferry`**.
 
 ```bash
-pip install ferry-media
+pip install file-ferry
 ferry --help
 ```
 
-- PyPI distribution name: `ferry-media`
-- Python package import name: `ferry`
+- PyPI distribution name: `file-ferry`
+- Python package import name: `file_ferry`
+- GitHub repo: `dspury/file-ferry`
 - CLI command: `ferry`
-- GitHub repo: `dspury/ferry`
+- Service entry point: `ferry-service`
+
+The split is deliberate, and the rule is: **the project is `file-ferry`, the
+thing you type and see is `ferry`.** Packaging, the import name, the repo and
+document titles use the project name. The command, its config file
+(`ferry.toml`), its data locations (`~/.ferry/`, `Application Support/ferry/`),
+its environment overrides (`FERRY_*`), the desktop product name and the TUI
+banner all use the short one, because that is the name a person actually types.
+
+`ferry` alone was not available on PyPI — it is held by an unrelated,
+long-abandoned package (OpenCore's Docker tooling, last released 2014-10-19) and
+PyPI does not reclaim names on request. `file-ferry` also describes the tool
+better than a bare `ferry` does.
 
 Build via `python -m build`, publish via `twine upload` (or `pyproject.toml`-driven trusted publishing on GH Actions).
 
@@ -539,7 +547,7 @@ Plus a smoke test that runs `ferry --help` and a small end-to-end probe of a syn
 
 All items shipped in v0.1.0:
 
-1. ✅ Scaffold `ferry/` (pyproject.toml, src layout, tests/, ruff config)
+1. ✅ Scaffold `file-ferry/` (pyproject.toml, src layout, tests/, ruff config)
 2. ✅ CI workflow with paths-filter
 3. ✅ `models.py` + `log.py` (the data layer everything else depends on)
 4. ✅ `probe.py` + tests (simplest capability, validates the pipeline)
@@ -689,7 +697,7 @@ tests, ruff, and mypy strict still clean.
 - **Attribution pseudonymized.** The author's real email was dropped from
   `pyproject.toml`; the author field now reads `name = "Lunar Park"`.
   The `LICENSE` copyright line was updated to match. The GitHub handle
-  (`dspury`) and repo URL (`github.com/dspury/ferry`) are unchanged
+  (`dspury`) and repo URL (`github.com/dspury/file-ferry`) are unchanged
   because those are the actual repo location.
 
 ---
@@ -748,21 +756,23 @@ external camera card appeared to "not probe or execute" from the TUI.
 
 ---
 
-### v0.3.0 — Rename to ferry
+### v0.3.0 — Rename to file-ferry
 
-The project was renamed from `media-mate` to `ferry`. No features were removed
-and no behavior changed; only identity and packaging moved. One name is used
-everywhere — the import name, the CLI command, the desktop product and the repo
-are all `ferry`. The single exception is the PyPI distribution name, which is
-`ferry-media` because `ferry` is already taken there (§14).
+The project was renamed from `media-mate` to `file-ferry`. No features were
+removed and no behavior changed; only identity and packaging moved.
+
+Two names, by design (§14): **`file-ferry`** is the project — PyPI, the import
+name, the repo, document titles — and **`ferry`** is what you type and see —
+the command, its config and data locations, its environment overrides, the
+desktop product name, the TUI banner.
 
 **Identity**
 
 | What | Old | New |
 |------|-----|-----|
-| GitHub repo | `dspury/media-mate` | `dspury/ferry` |
-| PyPI distribution | `media-mate` | `ferry-media` (see §14) |
-| Python package | `media_mate` | `ferry` |
+| GitHub repo | `dspury/media-mate` | `dspury/file-ferry` |
+| PyPI distribution | `media-mate` | `file-ferry` (see §14) |
+| Python package | `media_mate` | `file_ferry` |
 | CLI command | `media-mate` | `ferry` |
 | Service entry point | `media-mate-service` | `ferry-service` |
 | Config model | `MediaMateConfig` | `FerryConfig` |
@@ -876,8 +886,8 @@ All items below were approved at spec time and shipped in v0.1.0:
 - Safety constraints in §11
 - Versioning rule in §13 (MAJOR=0 until D approves)
 - License: MIT
-- Repo location: `dspury/ferry`
-- Name: `ferry`
+- Repo location: `dspury/file-ferry`
+- Name: `file-ferry`
 - First tagged version: 0.1.0
 
 All items below were approved and shipped in v0.2.2:

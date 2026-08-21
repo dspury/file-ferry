@@ -6,13 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from ferry.application.profiles import ProfileNotFoundError, ProfileService
-from ferry.service.protocol import SaveProfileParams
+from file_ferry.application.profiles import ProfileNotFoundError, ProfileService
+from file_ferry.service.protocol import SaveProfileParams
 
 
 @pytest.fixture
 def service(tmp_path: Path) -> ProfileService:
-    from ferry.application.service import ApplicationService
+    from file_ferry.application.service import ApplicationService
 
     db = tmp_path / "ferry.db"
     boot = ApplicationService(db_path=db, app_data_dir=tmp_path / "app")

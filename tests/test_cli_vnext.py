@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from click.testing import CliRunner
 
-from ferry.cli import main
+from file_ferry.cli import main
 
 
 @pytest.fixture

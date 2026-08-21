@@ -7,13 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from ferry.application.policies import PolicyValidationError
-from ferry.application.projects import (
+from file_ferry.application.policies import PolicyValidationError
+from file_ferry.application.projects import (
     ProjectNotFoundError,
     ProjectService,
     ProjectValidationError,
 )
-from ferry.service.protocol import (
+from file_ferry.service.protocol import (
     CreateProjectParams,
     StoragePolicy,
     UpdateProjectParams,
@@ -36,7 +36,7 @@ SAME_VOLUME_POLICY = StoragePolicy(
 @pytest.fixture
 def service(tmp_path: Path) -> ProjectService:
     db_path = tmp_path / "ferry.db"
-    from ferry.application.service import ApplicationService
+    from file_ferry.application.service import ApplicationService
 
     boot = ApplicationService(db_path=db_path, app_data_dir=tmp_path / "app_data")
     boot.bootstrap()

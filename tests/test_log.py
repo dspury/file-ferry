@@ -6,8 +6,8 @@ from datetime import UTC, datetime
 
 import pytest
 
-from ferry.log import SCHEMA_VERSION, LogStore
-from ferry.models import (
+from file_ferry.log import SCHEMA_VERSION, LogStore
+from file_ferry.models import (
     OrganizeOpRecord,
     ProbeRecord,
     ProjectRecord,

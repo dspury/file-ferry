@@ -7,13 +7,13 @@ from pathlib import Path
 
 import pytest
 
-from ferry.application.reconcile import ReconcileError, ReconcileService
-from ferry.application.replicas import ReplicaService, compute_checksum
+from file_ferry.application.reconcile import ReconcileError, ReconcileService
+from file_ferry.application.replicas import ReplicaService, compute_checksum
 
 
 @pytest.fixture
 def db(tmp_path: Path) -> Path:
-    from ferry.application.service import ApplicationService
+    from file_ferry.application.service import ApplicationService
 
     db = tmp_path / "ferry.db"
     boot = ApplicationService(db_path=db, app_data_dir=tmp_path / "app")

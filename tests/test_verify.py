@@ -10,13 +10,13 @@ from pathlib import Path
 import pytest
 import xxhash
 
-from ferry.log import LogStore
-from ferry.models import (
+from file_ferry.log import LogStore
+from file_ferry.models import (
     ChecksumAlgo,
     FerryConfig,
     VerificationSnapshotRecord,
 )
-from ferry.verify import (
+from file_ferry.verify import (
     VerifyError,
     _exit_code,
     _iter_files,

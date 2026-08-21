@@ -1,4 +1,4 @@
-"""Tests for the sidecar CLI entry point (``ferry.service.cli``).
+"""Tests for the sidecar CLI entry point (``file_ferry.service.cli``).
 
 The entry point is what the desktop shell spawns. It is thin, but two
 things about it are load-bearing: the default app-data location it picks
@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import io
 
-from ferry.service import PROTOCOL_VERSION
-from ferry.service.cli import _default_db_path, warn_on_host_protocol_mismatch
+from file_ferry.service import PROTOCOL_VERSION
+from file_ferry.service.cli import _default_db_path, warn_on_host_protocol_mismatch
 
 
 class TestHostProtocolMismatch:

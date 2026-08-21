@@ -1,6 +1,6 @@
-# ferry desktop
+# file-ferry desktop
 
-Electron desktop shell for ferry vNext. The foundation cut
+Electron desktop shell for file-ferry vNext. The foundation cut
 contains the security boundary, the IPC contract, the sidecar
 supervisor, and a minimal renderer — not the actual screens.
 
@@ -36,7 +36,7 @@ npm run build
 
 `npm run dev` runs the shared / electron / vite watcher together. The
 development sidecar is launched by `electron/main.ts` as
-`python -m ferry.service` against the workspace at `src/`.
+`python -m file_ferry.service` against the workspace at `src/`.
 
 ## Build
 
@@ -78,7 +78,7 @@ echo '{"jsonrpc":"2.0","v":1,"kind":"request","id":"x","method":"app.getCapabili
   They land in Package 7 of the implementation plan.
 - The actual application services (project, source, intake, jobs,
   replicas, assets, receipts). They land in
-  `src/ferry/application/` per ADR-0005.
+  `src/file_ferry/application/` per ADR-0005.
 - The renderer is a single placeholder that calls `app.getStatus`. It
   is a sanity check, not a UI.
 

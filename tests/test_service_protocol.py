@@ -16,7 +16,7 @@ import json
 
 import pytest
 
-from ferry.service.protocol import (
+from file_ferry.service.protocol import (
     PROTOCOL_VERSION,
     AppStatus,
     CreateProjectParams,

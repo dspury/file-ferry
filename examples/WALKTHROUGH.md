@@ -1,6 +1,6 @@
-# ferry Walkthrough
+# file-ferry Walkthrough
 
-A visual end-to-end walkthrough of ferry's full pipeline, using the test dataset in this folder.
+A visual end-to-end walkthrough of file-ferry's full pipeline, using the test dataset in this folder.
 
 ## Test dataset
 

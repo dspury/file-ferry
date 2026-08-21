@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from ferry.config import load_config
-from ferry.models import ChecksumAlgo, FerryConfig
+from file_ferry.config import load_config
+from file_ferry.models import ChecksumAlgo, FerryConfig
 
 
 class TestLoadConfig:

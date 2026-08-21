@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import pytest
 
-from ferry.application.policies import (
+from file_ferry.application.policies import (
     PolicyValidationError,
     default_policy,
     is_stricter_or_equal,
     validate_policy,
     weaker_fields,
 )
-from ferry.service.protocol import StoragePolicy
+from file_ferry.service.protocol import StoragePolicy
 
 
 def test_default_policy_is_the_floor() -> None:

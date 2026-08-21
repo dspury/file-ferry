@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# run-demo.sh — run a full ferry pipeline on the test dataset
+# run-demo.sh — run a full file-ferry pipeline on the test dataset
 #
-# Requirements: ffmpeg on PATH, ferry installed (pip install -e .)
+# Requirements: ffmpeg on PATH, file-ferry installed (pip install -e .)
 #
 # This script:
 #   1. Cleans up any previous run output
@@ -24,7 +24,7 @@ OUT="$TEST_DATASET/output"
 cd "$PROJECT_ROOT"
 
 echo "========================================"
-echo " ferry demo pipeline"
+echo " file-ferry demo pipeline"
 echo "========================================"
 echo ""
 

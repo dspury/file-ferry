@@ -14,7 +14,7 @@ forced to launch Electron. The legacy audit log at
 untouched.
 
 The **vNext verbs are additive**. They call the same
-`ferry.application.service.ApplicationService` the sidecar uses, so
+`file_ferry.application.service.ApplicationService` the sidecar uses, so
 the CLI and desktop are behaviorally identical — the CLI is not a second
 implementation.
 

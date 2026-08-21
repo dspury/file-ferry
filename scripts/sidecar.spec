@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 # PyInstaller spec for the ferry sidecar (plan §10.6.3).
-# Builds a console executable that runs ferry.service on stdio.
+# Builds a console executable that runs file_ferry.service on stdio.
 #
 # The sidecar reads newline-delimited JSON-RPC from stdin and writes
 # responses to stdout; it must be a console app (no window on Windows).
@@ -13,7 +13,7 @@ import os
 # independent of the invoking working directory.
 SCRIPTS_DIR = os.path.dirname(os.path.abspath(SPEC))
 ROOT = os.path.abspath(os.path.join(SCRIPTS_DIR, "..", "src"))
-ENTRY = os.path.join(ROOT, "ferry", "service", "cli.py")
+ENTRY = os.path.join(ROOT, "file_ferry", "service", "cli.py")
 
 a = Analysis(
     [ENTRY],
@@ -21,8 +21,8 @@ a = Analysis(
     binaries=[],
     datas=[],
     hiddenimports=[
-        "ferry.persistence.migrations.001_initial_legacy",
-        "ferry.persistence.migrations.002_vnext_entities",
+        "file_ferry.persistence.migrations.001_initial_legacy",
+        "file_ferry.persistence.migrations.002_vnext_entities",
     ],
     hookspath=[],
     hooksconfig={},

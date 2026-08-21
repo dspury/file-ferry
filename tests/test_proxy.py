@@ -10,10 +10,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ferry.log import LogStore
-from ferry.models import FerryConfig, MediaProbe, ProxyRequest
-from ferry.probe import _format_errors
-from ferry.proxy import (
+from file_ferry.log import LogStore
+from file_ferry.models import FerryConfig, MediaProbe, ProxyRequest
+from file_ferry.probe import _format_errors
+from file_ferry.proxy import (
     ProxyError,
     _ffmpeg_cmd,
     _profile_for,
@@ -32,7 +32,7 @@ requires_ffmpeg = pytest.mark.skipif(not _has_ffmpeg, reason="ffmpeg/ffprobe not
 
 class TestFindFfmpeg:
     def test_finds_on_path(self) -> None:
-        with patch("ferry.proxy.shutil.which") as mock_which:
+        with patch("file_ferry.proxy.shutil.which") as mock_which:
             mock_which.return_value = "/usr/bin/ffmpeg"
             assert find_ffmpeg() == "/usr/bin/ffmpeg"
 
@@ -45,7 +45,7 @@ class TestFindFfmpeg:
     def test_falls_back_to_path_when_config_invalid(self) -> None:
         with (
             patch("pathlib.Path.is_file", return_value=False),
-            patch("ferry.proxy.shutil.which") as mock_which,
+            patch("file_ferry.proxy.shutil.which") as mock_which,
         ):
             mock_which.return_value = "/usr/bin/ffmpeg"
             cfg = FerryConfig(ffmpeg_path="/nonexistent/ffmpeg")
@@ -55,7 +55,7 @@ class TestFindFfmpeg:
     def test_raises_when_not_found(self) -> None:
         with (
             patch("pathlib.Path.is_file", return_value=False),
-            patch("ferry.proxy.shutil.which") as mock_which,
+            patch("file_ferry.proxy.shutil.which") as mock_which,
             pytest.raises(ProxyError),
         ):
             mock_which.return_value = None
@@ -123,8 +123,8 @@ class TestGenerateProxy:
         out.write_bytes(b"proxy bytes")
 
         with (
-            patch("ferry.proxy.subprocess.run") as mock_run,
-            patch("ferry.proxy._probe_output_metadata") as mock_probe,
+            patch("file_ferry.proxy.subprocess.run") as mock_run,
+            patch("file_ferry.proxy._probe_output_metadata") as mock_probe,
         ):
             mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
             mock_probe.return_value = (1920, 1080, 60.0)
@@ -148,8 +148,8 @@ class TestGenerateProxy:
         out.write_bytes(b"p")
 
         with (
-            patch("ferry.proxy.subprocess.run") as mock_run,
-            patch("ferry.proxy._probe_output_metadata") as mock_probe,
+            patch("file_ferry.proxy.subprocess.run") as mock_run,
+            patch("file_ferry.proxy._probe_output_metadata") as mock_probe,
         ):
             mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
             mock_probe.return_value = (1920, 1080, 60.0)
@@ -173,7 +173,7 @@ class TestGenerateProxy:
         src.write_bytes(b"x")
         out = tmp_path / "out.mov"
 
-        with patch("ferry.proxy.subprocess.run") as mock_run:
+        with patch("file_ferry.proxy.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(
                 returncode=1, stdout="", stderr="Conversion failed!\nLast line"
             )
@@ -188,7 +188,7 @@ class TestGenerateProxy:
         src.write_bytes(b"x")
         out = tmp_path / "out.mov"
 
-        with patch("ferry.proxy.subprocess.run") as mock_run:
+        with patch("file_ferry.proxy.subprocess.run") as mock_run:
             mock_run.side_effect = FileNotFoundError("ffmpeg missing")
             request = ProxyRequest(source_path=str(src), output_path=str(out))
             with pytest.raises(ProxyError):
@@ -226,8 +226,8 @@ class TestGenerateProxy:
         out.write_bytes(b"proxy")
 
         with (
-            patch("ferry.proxy.subprocess.run") as mock_run,
-            patch("ferry.proxy._probe_output_metadata") as mock_probe,
+            patch("file_ferry.proxy.subprocess.run") as mock_run,
+            patch("file_ferry.proxy._probe_output_metadata") as mock_probe,
         ):
             mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
             mock_probe.side_effect = RuntimeError("probe failed")
@@ -308,10 +308,10 @@ class TestGenerateProxies:
 
         with (
             patch(
-                "ferry.proxy.subprocess.run",
+                "file_ferry.proxy.subprocess.run",
                 side_effect=_fake_successful_ffmpeg,
             ),
-            patch("ferry.proxy._probe_output_metadata") as mock_probe,
+            patch("file_ferry.proxy._probe_output_metadata") as mock_probe,
         ):
             mock_probe.return_value = (1920, 1080, 60.0)
             batch = generate_proxies(src, out, store)
@@ -333,10 +333,10 @@ class TestGenerateProxies:
 
         with (
             patch(
-                "ferry.proxy.subprocess.run",
+                "file_ferry.proxy.subprocess.run",
                 side_effect=_fake_successful_ffmpeg,
             ),
-            patch("ferry.proxy._probe_output_metadata") as mock_probe,
+            patch("file_ferry.proxy._probe_output_metadata") as mock_probe,
         ):
             mock_probe.return_value = (1920, 1080, 60.0)
             batch = generate_proxies(src, out, store)
@@ -384,9 +384,9 @@ class TestGenerateProxies:
             return MagicMock(returncode=1, stdout="", stderr="ffmpeg failed")
 
         with (
-            patch("ferry.proxy.subprocess.run", side_effect=fake_run),
-            patch("ferry.probe.probe_file", return_value=None),
-            patch("ferry.proxy._probe_output_metadata") as mock_probe,
+            patch("file_ferry.proxy.subprocess.run", side_effect=fake_run),
+            patch("file_ferry.probe.probe_file", return_value=None),
+            patch("file_ferry.proxy._probe_output_metadata") as mock_probe,
         ):
             mock_probe.return_value = (1920, 1080, 60.0)
             batch = generate_proxies(src, out, store)
@@ -406,7 +406,7 @@ class TestGenerateProxies:
         out = tmp_path / "out"
         store = _make_store(store_dir)
 
-        with patch("ferry.proxy.subprocess.run") as mock_run:
+        with patch("file_ferry.proxy.subprocess.run") as mock_run:
             mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="ffmpeg failed")
             batch = generate_proxies(src, out, store)
 
@@ -433,11 +433,11 @@ class TestGenerateProxies:
 
         with (
             patch(
-                "ferry.proxy.subprocess.run",
+                "file_ferry.proxy.subprocess.run",
                 side_effect=capturing_ffmpeg,
             ),
-            patch("ferry.probe.probe_file", return_value=None),
-            patch("ferry.proxy._probe_output_metadata") as mock_probe,
+            patch("file_ferry.probe.probe_file", return_value=None),
+            patch("file_ferry.proxy._probe_output_metadata") as mock_probe,
         ):
             mock_probe.return_value = (1280, 720, 60.0)
             generate_proxies(src, out, store, config=cfg)
@@ -459,10 +459,10 @@ class TestGenerateProxies:
 
         with (
             patch(
-                "ferry.proxy.subprocess.run",
+                "file_ferry.proxy.subprocess.run",
                 side_effect=_fake_successful_ffmpeg,
             ),
-            patch("ferry.proxy._probe_output_metadata") as mock_probe,
+            patch("file_ferry.proxy._probe_output_metadata") as mock_probe,
         ):
             mock_probe.return_value = (1920, 1080, 60.0)
             batch = generate_proxies(src, out, store)
@@ -483,10 +483,10 @@ class TestGenerateProxies:
 
         with (
             patch(
-                "ferry.proxy.subprocess.run",
+                "file_ferry.proxy.subprocess.run",
                 side_effect=_fake_successful_ffmpeg,
             ),
-            patch("ferry.proxy._probe_output_metadata") as mock_probe,
+            patch("file_ferry.proxy._probe_output_metadata") as mock_probe,
         ):
             mock_probe.return_value = (608, 1080, 10.0)
             batch = generate_proxies(src, out, store)
@@ -509,7 +509,7 @@ class TestGenerateProxies:
             output_path.write_bytes(b"")
             return MagicMock(returncode=0, stdout="", stderr="")
 
-        with patch("ferry.proxy.subprocess.run", side_effect=zero_byte_ffmpeg):
+        with patch("file_ferry.proxy.subprocess.run", side_effect=zero_byte_ffmpeg):
             batch = generate_proxies(src, out, store)
 
         assert batch.results == []
@@ -528,10 +528,10 @@ class TestGenerateProxies:
 
         with (
             patch(
-                "ferry.proxy.subprocess.run",
+                "file_ferry.proxy.subprocess.run",
                 side_effect=_fake_successful_ffmpeg,
             ),
-            patch("ferry.proxy._probe_output_metadata") as mock_probe,
+            patch("file_ferry.proxy._probe_output_metadata") as mock_probe,
         ):
             mock_probe.return_value = (1920, 1080, 60.0)
             generate_proxies(src, out, store)
@@ -686,8 +686,8 @@ class TestSystemArtifactExclusion:
         store = _make_store(store_dir)
 
         with (
-            patch("ferry.proxy.subprocess.run", side_effect=_fake_successful_ffmpeg),
-            patch("ferry.proxy._probe_output_metadata") as mock_probe,
+            patch("file_ferry.proxy.subprocess.run", side_effect=_fake_successful_ffmpeg),
+            patch("file_ferry.proxy._probe_output_metadata") as mock_probe,
         ):
             mock_probe.return_value = (1920, 1080, 60.0)
             batch = generate_proxies(src, out, store)

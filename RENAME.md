@@ -1,8 +1,8 @@
-# Rename & Cleanup Plan: media-mate → ferry
+# Rename & Cleanup Plan: media-mate → file-ferry
 
 ## Overview
 
-Rename the project from `media-mate` to `ferry` and make the DaVinci Resolve integration an optional dependency. TUI stays bundled. No feature removal — just cleaner packaging.
+Rename the project from `media-mate` to `file-ferry` and make the DaVinci Resolve integration an optional dependency. TUI stays bundled. No feature removal — just cleaner packaging.
 
 ---
 
@@ -12,17 +12,17 @@ Rename the project from `media-mate` to `ferry` and make the DaVinci Resolve int
 
 | What | Old | New |
 |------|-----|-----|
-| PyPI name | `media-mate` | `ferry-media` (`ferry` is taken on PyPI) |
-| GitHub repo | `dspury/media-mate` | `dspury/ferry` |
-| Python package | `media_mate` | `ferry` |
+| PyPI name | `media-mate` | `file-ferry` (`ferry` is taken on PyPI) |
+| GitHub repo | `dspury/media-mate` | `dspury/file-ferry` |
+| Python package | `media_mate` | `file_ferry` |
 | CLI command | `media-mate` | `ferry` |
-| Import | `from media_mate import ...` | `from ferry import ...` |
+| Import | `from media_mate import ...` | `from file_ferry import ...` |
 
 ### 1.2 Files to update
 
 - [x] `pyproject.toml` — name, version → 0.3.0, scripts entry point
-- [x] `src/media_mate/` → `src/ferry/` (rename directory)
-- [x] All internal imports (`from media_mate.X` → `from ferry.X`)
+- [x] `src/media_mate/` → `src/file_ferry/` (rename directory)
+- [x] All internal imports (`from media_mate.X` → `from file_ferry.X`)
 - [x] `README.md` — all references, install instructions, badges, CLI examples
 - [x] `CHANGELOG.md` (if exists) — note the rename *(no CHANGELOG.md; recorded as `SPEC.md` §19 "v0.3.0 — Rename to ferry")*
 - [x] CI workflow (`.github/workflows/ci.yml`) — any hardcoded paths or package names
@@ -37,7 +37,7 @@ same" below rather than the create-new-repo sketch this section originally had.
 `gh repo rename ferry` kept all 45 issues, 17 PRs, both tags and the commit and
 CI history, and GitHub installs a permanent redirect.
 
-- [x] ~~Create new repo~~ → renamed `dspury/media-mate` → `dspury/ferry`
+- [x] ~~Create new repo~~ → renamed `dspury/media-mate` → `dspury/ferry` → `dspury/file-ferry`
 - [x] Push code to the renamed repo
 - [x] ~~Archive `dspury/media-mate` with redirect notice~~ → **not applicable.**
       Renaming leaves no second repo to archive: `github.com/dspury/media-mate`
@@ -57,7 +57,7 @@ CI history, and GitHub installs a permanent redirect.
 
 ### 1.4 PyPI
 
-- [ ] Register `ferry-media` on PyPI (first publish)
+- [ ] Register `file-ferry` on PyPI (first publish)
 - [ ] Optionally yank or deprecate `media-mate` if it was ever published
 
 ---
@@ -130,7 +130,7 @@ Actually — Resolve has no pip dependency. It's detected at runtime. So `option
 ## Decisions
 
 - [x] **Version number** — v0.3.0 (continuity from media-mate)
-- [x] **GitHub org** — `dspury/ferry` (personal)
+- [x] **GitHub org** — `dspury/file-ferry` (personal)
 - [x] **CLI command** — `ferry`
 
 ---
@@ -141,13 +141,24 @@ Phases 1.1/1.2, 2 and 3 are landed on branch `rename/ferry`, on top of the
 merged PRs #61 and #62. Only §1.3 (GitHub) and §1.4 (PyPI) remain, and those
 are D's to run.
 
-### One name
+### Two names, and the rule that separates them
 
-The first pass used two names — `ferry-media` for the package and `ferry` for
-the command. That was rejected: **everything is `ferry`.** Import name, CLI
-command, desktop product name, repo. The one exception is forced: the PyPI
-distribution is `ferry-media`, because the bare `ferry` name on PyPI belongs to
-an unrelated package abandoned in 2014 and PyPI will not reclaim it. The only compounds left
+This landed in three steps. The plan opened with `ferry-media` for the package
+and `ferry` for the command; that was rejected in favour of `ferry` everywhere;
+then `ferry` turned out to be taken on PyPI (an unrelated package abandoned in
+2014, which PyPI will not reclaim), and the project settled on **`file-ferry`**
+— which describes the tool better than a bare `ferry` anyway.
+
+The rule, applied consistently:
+
+- **`file-ferry` / `file_ferry` / "File Ferry" — the project.** PyPI
+  distribution, Python import package, GitHub repo, npm package, document
+  titles, and prose that refers to the project itself.
+- **`ferry` / "Ferry" — what you type and see.** The CLI command and the things
+  named after it: `ferry.toml`, `~/.ferry/`, `ferry.db`, `FERRY_*`,
+  `Application Support/ferry/`, `ferry-service`, `window.ferry`, `FerryConfig`,
+  the Electron `productName` and window title, the TUI banner, and the product
+  as spoken about in running prose. The only compounds left
 are the ones that need a suffix to disambiguate a second artifact:
 `ferry-service` (the sidecar binary) and `ferry-desktop` (the private npm
 package for the Electron shell).
@@ -163,7 +174,7 @@ package for the Electron shell).
 | Textual theme name | `media-mate-studio` | `ferry-studio` |
 | Electron `productName` | `media-mate` | `ferry` |
 | Electron `appId` | `io.github.dspury.media-mate` | `io.github.dspury.ferry` |
-| npm package | `media-mate-desktop` | `ferry-desktop` |
+| npm package | `media-mate-desktop` | `file-ferry-desktop` |
 | Project config file | `media-mate.toml` | `ferry.toml` |
 | Home config / audit db | `~/.media-mate/media-mate.db` | `~/.ferry/ferry.db` |
 | Desktop app data (macOS) | `~/Library/Application Support/media-mate/` | `~/Library/Application Support/ferry/` |

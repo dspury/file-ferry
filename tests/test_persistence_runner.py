@@ -21,8 +21,8 @@ from pathlib import Path
 
 import pytest
 
-from ferry.persistence import backup, runner
-from ferry.persistence.runner import Migration
+from file_ferry.persistence import backup, runner
+from file_ferry.persistence.runner import Migration
 
 
 @pytest.fixture
@@ -203,7 +203,7 @@ def test_refuses_to_start_when_db_is_newer_than_target(
     # version to 99 so the runner must reject a target of 1.
     runner.apply_pending(fresh_db, discovered[:1], backups_dir)
     with sqlite3.connect(fresh_db) as conn:
-        from ferry.persistence.schema_meta import set_version
+        from file_ferry.persistence.schema_meta import set_version
 
         set_version(conn, 99)
 
@@ -287,7 +287,7 @@ def _table_exists(conn: sqlite3.Connection, name: str) -> bool:
 
 def test_bootstrap_creates_legacy_schema(tmp_path: Path) -> None:
     """The first migration recreates the v0.2.4 schema on an empty DB."""
-    from ferry.application.service import ApplicationService
+    from file_ferry.application.service import ApplicationService
 
     db_path = tmp_path / "ferry.db"
     app_data = tmp_path / "app_data"

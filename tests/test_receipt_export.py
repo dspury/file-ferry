@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from ferry.application.policies import default_policy
-from ferry.application.receipts import build_receipt, export_html, export_markdown
+from file_ferry.application.policies import default_policy
+from file_ferry.application.receipts import build_receipt, export_html, export_markdown
 
 
 def _receipt():

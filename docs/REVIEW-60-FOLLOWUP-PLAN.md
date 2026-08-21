@@ -89,7 +89,7 @@ Add a test asserting the two method catalogs stay in sync, so drift like the
 
 ### A3 — Plan §16 doc enumeration (#7)
 
-File: `docs/FERRY-FULL-APP-IMPLEMENTATION-PLAN.md` §16.2.
+File: `docs/FILE-FERRY-FULL-APP-IMPLEMENTATION-PLAN.md` §16.2.
 
 The §16.2 section already lists the flagged review areas; confirm it remains
 the single source of truth and that any review areas that currently live only

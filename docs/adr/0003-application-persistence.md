@@ -58,7 +58,7 @@ The plan §6.1 demands:
 ```
 
 **Numbered migrations.** Migrations are Python modules under
-`src/ferry/persistence/migrations/`, named `NNN_description.py`
+`src/file_ferry/persistence/migrations/`, named `NNN_description.py`
 with `upgrade(conn)` and `downgrade(conn)` functions. The migration
 runner is a single-pass loader that:
 
@@ -140,7 +140,7 @@ Neutral:
 
 ## References
 
-- `docs/FERRY-FULL-APP-IMPLEMENTATION-PLAN.md` §6.1, §6.2, §6.5
+- `docs/FILE-FERRY-FULL-APP-IMPLEMENTATION-PLAN.md` §6.1, §6.2, §6.5
 - v0.2.4 `SPEC.md` §7 (legacy schema, preserved)
 - SQLite WAL docs: https://www.sqlite.org/wal.html
 - SQLite backup API: https://www.sqlite.org/backup.html

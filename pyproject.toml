@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "ferry-media"  # `ferry` is taken on PyPI; the import name and CLI are both `ferry`
+name = "file-ferry"  # project name; the typed command is `ferry` (SPEC §14)
 version = "0.3.0"
 description = "Zero-cost CLI for post-production media ops: probe, organize, generate proxies, build DaVinci Resolve projects, and verify backups."
 readme = "README.md"
@@ -59,23 +59,23 @@ dev = [
 # pip package: DaVinci Resolve has no distribution on PyPI and is detected at
 # runtime via `DaVinciResolveScript` (installed with Resolve itself), and
 # Textual stays in the core dependencies so the TUI always ships. Installing
-# `ferry-media[resolve]` therefore installs nothing extra -- it records that the
+# `file-ferry[resolve]` therefore installs nothing extra -- it records that the
 # Resolve code path is opt-in, which is why both the CLI and the TUI
-# lazy-import `ferry.resolve`.
+# lazy-import `file_ferry.resolve`.
 resolve = []
 tui = []
 
 [project.scripts]
-ferry = "ferry.cli:main"
-ferry-service = "ferry.service.cli:main"
+ferry = "file_ferry.cli:main"
+ferry-service = "file_ferry.service.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/dspury/ferry"
-Source = "https://github.com/dspury/ferry"
-Issues = "https://github.com/dspury/ferry/issues"
+Homepage = "https://github.com/dspury/file-ferry"
+Source = "https://github.com/dspury/file-ferry"
+Issues = "https://github.com/dspury/file-ferry/issues"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/ferry"]
+packages = ["src/file_ferry"]
 
 [tool.ruff]
 line-length = 100

@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from ferry.application.service import ApplicationService
-from ferry.service.protocol import (
+from file_ferry.application.service import ApplicationService
+from file_ferry.service.protocol import (
     CreateProjectParams,
     SourceInspectParams,
     StoragePolicy,

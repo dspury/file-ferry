@@ -157,8 +157,8 @@ Neutral:
 
 ## References
 
-- `docs/FERRY-FULL-APP-IMPLEMENTATION-PLAN.md` §2.6, §6.3,
+- `docs/FILE-FERRY-FULL-APP-IMPLEMENTATION-PLAN.md` §2.6, §6.3,
   §7.2, §11.2
-- `docs/FERRY-PRODUCT-DIRECTION.md` §3.1, §6.1, §6.2
+- `docs/FILE-FERRY-PRODUCT-DIRECTION.md` §3.1, §6.1, §6.2
 - ADR-0003 (persistence model — `replicas` table, `intake_sessions`
   table)

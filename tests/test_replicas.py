@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from ferry.application.policies import default_policy
-from ferry.application.replicas import (
+from file_ferry.application.policies import default_policy
+from file_ferry.application.replicas import (
     ReplicaService,
     compute_checksum,
     evaluate_gate,
@@ -17,7 +17,7 @@ from ferry.application.replicas import (
 
 @pytest.fixture
 def db(tmp_path: Path) -> Path:
-    from ferry.application.service import ApplicationService
+    from file_ferry.application.service import ApplicationService
 
     db = tmp_path / "ferry.db"
     boot = ApplicationService(db_path=db, app_data_dir=tmp_path / "app")

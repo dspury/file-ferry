@@ -8,13 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from ferry.log import LogStore
-from ferry.models import (
+from file_ferry.log import LogStore
+from file_ferry.models import (
     FerryConfig,
     OrganizeConfig,
     ProbeRecord,
 )
-from ferry.organize import (
+from file_ferry.organize import (
     OrganizeError,
     _unique_path,
     build_destination_path,

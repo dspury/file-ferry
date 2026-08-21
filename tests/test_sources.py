@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from ferry.application.sources import SourceService
-from ferry.service.protocol import SourceInspectParams
+from file_ferry.application.sources import SourceService
+from file_ferry.service.protocol import SourceInspectParams
 
 
 @pytest.fixture
@@ -29,7 +29,7 @@ def source_tree(tmp_path: Path) -> Path:
 def _svc(tmp_path: Path) -> SourceService:
     db_path = tmp_path / "ferry.db"
     # Bootstrap the schema (migration 001 + 002) before using the source repo.
-    from ferry.application.service import ApplicationService
+    from file_ferry.application.service import ApplicationService
 
     boot = ApplicationService(db_path=db_path, app_data_dir=tmp_path / "app")
     boot.bootstrap()

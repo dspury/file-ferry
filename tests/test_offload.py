@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from ferry.application.offload import copy_file_atomic, verify_copy
-from ferry.application.service import ApplicationService
-from ferry.service.protocol import (
+from file_ferry.application.offload import copy_file_atomic, verify_copy
+from file_ferry.application.service import ApplicationService
+from file_ferry.service.protocol import (
     AddDestinationParams,
     CancelJobParams,
     CreateIntakeSessionParams,

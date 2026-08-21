@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from ferry.application.organize import OrganizeError, OrganizeService
-from ferry.service.protocol import (
+from file_ferry.application.organize import OrganizeError, OrganizeService
+from file_ferry.service.protocol import (
     OrganizeApplyParams,
     OrganizePreviewParams,
     SourceInventoryEntry,

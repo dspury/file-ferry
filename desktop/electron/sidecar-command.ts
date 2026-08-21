@@ -5,7 +5,7 @@
  * be verified without launching Electron (plan §10.6.3: package and
  * launch the frozen sidecar in development and production).
  *
- * Development launches `python -m ferry.service` against the workspace, so
+ * Development launches `python -m file_ferry.service` against the workspace, so
  * the sidecar picks up source changes. The interpreter is the workspace
  * virtualenv when one is present (that is the one with the editable install),
  * otherwise `python3` from PATH; `FERRY_PYTHON` overrides both.
@@ -48,11 +48,11 @@ function defaultExists(path: string): boolean {
 }
 
 /**
- * Pick the interpreter to run `-m ferry.service` with in development.
+ * Pick the interpreter to run `-m file_ferry.service` with in development.
  *
  * The workspace virtualenv is preferred because that is where
  * `pip install -e .` puts the package; a bare `python3` only works if the
- * operator installed ferry into whatever interpreter PATH resolves to.
+ * operator installed file-ferry into whatever interpreter PATH resolves to.
  */
 export function resolveDevPython(
   workspaceRoot: string,
@@ -80,7 +80,7 @@ export function resolveSidecarCommand(input: SidecarCommandInput): SidecarComman
         input.pythonOverride,
         exists,
       ),
-      args: ['-m', 'ferry.service'],
+      args: ['-m', 'file_ferry.service'],
       cwd: input.workspaceRoot,
     };
   }

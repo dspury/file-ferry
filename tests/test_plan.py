@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from ferry.application.plan import IntakePlanner, PlanError, detect_collisions
-from ferry.application.service import ApplicationService
-from ferry.service.protocol import (
+from file_ferry.application.plan import IntakePlanner, PlanError, detect_collisions
+from file_ferry.application.service import ApplicationService
+from file_ferry.service.protocol import (
     BuildPlanParams,
     CreateProjectParams,
     PlanDestination,

@@ -29,7 +29,7 @@ const PACKAGED = {
 };
 
 describe('resolveSidecarCommand', () => {
-  // Regression: development used to launch `process.execPath -m ferry.service`,
+  // Regression: development used to launch `process.execPath -m file_ferry.service`,
   // i.e. the Electron binary with a Python flag. It must launch an interpreter.
   it('runs the workspace virtualenv interpreter in development', () => {
     const cmd = resolveSidecarCommand({
@@ -37,14 +37,14 @@ describe('resolveSidecarCommand', () => {
       exists: (p) => p === '/repo/.venv/bin/python',
     });
     expect(cmd.executable).toBe('/repo/.venv/bin/python');
-    expect(cmd.args).toEqual(['-m', 'ferry.service']);
+    expect(cmd.args).toEqual(['-m', 'file_ferry.service']);
     expect(cmd.cwd).toBe('/repo');
   });
 
   it('falls back to python3 on PATH when there is no workspace virtualenv', () => {
     const cmd = resolveSidecarCommand({ ...DEV, exists: () => false });
     expect(cmd.executable).toBe('python3');
-    expect(cmd.args).toEqual(['-m', 'ferry.service']);
+    expect(cmd.args).toEqual(['-m', 'file_ferry.service']);
   });
 
   it('honors a FERRY_PYTHON override ahead of the virtualenv', () => {

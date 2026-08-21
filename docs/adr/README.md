@@ -1,7 +1,7 @@
 # Architecture Decision Records
 
 This directory holds the frozen architectural decisions for the
-ferry vNext implementation. ADRs are written once when a
+file-ferry vNext implementation. ADRs are written once when a
 decision is made and updated only when the decision itself changes.
 
 ## Accepted

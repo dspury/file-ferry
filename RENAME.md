@@ -32,10 +32,23 @@ Rename the project from `media-mate` to `ferry` and make the DaVinci Resolve int
 
 ### 1.3 GitHub
 
-- [ ] Create new repo `dspury/ferry`
-- [ ] Push code to new repo
-- [ ] Archive `dspury/media-mate` with redirect notice
+Done by **renaming** the repo, not by forking it — matching "What stays the
+same" below rather than the create-new-repo sketch this section originally had.
+`gh repo rename ferry` kept all 45 issues, 17 PRs, both tags and the commit and
+CI history, and GitHub installs a permanent redirect.
+
+- [x] ~~Create new repo~~ → renamed `dspury/media-mate` → `dspury/ferry`
+- [x] Push code to the renamed repo
+- [x] ~~Archive `dspury/media-mate` with redirect notice~~ → **not applicable.**
+      Renaming leaves no second repo to archive: `github.com/dspury/media-mate`
+      returns `301` to the new URL, and `git clone` / `git push` against the old
+      remote keep working. Careful — the GitHub API follows that redirect, so
+      `gh repo archive media-mate` would archive `dspury/ferry` itself.
 - [x] Update any KB docs pointing to old repo
+- [ ] *Optional:* re-create an empty `dspury/media-mate` to stop the old name
+      being squatted. This **replaces** the redirect rather than adding to it —
+      once a repo exists at the old name GitHub stops redirecting — so it is a
+      trade, not a free win. Undecided.
 
 ### 1.4 PyPI
 

@@ -1,0 +1,58 @@
+appId: io.github.dspury.media-mate
+productName: media-mate
+copyright: Copyright © 2026 Lunar Park
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - 'dist/**/*'
+  - 'package.json'
+  - '!**/*.map'
+  - '!**/test/**'
+
+asar: true
+
+# The renderer build is small; unpack it so the file:// load path and any
+# future native assets resolve outside the asar archive (plan §10 Pkg9 step 1).
+asarUnpack:
+  - 'dist/renderer/**'
+
+extraResources:
+  - from: 'sidecar/${arch}'
+    to: 'sidecar'
+    filter:
+      - 'media-mate-service*'
+
+mac:
+  category: public.app-category.video
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  notarize: true
+  extendInfo:
+    NSHumanReadableCopyright: MIT
+    LSApplicationCategoryType: public.app-category.video
+
+dmg:
+  sign: true
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+  category: Video

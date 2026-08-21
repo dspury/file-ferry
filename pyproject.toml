@@ -58,6 +58,7 @@ dev = [
 
 [project.scripts]
 media-mate = "media_mate.cli:main"
+media-mate-service = "media_mate.service.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/dspury/media-mate"

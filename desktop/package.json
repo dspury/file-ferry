@@ -1,0 +1,49 @@
+{
+  "name": "media-mate-desktop",
+  "version": "0.0.0",
+  "description": "Electron desktop shell for media-mate (vNext foundation)",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "build": "npm run build:shared && npm run build:electron && npm run build:renderer",
+    "build:shared": "tsc -p tsconfig.shared.json",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "build:renderer": "tsc -p tsconfig.renderer.json --noEmit && vite build",
+    "dev": "npm run build:shared && concurrently -k \"tsc -p tsconfig.electron.json --watch\" \"vite\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -b tsconfig.json",
+    "lint": "eslint electron renderer shared tests --ext .ts,.tsx",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md,yaml,yml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,json,md,yaml,yml}\"",
+    "build:sidecar": "bash ../scripts/build-sidecar.sh",
+    "package:mac": "npm run build:sidecar && npm run build && electron-builder --mac --config build/electron-builder.yml",
+    "package:win": "npm run build && electron-builder --win --config build/electron-builder.yml",
+    "package:linux": "npm run build && electron-builder --linux --config build/electron-builder.yml"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@typescript-eslint/eslint-plugin": "^8.18.0",
+    "@typescript-eslint/parser": "^8.18.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.0",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "eslint": "^8.57.1",
+    "eslint-plugin-react": "^7.37.2",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

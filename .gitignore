@@ -20,8 +20,8 @@ htmlcov/
 
 # pip editable install artifacts
 *.egg-info/
-dist/
-build/
+/dist/
+/build/
 
 # IDE
 .vscode/

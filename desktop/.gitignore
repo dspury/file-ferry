@@ -1,0 +1,31 @@
+# desktop-specific build output
+node_modules/
+dist/
+release/
+
+# editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# coverage
+coverage/
+*.lcov
+
+# logs
+*.log
+npm-debug.log*
+
+# environment
+.env
+.env.local
+.env.*.local
+
+# ephemeral
+.cache/
+.tmp/
+
+# frozen sidecar build output (produced by scripts/build-sidecar.sh)
+sidecar/
+pyinstaller-work/

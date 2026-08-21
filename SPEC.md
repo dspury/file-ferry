@@ -481,16 +481,22 @@ color while metadata remains naturally monospace.
 
 ## 14. PyPI publish
 
-ferry ships to PyPI under the name `ferry`. Install becomes:
+ferry ships to PyPI as **`ferry-media`**. The bare `ferry` name is held by an
+unrelated, long-abandoned package (OpenCore's Docker tooling, last released in
+2014), and PyPI does not reclaim names on request. The distribution name is
+therefore the only place the project is not simply called `ferry` — the import
+name, the CLI command and the repo all are. A distribution name that differs
+from its import name is ordinary (`beautifulsoup4` imports as `bs4`).
 
 ```bash
-pip install ferry
+pip install ferry-media
 ferry --help
 ```
 
+- PyPI distribution name: `ferry-media`
 - Python package import name: `ferry`
 - CLI command: `ferry`
-- PyPI package name: `ferry`
+- GitHub repo: `dspury/ferry`
 
 Build via `python -m build`, publish via `twine upload` (or `pyproject.toml`-driven trusted publishing on GH Actions).
 
@@ -746,14 +752,16 @@ external camera card appeared to "not probe or execute" from the TUI.
 
 The project was renamed from `media-mate` to `ferry`. No features were removed
 and no behavior changed; only identity and packaging moved. One name is used
-everywhere — the PyPI distribution, the import name, the CLI command and the
-desktop product are all `ferry`.
+everywhere — the import name, the CLI command, the desktop product and the repo
+are all `ferry`. The single exception is the PyPI distribution name, which is
+`ferry-media` because `ferry` is already taken there (§14).
 
 **Identity**
 
 | What | Old | New |
 |------|-----|-----|
-| PyPI / repo name | `media-mate` | `ferry` |
+| GitHub repo | `dspury/media-mate` | `dspury/ferry` |
+| PyPI distribution | `media-mate` | `ferry-media` (see §14) |
 | Python package | `media_mate` | `ferry` |
 | CLI command | `media-mate` | `ferry` |
 | Service entry point | `media-mate-service` | `ferry-service` |

@@ -12,7 +12,7 @@ Rename the project from `media-mate` to `ferry` and make the DaVinci Resolve int
 
 | What | Old | New |
 |------|-----|-----|
-| PyPI name | `media-mate` | `ferry` |
+| PyPI name | `media-mate` | `ferry-media` (`ferry` is taken on PyPI) |
 | GitHub repo | `dspury/media-mate` | `dspury/ferry` |
 | Python package | `media_mate` | `ferry` |
 | CLI command | `media-mate` | `ferry` |
@@ -39,7 +39,7 @@ Rename the project from `media-mate` to `ferry` and make the DaVinci Resolve int
 
 ### 1.4 PyPI
 
-- [ ] Register `ferry` on PyPI (first publish)
+- [ ] Register `ferry-media` on PyPI (first publish)
 - [ ] Optionally yank or deprecate `media-mate` if it was ever published
 
 ---
@@ -126,8 +126,10 @@ are D's to run.
 ### One name
 
 The first pass used two names — `ferry-media` for the package and `ferry` for
-the command. That was rejected: **everything is `ferry`.** PyPI distribution,
-import name, CLI command, desktop product name, repo. The only compounds left
+the command. That was rejected: **everything is `ferry`.** Import name, CLI
+command, desktop product name, repo. The one exception is forced: the PyPI
+distribution is `ferry-media`, because the bare `ferry` name on PyPI belongs to
+an unrelated package abandoned in 2014 and PyPI will not reclaim it. The only compounds left
 are the ones that need a suffix to disambiguate a second artifact:
 `ferry-service` (the sidecar binary) and `ferry-desktop` (the private npm
 package for the Electron shell).

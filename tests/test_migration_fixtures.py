@@ -67,8 +67,7 @@ def test_upgrade_from_legacy_shape_preserves_data(tmp_path: Path) -> None:
             assert name in _tables(db), f"vNext table {name} missing"
         # The fingerprint column landed on intake_sessions.
         cols = {
-            row["name"]
-            for row in conn.execute("PRAGMA table_info(intake_sessions)").fetchall()
+            row["name"] for row in conn.execute("PRAGMA table_info(intake_sessions)").fetchall()
         }
         assert "volume_fingerprint_at_scan" in cols
         # Legacy data survived the migration.

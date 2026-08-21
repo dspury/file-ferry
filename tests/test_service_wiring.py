@@ -32,16 +32,19 @@ def _serve(service: ApplicationService, request_line: str) -> str:
 
 
 def _request(method: str, params: dict | None = None) -> str:
-    return json.dumps(
-        {
-            "jsonrpc": "2.0",
-            "v": PROTOCOL_VERSION,
-            "kind": "request",
-            "id": "w-test",
-            "method": method,
-            "params": params or {},
-        }
-    ) + "\n"
+    return (
+        json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "v": PROTOCOL_VERSION,
+                "kind": "request",
+                "id": "w-test",
+                "method": method,
+                "params": params or {},
+            }
+        )
+        + "\n"
+    )
 
 
 def _parse(response: str) -> dict:
@@ -210,9 +213,7 @@ class TestPackage7Methods:
     def test_settings_update_validates_params(self, tmp_path: Path) -> None:
         svc = _service(tmp_path)
         try:
-            resp = _parse(
-                _serve(svc, _request("settings.update", {"proxyHeight": "not-a-number"}))
-            )
+            resp = _parse(_serve(svc, _request("settings.update", {"proxyHeight": "not-a-number"})))
             assert resp["kind"] == "error"
             assert resp["error"]["code"] == "invalid_params"
         finally:

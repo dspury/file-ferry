@@ -188,6 +188,7 @@ def test_recover_marks_interrupted_as_needs_attention(db: Path) -> None:
 
 # ---- resume / retry (plan §6.4, Package 7) ---------------------------
 
+
 def _attention_job(db: Path, jobs: JobService) -> str:
     """Create a job stuck in needs_attention with a runner registered."""
     jid = _queued_job(jobs)

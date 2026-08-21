@@ -28,10 +28,7 @@ def upgrade(conn: sqlite3.Connection) -> None:
     # versions raise a duplicate-column error. We tolerate that
     # because the runner invokes us at most once per version.
     try:
-        conn.execute(
-            "ALTER TABLE intake_sessions "
-            "ADD COLUMN volume_fingerprint_at_scan TEXT"
-        )
+        conn.execute("ALTER TABLE intake_sessions ADD COLUMN volume_fingerprint_at_scan TEXT")
     except sqlite3.OperationalError as exc:
         msg = str(exc).lower()
         if "duplicate column" in msg:

@@ -112,11 +112,7 @@ class SystemVolumeAdapter:
                 else:
                     # "type ext4"
                     tidx = after_on.find("type ")
-                    fstype = (
-                        after_on[tidx + len("type ") :].split(" ")[0]
-                        if tidx != -1
-                        else "?"
-                    )
+                    fstype = after_on[tidx + len("type ") :].split(" ")[0] if tidx != -1 else "?"
                 result[mount_point] = fstype
             except (ValueError, IndexError):
                 continue

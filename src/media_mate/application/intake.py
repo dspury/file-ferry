@@ -264,9 +264,7 @@ class IntakeService:
             unmet=_dedupe(aggregate_unmet),
         )
 
-    def _fingerprint_changed(
-        self, conn: sqlite3.Connection, session: IntakeSessionRow
-    ) -> bool:
+    def _fingerprint_changed(self, conn: sqlite3.Connection, session: IntakeSessionRow) -> bool:
         """Return True if the source's volume fingerprint changed since scan.
 
         Returns False for sessions whose source has no fingerprint at

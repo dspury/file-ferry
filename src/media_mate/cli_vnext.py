@@ -75,7 +75,9 @@ def project_list(ctx: click.Context, as_json: bool) -> None:
 @click.option("--backup", default=None, help="Backup root directory (optional).")
 @click.option("--json", "as_json", is_flag=True, help="Machine-readable JSON output.")
 @click.pass_context
-def project_create(ctx: click.Context, name: str, working: str, backup: str | None, as_json: bool) -> None:
+def project_create(
+    ctx: click.Context, name: str, working: str, backup: str | None, as_json: bool
+) -> None:
     """Create a project."""
     db: Path = ctx.obj["db_path"]
     svc = _service(db)

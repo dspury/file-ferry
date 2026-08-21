@@ -253,9 +253,24 @@ def test_backup_round_trip(tmp_path: Path) -> None:
 
     # Corrupt the live DB and restore from backup.
     db.write_bytes(b"corrupted")
-    with sqlite3.connect(str(db)) as conn, pytest.raises(sqlite3.DatabaseError):
-        # Sanity: the corrupted file is no longer a valid SQLite DB.
-        conn.execute("SELECT 1").fetchone()
+    # Sanity: the corrupted file is no longer a valid SQLite DB.
+    #
+    # The probe has to read page 1. `SELECT 1` is a constant expression, and
+    # whether preparing it loads the schema (and so notices the bad header) is
+    # SQLite-version dependent: it raises against the 3.53 builds on macOS but
+    # not against the older libsqlite3 on the CI runners, where this asserted
+    # nothing. `sqlite_master` cannot be read without opening the file.
+    #
+    # Connecting outside a `with` on purpose: sqlite3's context manager commits
+    # on a clean exit, and `pytest.raises` swallowing the error makes the exit
+    # clean -- so the commit would fire against the corrupt file and raise
+    # where nothing is catching it.
+    conn = sqlite3.connect(str(db))
+    try:
+        with pytest.raises(sqlite3.DatabaseError):
+            conn.execute("SELECT name FROM sqlite_master").fetchone()
+    finally:
+        conn.close()
     backup.restore_from(backup_path, db)
     with sqlite3.connect(str(db)) as conn:
         row = conn.execute("SELECT value FROM one WHERE id = 1").fetchone()

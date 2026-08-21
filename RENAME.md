@@ -47,13 +47,16 @@ CI history, and GitHub installs a permanent redirect.
       archived `dspury/ferry` itself. The placeholder below now occupies the
       old name, so the redirect (and the hazard) is gone.
 - [x] Update any KB docs pointing to old repo
-- [x] Re-create `dspury/media-mate` as a **private, archived placeholder** so
+- [x] Re-create **both** freed names — `dspury/media-mate` and `dspury/ferry`
+      (freed when the repo was renamed a second time, to `dspury/file-ferry`) —
+      as **private, archived placeholders** so
       the old name cannot be claimed. Created private from the start (never
-      briefly public), given a README that says where the project went, then
-      archived. This **ends** the redirect rather than adding to it — old links
-      now 404 for anyone but D — which was the accepted trade: the name had
-      barely been shared. Side benefit: the old name now resolves to the
-      placeholder, so the `gh repo archive media-mate` foot-gun above is gone.
+      briefly public), each given a README that says where the project went,
+      then archived. This **ends** the redirects rather than adding to them —
+      old links now 404 for anyone but D — which was the accepted trade: the
+      names had barely been shared. Side benefit: each old name now resolves to
+      its own placeholder, so the `gh repo archive <old-name>` foot-gun above
+      is gone.
 
 ### 1.4 PyPI
 

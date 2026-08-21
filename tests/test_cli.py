@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pytest
 from click.testing import CliRunner
 
-from media_mate.cli import _fetch_recent_runs, main
+from file_ferry.cli import _fetch_recent_runs, main
 
 
 @pytest.fixture
@@ -19,7 +19,7 @@ def runner() -> CliRunner:
 
 @pytest.fixture
 def tmp_db(tmp_path: Path) -> Path:
-    return tmp_path / "media-mate.db"
+    return tmp_path / "ferry.db"
 
 
 def _invoke_with_db(runner: CliRunner, args: list[str], db: Path) -> object:
@@ -39,17 +39,17 @@ class TestTopLevel:
         assert "Commands:" in result.output
 
     def test_no_args_launches_tui(self, runner: CliRunner) -> None:
-        with patch("media_mate.tui.main") as mock_tui:
+        with patch("file_ferry.tui.main") as mock_tui:
             result = runner.invoke(main, [])
         assert result.exit_code == 0
         mock_tui.assert_called_once()
 
     def test_version(self, runner: CliRunner) -> None:
-        from media_mate import __version__
+        from file_ferry import __version__
 
         result = runner.invoke(main, ["--version"])
         assert result.exit_code == 0
-        assert "media-mate" in result.output
+        assert "ferry" in result.output
         assert __version__ in result.output
 
     def test_help(self, runner: CliRunner) -> None:
@@ -71,10 +71,10 @@ class TestProbeCommand:
     ) -> None:
         raw = tmp_path / "raw"
         raw.mkdir()
-        config = tmp_path / "media-mate.toml"
+        config = tmp_path / "ferry.toml"
         config.write_text('ffmpeg_path = "/custom/ffmpeg"\n')
 
-        with patch("media_mate.cli.probe_path", return_value=[]) as mock_probe:
+        with patch("file_ferry.cli.probe_path", return_value=[]) as mock_probe:
             result = runner.invoke(
                 main,
                 ["--db", str(tmp_db), "--config", str(config), "probe", str(raw)],
@@ -98,7 +98,7 @@ class TestProbeCommand:
         (raw / "b.mp4").write_bytes(b"b")
 
         with (
-            patch("media_mate.cli.probe_path") as mock_probe,
+            patch("file_ferry.cli.probe_path") as mock_probe,
         ):
             mock_probe.return_value = []  # empty for simplicity; we test wiring
             result = _invoke_with_db(runner, ["probe", str(raw)], tmp_db)
@@ -127,8 +127,8 @@ class TestOrganizeCommand:
         out = tmp_path / "out"
         (src / "a.mov").write_bytes(b"a")
 
-        with patch("media_mate.cli.organize_path") as mock_org:
-            from media_mate.models import OrganizeResult
+        with patch("file_ferry.cli.organize_path") as mock_org:
+            from file_ferry.models import OrganizeResult
 
             mock_org.return_value = OrganizeResult(
                 source_path=str(src),
@@ -162,8 +162,8 @@ class TestProxyCommand:
         out = tmp_path / "proxies"
         (src / "a.mov").write_bytes(b"a")
 
-        with patch("media_mate.cli.generate_proxies") as mock_gen:
-            from media_mate.models import ProxyBatchResult
+        with patch("file_ferry.cli.generate_proxies") as mock_gen:
+            from file_ferry.models import ProxyBatchResult
 
             mock_gen.return_value = ProxyBatchResult()
             result = _invoke_with_db(runner, ["proxy", str(src), "--out", str(out)], tmp_db)
@@ -196,10 +196,10 @@ class TestResolveCommand:
         src.mkdir()
         (src / "a.mov").write_bytes(b"a")
 
-        with patch("media_mate.cli.create_resolve_project") as mock_create:
+        with patch("file_ferry.resolve.create_resolve_project") as mock_create:
             from datetime import datetime
 
-            from media_mate.models import ResolveProjectResult
+            from file_ferry.models import ResolveProjectResult
 
             mock_create.return_value = ResolveProjectResult(
                 name="Test",
@@ -239,10 +239,10 @@ class TestResolveCommand:
         src.mkdir()
         (src / "a.mov").write_bytes(b"a")
 
-        with patch("media_mate.cli.create_resolve_project") as mock_create:
+        with patch("file_ferry.resolve.create_resolve_project") as mock_create:
             from datetime import datetime
 
-            from media_mate.models import ResolveProjectResult
+            from file_ferry.models import ResolveProjectResult
 
             mock_create.return_value = ResolveProjectResult(
                 name="Test",
@@ -294,11 +294,11 @@ class TestVerifyCommand:
     ) -> None:
         folder = tmp_path / "data"
         folder.mkdir()
-        config = tmp_path / "media-mate.toml"
+        config = tmp_path / "ferry.toml"
         config.write_text('checksum_algo = "sha256"\n')
 
-        with patch("media_mate.cli.verify_folder") as mock_verify:
-            from media_mate.models import ChecksumAlgo, VerificationReport
+        with patch("file_ferry.cli.verify_folder") as mock_verify:
+            from file_ferry.models import ChecksumAlgo, VerificationReport
 
             mock_verify.return_value = VerificationReport(
                 folder=str(folder),
@@ -322,10 +322,10 @@ class TestVerifyCommand:
         folder = tmp_path / "data"
         folder.mkdir()
 
-        with patch("media_mate.cli.verify_folder") as mock_v:
+        with patch("file_ferry.cli.verify_folder") as mock_v:
             from datetime import datetime
 
-            from media_mate.models import ChecksumAlgo, VerificationReport
+            from file_ferry.models import ChecksumAlgo, VerificationReport
 
             mock_v.return_value = VerificationReport(
                 folder=str(folder),
@@ -346,10 +346,10 @@ class TestVerifyCommand:
         folder = tmp_path / "data"
         folder.mkdir()
 
-        with patch("media_mate.cli.verify_folder") as mock_v:
+        with patch("file_ferry.cli.verify_folder") as mock_v:
             from datetime import datetime
 
-            from media_mate.models import ChecksumAlgo, VerificationReport
+            from file_ferry.models import ChecksumAlgo, VerificationReport
 
             mock_v.return_value = VerificationReport(
                 folder=str(folder),
@@ -369,10 +369,10 @@ class TestVerifyCommand:
         folder = tmp_path / "data"
         folder.mkdir()
 
-        with patch("media_mate.cli.verify_folder") as mock_v:
+        with patch("file_ferry.cli.verify_folder") as mock_v:
             from datetime import datetime
 
-            from media_mate.models import ChecksumAlgo, VerificationReport
+            from file_ferry.models import ChecksumAlgo, VerificationReport
 
             mock_v.return_value = VerificationReport(
                 folder=str(folder),
@@ -392,10 +392,10 @@ class TestVerifyCommand:
         folder = tmp_path / "data"
         folder.mkdir()
 
-        with patch("media_mate.cli.verify_folder") as mock_v:
+        with patch("file_ferry.cli.verify_folder") as mock_v:
             from datetime import datetime
 
-            from media_mate.models import ChecksumAlgo, VerificationReport
+            from file_ferry.models import ChecksumAlgo, VerificationReport
 
             mock_v.return_value = VerificationReport(
                 folder=str(folder),
@@ -429,18 +429,18 @@ class TestLogCommand:
         assert "[]" in result.output or "[" in result.output
 
     def test_log_shows_runs(self, runner: CliRunner, tmp_path: Path, tmp_db: Path) -> None:
-        from media_mate.log import LogStore
+        from file_ferry.log import LogStore
 
         store = LogStore(tmp_db)
         store.initialize()
-        store.start_run("media-mate probe ./raw")
+        store.start_run("ferry probe ./raw")
 
         result = _invoke_with_db(runner, ["log"], tmp_db)
         assert result.exit_code == 0
-        assert "media-mate probe" in result.output
+        assert "ferry probe" in result.output
 
     def test_log_limit(self, runner: CliRunner, tmp_path: Path, tmp_db: Path) -> None:
-        from media_mate.log import LogStore
+        from file_ferry.log import LogStore
 
         store = LogStore(tmp_db)
         store.initialize()
@@ -462,7 +462,7 @@ class TestRunCommand:
         src.mkdir()
         (src / "a.mov").write_bytes(b"a")
 
-        with patch("media_mate.cli.probe_path") as mock_probe:
+        with patch("file_ferry.cli.probe_path") as mock_probe:
             mock_probe.return_value = []
             result = _invoke_with_db(runner, ["run", str(src)], tmp_db)
 
@@ -479,15 +479,15 @@ class TestRunCommand:
         (src / "a.mov").write_bytes(b"a")
 
         with (
-            patch("media_mate.cli.probe_path") as mock_probe,
-            patch("media_mate.cli.organize_path") as mock_org,
-            patch("media_mate.cli.generate_proxies") as mock_proxy,
-            patch("media_mate.cli.create_resolve_project") as mock_resolve,
-            patch("media_mate.cli.verify_folder") as mock_verify,
+            patch("file_ferry.cli.probe_path") as mock_probe,
+            patch("file_ferry.cli.organize_path") as mock_org,
+            patch("file_ferry.cli.generate_proxies") as mock_proxy,
+            patch("file_ferry.resolve.create_resolve_project") as mock_resolve,
+            patch("file_ferry.cli.verify_folder") as mock_verify,
         ):
             from datetime import datetime
 
-            from media_mate.models import (
+            from file_ferry.models import (
                 ChecksumAlgo,
                 OrganizeResult,
                 ProxyBatchResult,
@@ -563,13 +563,13 @@ class TestRunCommand:
 
 class TestFetchRecentRuns:
     def test_empty(self, tmp_db: Path) -> None:
-        from media_mate.log import LogStore
+        from file_ferry.log import LogStore
 
         LogStore(tmp_db).initialize()
         assert _fetch_recent_runs(tmp_db, 10) == []
 
     def test_returns_recent(self, tmp_db: Path) -> None:
-        from media_mate.log import LogStore
+        from file_ferry.log import LogStore
 
         store = LogStore(tmp_db)
         store.initialize()
@@ -582,7 +582,7 @@ class TestFetchRecentRuns:
         assert rows[0]["command"] == "run 2"
 
     def test_limit_respected(self, tmp_db: Path) -> None:
-        from media_mate.log import LogStore
+        from file_ferry.log import LogStore
 
         store = LogStore(tmp_db)
         store.initialize()

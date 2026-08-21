@@ -6,8 +6,8 @@
 
 ## Context
 
-media-mate v0.2.4 is a Python CLI + Textual TUI. The vNext direction
-(`docs/MEDIA-MATE-PRODUCT-DIRECTION.md`) calls for a local-first
+file-ferry v0.2.4 is a Python CLI + Textual TUI. The vNext direction
+(`docs/FILE-FERRY-PRODUCT-DIRECTION.md`) calls for a local-first
 desktop application for verified card offload, existing-folder
 adoption, and project reconciliation. The CLI and TUI remain
 first-class interfaces on their existing supported platforms. The
@@ -31,7 +31,7 @@ We need a desktop shell that:
 
 **Electron is the desktop shell.** The renderer is React + TypeScript;
 Electron main owns the desktop lifecycle and the Python sidecar; the
-Python sidecar (run as `python -m media_mate.service` in development,
+Python sidecar (run as `python -m file_ferry.service` in development,
 as a frozen platform-matched executable outside `app.asar` in
 packaged builds) is the source of media-operation behavior.
 
@@ -108,6 +108,6 @@ Neutral:
 
 ## References
 
-- `docs/MEDIA-MATE-FULL-APP-IMPLEMENTATION-PLAN.md` §5.1, §5.2, §8
-- `docs/MEDIA-MATE-PRODUCT-DIRECTION.md` §7, §8
+- `docs/FILE-FERRY-FULL-APP-IMPLEMENTATION-PLAN.md` §5.1, §5.2, §8
+- `docs/FILE-FERRY-PRODUCT-DIRECTION.md` §7, §8
 - v0.2.4 `SPEC.md` §6 (existing CLI + TUI architecture, unaffected)

@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from media_mate.application.plan import IntakePlanner, PlanError, detect_collisions
-from media_mate.application.service import ApplicationService
-from media_mate.service.protocol import (
+from file_ferry.application.plan import IntakePlanner, PlanError, detect_collisions
+from file_ferry.application.service import ApplicationService
+from file_ferry.service.protocol import (
     BuildPlanParams,
     CreateProjectParams,
     PlanDestination,
@@ -27,7 +27,7 @@ SAME_VOLUME_POLICY = StoragePolicy(
 
 
 def _setup(tmp_path: Path):
-    svc = ApplicationService(db_path=tmp_path / "media-mate.db", app_data_dir=tmp_path / "app")
+    svc = ApplicationService(db_path=tmp_path / "ferry.db", app_data_dir=tmp_path / "app")
     svc.bootstrap()
     working = tmp_path / "proj" / "working"
     backup = tmp_path / "proj" / "backup"
@@ -48,7 +48,7 @@ def _setup(tmp_path: Path):
     (src / "sub" / "A002.mov").parent.mkdir(parents=True)
     (src / "sub" / "A002.mov").write_bytes(b"more")
     inspected = svc.source_inspect(SourceInspectParams(path=str(tmp_path / "card"), kind="card"))
-    planner = IntakePlanner(db_path=tmp_path / "media-mate.db")
+    planner = IntakePlanner(db_path=tmp_path / "ferry.db")
     return svc, planner, pid, inspected, working, backup
 
 

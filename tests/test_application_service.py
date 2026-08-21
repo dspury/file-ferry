@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from media_mate.application.service import ApplicationService
-from media_mate.service.protocol import (
+from file_ferry.application.service import ApplicationService
+from file_ferry.service.protocol import (
     CreateProjectParams,
     SourceInspectParams,
     StoragePolicy,
@@ -24,7 +24,7 @@ SAME_VOLUME_POLICY = StoragePolicy(
 
 @pytest.fixture
 def service(tmp_path: Path) -> ApplicationService:
-    s = ApplicationService(db_path=tmp_path / "media-mate.db", app_data_dir=tmp_path / "app")
+    s = ApplicationService(db_path=tmp_path / "ferry.db", app_data_dir=tmp_path / "app")
     s.bootstrap()
     return s
 

@@ -21,7 +21,7 @@ import {
 import type { IntakePlan, SourceInspectResult } from '../../../shared/ipc-methods.js';
 
 export function Ingest(): JSX.Element {
-  const projects = useAsync(() => window.mediaMate.project.list());
+  const projects = useAsync(() => window.ferry.project.list());
 
   const [sourcePath, setSourcePath] = useState<string | null>(null);
   const [source, setSource] = useState<SourceInspectResult | null>(null);
@@ -41,7 +41,7 @@ export function Ingest(): JSX.Element {
   const [executeError, setExecuteError] = useState<string | null>(null);
 
   const pickSource = async () => {
-    const result = await window.mediaMate.dialog.pick({ kind: 'directory' });
+    const result = await window.ferry.dialog.pick({ kind: 'directory' });
     if (!result.cancelled && result.path) setSourcePath(result.path);
   };
 
@@ -51,7 +51,7 @@ export function Ingest(): JSX.Element {
     setInspectError(null);
     setSource(null);
     try {
-      const s = await window.mediaMate.source.inspect({ path: sourcePath, kind: 'card' });
+      const s = await window.ferry.source.inspect({ path: sourcePath, kind: 'card' });
       setSource(s);
     } catch (err) {
       setInspectError(err instanceof Error ? err.message : String(err));
@@ -61,12 +61,12 @@ export function Ingest(): JSX.Element {
   };
 
   const pickWorking = async () => {
-    const r = await window.mediaMate.dialog.pick({ kind: 'directory' });
+    const r = await window.ferry.dialog.pick({ kind: 'directory' });
     if (!r.cancelled && r.path) setWorkingRoot(r.path);
   };
 
   const pickBackup = async () => {
-    const r = await window.mediaMate.dialog.pick({ kind: 'directory' });
+    const r = await window.ferry.dialog.pick({ kind: 'directory' });
     if (!r.cancelled && r.path) setBackupRoot(r.path);
   };
 
@@ -80,7 +80,7 @@ export function Ingest(): JSX.Element {
     setPlanError(null);
     setPlan(null);
     try {
-      const p = await window.mediaMate.plan.build({
+      const p = await window.ferry.plan.build({
         projectId,
         sourceId: source.sourceId,
         destinations,
@@ -105,7 +105,7 @@ export function Ingest(): JSX.Element {
     setExecuteError(null);
     setExecuting(true);
     try {
-      const session = await window.mediaMate.intake.createSession({
+      const session = await window.ferry.intake.createSession({
         projectId,
         sourceId: source.sourceId,
         kind: 'offload',
@@ -115,7 +115,7 @@ export function Ingest(): JSX.Element {
         backupRoot ? { kind: 'backup' as const, rootPath: backupRoot } : null,
       ]) {
         if (dest) {
-          await window.mediaMate.intake.addDestination({
+          await window.ferry.intake.addDestination({
             intakeSessionId: session.id,
             kind: dest.kind,
             rootPath: dest.rootPath,
@@ -124,14 +124,14 @@ export function Ingest(): JSX.Element {
       }
       // Adopt the source into the project so the offload has assets to
       // verify; the destination root is the working root.
-      const adopted = await window.mediaMate.intake.adoptSource({
+      const adopted = await window.ferry.intake.adoptSource({
         sessionId: session.id,
         sourceId: source.sourceId,
         entries: source.entries,
         destinationRoot: workingRoot ?? '',
         projectId,
       });
-      await window.mediaMate.job.create({
+      await window.ferry.job.create({
         projectId,
         command: 'offload',
         sessionId: session.id,

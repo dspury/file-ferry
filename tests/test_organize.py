@@ -8,13 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from media_mate.log import LogStore
-from media_mate.models import (
-    MediaMateConfig,
+from file_ferry.log import LogStore
+from file_ferry.models import (
+    FerryConfig,
     OrganizeConfig,
     ProbeRecord,
 )
-from media_mate.organize import (
+from file_ferry.organize import (
     OrganizeError,
     _unique_path,
     build_destination_path,
@@ -163,7 +163,7 @@ class TestUniquePath:
 @pytest.fixture
 def store_dir(tmp_path_factory) -> Path:
     """A separate directory for the audit log, OUTSIDE any probed tree."""
-    return tmp_path_factory.mktemp("media_mate_store")
+    return tmp_path_factory.mktemp("ferry_store")
 
 
 def _make_store(store_dir: Path) -> LogStore:
@@ -290,7 +290,7 @@ class TestOrganizePath:
         (src / "a.mov").write_bytes(b"x")
         _seed_probe(store, str(src / "a.mov"), codec="h264", height=1080)
 
-        cfg = MediaMateConfig.model_validate({"organize": {"mode": "move"}})
+        cfg = FerryConfig.model_validate({"organize": {"mode": "move"}})
         result = organize_path(src, out, store, config=cfg)
 
         assert result.files_moved == 1
@@ -375,7 +375,7 @@ class TestOrganizePath:
         (src / "a.mov").write_bytes(b"new")
         _seed_probe(store, str(src / "a.mov"))
 
-        cfg = MediaMateConfig(organize=OrganizeConfig(on_conflict="rename"))
+        cfg = FerryConfig(organize=OrganizeConfig(on_conflict="rename"))
         result = organize_path(src, out, store, config=cfg)
 
         assert result.files_moved == 1
@@ -395,7 +395,7 @@ class TestOrganizePath:
         (src / "a.mov").write_bytes(b"new")
         _seed_probe(store, str(src / "a.mov"))
 
-        cfg = MediaMateConfig(organize=OrganizeConfig(on_conflict="overwrite"))
+        cfg = FerryConfig(organize=OrganizeConfig(on_conflict="overwrite"))
         result = organize_path(src, out, store, config=cfg)
 
         assert result.files_moved == 1
@@ -441,7 +441,7 @@ class TestOrganizePath:
         (src / "clip.mov").write_bytes(b"x")
         _seed_probe(store, str(src / "clip.mov"))
 
-        cfg = MediaMateConfig(organize=OrganizeConfig(template="{root}/{filename}{ext}"))
+        cfg = FerryConfig(organize=OrganizeConfig(template="{root}/{filename}{ext}"))
         organize_path(src, out, store, config=cfg)
 
         assert (out / "clip.mov").exists()
@@ -570,7 +570,7 @@ class TestSystemArtifactExclusion:
         """AppleDouble sidecars and .DS_Store never reach the skip list.
 
         They have no probe data, so before the filter every camera-card run
-        reported them as 'no probe data — run media-mate probe first' noise.
+        reported them as 'no probe data — run ferry probe first' noise.
         """
         src = tmp_path / "in"
         src.mkdir()

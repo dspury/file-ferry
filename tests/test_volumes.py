@@ -8,12 +8,12 @@ real mount table, and exercise the real ``SystemVolumeAdapter`` shape.
 
 from __future__ import annotations
 
-from media_mate.application.volumes import (
+from file_ferry.application.volumes import (
     SystemVolumeAdapter,
     VolumeChange,
     VolumeObserver,
 )
-from media_mate.service.protocol import MountedVolume
+from file_ferry.service.protocol import MountedVolume
 
 
 def _volume(path: str, label: str) -> MountedVolume:

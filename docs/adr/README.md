@@ -1,7 +1,7 @@
 # Architecture Decision Records
 
 This directory holds the frozen architectural decisions for the
-media-mate vNext implementation. ADRs are written once when a
+file-ferry vNext implementation. ADRs are written once when a
 decision is made and updated only when the decision itself changes.
 
 ## Accepted
@@ -13,6 +13,7 @@ decision is made and updated only when the decision itself changes.
 | [0003](0003-application-persistence.md) | Application persistence model (SQLite + migrations) | 2026-08-12 |
 | [0004](0004-safe-to-format-policy.md) | Safe-to-format policy and replica verification | 2026-08-12 |
 | [0005](0005-application-service-modules.md) | Application service module structure | 2026-08-12 |
+| [0006](0006-development-csp-relaxation.md) | Development-only Content-Security-Policy relaxation | 2026-08-20 |
 
 ## Format
 

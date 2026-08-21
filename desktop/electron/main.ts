@@ -30,16 +30,16 @@ async function createMainWindow(supervisor: SidecarSupervisor): Promise<BrowserW
     ...baseWindowOptions(),
     width: 1280,
     height: 800,
-    title: 'media-mate',
+    title: 'ferry',
     webPreferences: {
-      preload: pathResolve(__dirname, 'preload.cjs'),
+      preload: pathResolve(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
     },
   });
 
-  applyContentSecurityPolicy(window.webContents.session);
+  applyContentSecurityPolicy(window.webContents.session, isDev);
 
   // Forward sidecar events to the renderer. Job-update events are also
   // recorded into the replay store so a reloaded window can be caught up.
@@ -111,16 +111,27 @@ async function main(): Promise<void> {
   await app.whenReady();
 
   const logDir = ensureLogDir();
-  const { executable, args } = resolveSidecarCommand(
-    app.isPackaged,
-    process.resourcesPath,
-    process.execPath,
-  );
+  const appDataDir = app.getPath('userData');
+  const dbPath = pathResolve(appDataDir, 'ferry.db');
+  // In development __dirname is <repo>/desktop/dist/electron, so the repo root
+  // is three levels up. Packaged builds ignore it and use resourcesPath.
+  const workspaceRoot = pathResolve(__dirname, '..', '..', '..');
+  const { executable, args, cwd } = resolveSidecarCommand({
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    workspaceRoot,
+    platform: process.platform,
+    pythonOverride: process.env.FERRY_PYTHON,
+  });
   const supervisor = new SidecarSupervisor({
     executable,
-    args,
+    // The sidecar can derive these itself, but then two implementations own
+    // the same paths and drift (the diagnostics panel reported a db the
+    // sidecar never opened). The shell is authoritative.
+    args: [...args, '--db', dbPath, '--app-data', appDataDir],
+    ...(cwd === undefined ? {} : { cwd }),
     env: {
-      MEDIA_MATE_PROTOCOL_VERSION: String(PROTOCOL_VERSION),
+      FERRY_PROTOCOL_VERSION: String(PROTOCOL_VERSION),
     },
   });
 
@@ -134,7 +145,17 @@ async function main(): Promise<void> {
     console.error(`sidecar crashed (exit=${exitCode}); supervisor will restart`);
   });
 
-  await supervisor.start();
+  // Wait for the sidecar to announce itself before showing a window, so the
+  // first screen's requests land on a sidecar that can answer them. If it
+  // never comes up, open the window anyway: the supervisor keeps retrying and
+  // the renderer surfaces "sidecar unreachable", which beats exiting silently.
+  try {
+    await supervisor.start();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    appendLog(logDir, 'sidecar.log', `sidecar failed to become ready: ${message}`);
+    console.error(`sidecar failed to become ready: ${message}`);
+  }
 
   const mainWindow = await createMainWindow(supervisor);
 
@@ -153,13 +174,12 @@ async function main(): Promise<void> {
 
   // Diagnostic summary for the About/Doctor surface.
   ipcMain.handle('app:diagnostics', async () => {
-    const appDataDir = app.getPath('userData');
     const report = {
       platform: process.platform,
       electronVersion: process.versions.electron ?? '',
       protocolVersion: PROTOCOL_VERSION,
       sidecarStatus: supervisor.status().state,
-      dbPath: pathResolve(appDataDir, 'media-mate.db'),
+      dbPath,
       appDataDir,
       logDir,
       logCount: countLogFiles(logDir),
@@ -176,6 +196,16 @@ async function main(): Promise<void> {
       return response.result;
     },
   );
+
+  // Without this the Python child outlives the app: it keeps the database
+  // open and accumulates one orphan per launch.
+  let stopping = false;
+  app.on('before-quit', (event) => {
+    if (stopping) return;
+    stopping = true;
+    event.preventDefault();
+    void supervisor.stop().finally(() => app.quit());
+  });
 
   void mainWindow;
 }

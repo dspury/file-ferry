@@ -11,8 +11,8 @@ import { Chip, Panel, LoadingState, ErrorState } from '../components/ui.js';
 import { toolTone, formatBytes } from '../lib/doctor.js';
 
 export function Onboarding(): JSX.Element {
-  const doctor = useAsync(() => window.mediaMate.app.doctor());
-  const volumes = useAsync(() => window.mediaMate.source.listVolumes());
+  const doctor = useAsync(() => window.ferry.app.doctor());
+  const volumes = useAsync(() => window.ferry.source.listVolumes());
 
   if (doctor.loading) {
     return <LoadingState message="Running environment check…" />;

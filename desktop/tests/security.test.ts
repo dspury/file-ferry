@@ -13,7 +13,9 @@
  * the boundary at runtime.
  */
 import { describe, expect, it } from 'vitest';
-import { SECURITY } from '../electron/security.js';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { DEVELOPMENT_CSP, PRODUCTION_CSP, SECURITY, cspHeaderValue } from '../electron/security.js';
 import { api } from '../shared/preload-api.js';
 
 describe('frozen security config (ADR-0001)', () => {
@@ -93,5 +95,61 @@ describe('narrow preload surface (ADR-0001)', () => {
     expect(api.dialog.pick).toBeTypeOf('function');
     expect(api.app.openDiagnosticFolder).toBeTypeOf('function');
     expect(api.app.diagnostics).toBeTypeOf('function');
+  });
+});
+
+describe('content security policy (ADR-0001)', () => {
+  // Regression: the directive list was handed to Electron as a string[], which
+  // it sends as one header line each -- and multiple CSP headers are multiple
+  // independent policies. `default-src 'self'` then stood alone and vetoed
+  // every relaxation beside it, including `img-src 'self' data:`.
+  it('is a single policy, not one policy per directive', () => {
+    const header = cspHeaderValue(PRODUCTION_CSP);
+    expect(header).toContain('; ');
+    expect(header.split(';').length).toBe(PRODUCTION_CSP.length);
+    // Directives that only mean something when they share a policy with the
+    // rest of the list.
+    expect(header).toContain("default-src 'self'");
+    expect(header).toContain("img-src 'self' data:");
+  });
+
+  it('keeps the shipped policy strict', () => {
+    const header = cspHeaderValue(PRODUCTION_CSP);
+    expect(header).not.toContain('localhost');
+    expect(header).not.toContain('ws:');
+    expect(header).toContain("script-src 'self'");
+    expect(header).not.toMatch(/script-src[^;]*unsafe-inline/);
+    expect(header).not.toMatch(/script-src[^;]*unsafe-eval/);
+    expect(header).toContain("object-src 'none'");
+    expect(header).toContain("frame-ancestors 'none'");
+  });
+
+  it('only the development policy admits inline script and the dev server', () => {
+    const dev = cspHeaderValue(DEVELOPMENT_CSP);
+    expect(dev).toMatch(/script-src[^;]*'unsafe-inline'/);
+    expect(dev).toContain('ws://localhost:5173');
+    // Still no eval, and still no wildcard, even in development.
+    expect(dev).not.toContain('unsafe-eval');
+    expect(dev).not.toContain('*');
+  });
+
+  it('every directive in the shipped policy is also named in the dev policy', () => {
+    // Guards against the two drifting apart: a directive added to production
+    // must be considered for development, not silently dropped.
+    const names = (policy: readonly string[]) => policy.map((d) => d.split(' ')[0]).sort();
+    expect(names(DEVELOPMENT_CSP)).toEqual(names(PRODUCTION_CSP));
+  });
+
+  it("the page's meta policy matches the shipped policy", () => {
+    // The packaged renderer loads over file://, where onHeadersReceived does
+    // not fire, so the <meta> copy is the only policy that applies. It must
+    // not drift from PRODUCTION_CSP -- minus frame-ancestors, which a <meta>
+    // element cannot deliver.
+    const html = readFileSync(join(__dirname, '..', 'renderer', 'index.html'), 'utf8');
+    const meta = /http-equiv="Content-Security-Policy"\s+content="([^"]*)"/.exec(html);
+    expect(meta).not.toBeNull();
+    const metaDirectives = (meta?.[1] ?? '').split('; ').sort();
+    const expected = PRODUCTION_CSP.filter((d) => !d.startsWith('frame-ancestors')).sort();
+    expect(metaDirectives).toEqual([...expected]);
   });
 });

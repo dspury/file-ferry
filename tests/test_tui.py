@@ -9,10 +9,10 @@ from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 
-from media_mate.config import load_config, save_config
-from media_mate.models import ChecksumAlgo, MediaMateConfig, OrganizeResult
-from media_mate.organize import compute_output_tree
-from media_mate.tui import (
+from file_ferry.config import load_config, save_config
+from file_ferry.models import ChecksumAlgo, FerryConfig, OrganizeResult
+from file_ferry.organize import compute_output_tree
+from file_ferry.tui import (
     HomeScreen,
     LogScreen,
     MediaMateApp,
@@ -27,8 +27,8 @@ from media_mate.tui import (
 
 
 def test_save_config_round_trip(tmp_path: Path) -> None:
-    target = tmp_path / "media-mate.toml"
-    expected = MediaMateConfig(
+    target = tmp_path / "ferry.toml"
+    expected = FerryConfig(
         proxy_codec="ProRes422HQ",
         proxy_height=720,
         checksum_algo=ChecksumAlgo.SHA256,
@@ -41,7 +41,7 @@ def test_save_config_round_trip(tmp_path: Path) -> None:
 
 
 def test_save_config_preserves_comments_and_layout(tmp_path: Path) -> None:
-    target = tmp_path / "media-mate.toml"
+    target = tmp_path / "ferry.toml"
     target.write_text(
         "# Edit-suite overrides\n"
         "proxy_height = 1080 # offline default\n\n"
@@ -50,7 +50,7 @@ def test_save_config_preserves_comments_and_layout(tmp_path: Path) -> None:
         'mode = "copy"\n'
     )
 
-    save_config(MediaMateConfig(proxy_height=720), target)
+    save_config(FerryConfig(proxy_height=720), target)
 
     saved = target.read_text()
     assert "# Edit-suite overrides" in saved
@@ -141,7 +141,7 @@ def test_run_queue_isolates_multi_folder_outputs(tmp_path: Path) -> None:
     (card_b / "clip.mov").write_bytes(b"b" * 128)
     out_root = tmp_path / "jobs"
     db = tmp_path / "audit.db"
-    cfg_path = tmp_path / "media-mate.toml"
+    cfg_path = tmp_path / "ferry.toml"
 
     screen = PipelineScreen()
     screen.items = [QueueItem(card_a), QueueItem(card_b)]
@@ -171,7 +171,7 @@ def test_run_queue_isolates_multi_folder_outputs(tmp_path: Path) -> None:
 
     with (
         patch.object(PipelineScreen, "app", new_callable=PropertyMock, return_value=fake_app),
-        patch("media_mate.organize.organize_path", side_effect=fake_organize),
+        patch("file_ferry.organize.organize_path", side_effect=fake_organize),
     ):
         screen._run_queue(["organize"], _options(out_root))
 
@@ -190,7 +190,7 @@ def test_run_queue_skips_downstream_when_organize_is_dry_run(tmp_path: Path) -> 
     (card / "clip.mov").write_bytes(b"x" * 128)
     out_root = tmp_path / "jobs"
     db = tmp_path / "audit.db"
-    cfg_path = tmp_path / "media-mate.toml"
+    cfg_path = tmp_path / "ferry.toml"
 
     screen = PipelineScreen()
     screen.items = [QueueItem(card)]
@@ -213,8 +213,8 @@ def test_run_queue_skips_downstream_when_organize_is_dry_run(tmp_path: Path) -> 
 
     with (
         patch.object(PipelineScreen, "app", new_callable=PropertyMock, return_value=fake_app),
-        patch("media_mate.proxy.generate_proxies", side_effect=fake_proxy),
-        patch("media_mate.verify.verify_folder", side_effect=fake_verify),
+        patch("file_ferry.proxy.generate_proxies", side_effect=fake_proxy),
+        patch("file_ferry.verify.verify_folder", side_effect=fake_verify),
     ):
         screen._run_queue(["organize", "proxy", "verify"], _options(out_root, dry_run=True))
 
@@ -281,8 +281,8 @@ class TestListExternalDrives:
             return Path(text)
 
         with (
-            patch("media_mate.tui.Path", side_effect=fake_path_factory),
-            patch("media_mate.tui.platform.system", return_value="Darwin"),
+            patch("file_ferry.tui.Path", side_effect=fake_path_factory),
+            patch("file_ferry.tui.platform.system", return_value="Darwin"),
         ):
             drives = list_external_drives()
 
@@ -308,7 +308,7 @@ class TestListExternalDrives:
 
         with (
             patch.dict("os.environ", {"USER": user}, clear=False),
-            patch("media_mate.tui.Path") as path_cls,
+            patch("file_ferry.tui.Path") as path_cls,
         ):
             # Map exact strings (no substring matching — /media/alice is a
             # suffix of /run/media/alice, so naive .replace() corrupts it).
@@ -322,7 +322,7 @@ class TestListExternalDrives:
 
             path_cls.side_effect = factory
 
-            with patch("media_mate.tui.platform.system", return_value="Linux"):
+            with patch("file_ferry.tui.platform.system", return_value="Linux"):
                 drives = list_external_drives()
 
         names = sorted(d.name for d in drives)
@@ -332,8 +332,8 @@ class TestListExternalDrives:
 
     def test_linux_returns_empty_when_no_user_media_dir(self, tmp_path: Path) -> None:
         with (
-            patch("media_mate.tui.platform.system", return_value="Linux"),
-            patch("media_mate.tui.Path", side_effect=lambda p: Path(str(p))),
+            patch("file_ferry.tui.platform.system", return_value="Linux"),
+            patch("file_ferry.tui.Path", side_effect=lambda p: Path(str(p))),
         ):
             drives = list_external_drives()
         assert drives == []
@@ -349,7 +349,7 @@ class TestListExternalDrives:
 
         with (
             patch.dict("os.environ", {"SYSTEMDRIVE": "C:"}, clear=False),
-            patch("media_mate.tui.platform.system", return_value="Windows"),
+            patch("file_ferry.tui.platform.system", return_value="Windows"),
             patch.object(Path, "exists", fake_stat),
             patch.object(Path, "is_dir", fake_stat),
         ):
@@ -359,12 +359,12 @@ class TestListExternalDrives:
         assert names == ["D:", "E:"]
 
     def test_returns_empty_for_unknown_platform(self) -> None:
-        with patch("media_mate.tui.platform.system", return_value="Plan9"):
+        with patch("file_ferry.tui.platform.system", return_value="Plan9"):
             assert list_external_drives() == []
 
     def test_drive_label_falls_back_when_disk_usage_fails(self, tmp_path: Path) -> None:
         # disk_usage raises (e.g. drive unmounted between detection and display).
-        with patch("media_mate.tui.shutil.disk_usage", side_effect=OSError("not mounted")):
+        with patch("file_ferry.tui.shutil.disk_usage", side_effect=OSError("not mounted")):
             label = _drive_label(tmp_path / "Card")
         assert label == "Card"
 
@@ -372,7 +372,7 @@ class TestListExternalDrives:
         drive = tmp_path / "Camera Card"
         drive.mkdir()
         with patch(
-            "media_mate.tui.shutil.disk_usage",
+            "file_ferry.tui.shutil.disk_usage",
             return_value=SimpleNamespace(free=552 * 1024**3, total=1800 * 1024**3),
         ):
             label = _drive_label(drive)
@@ -387,7 +387,7 @@ class TestListExternalDrives:
 
         async def run() -> None:
             app = MediaMateApp(tmp_path / "audit.db")
-            with patch("media_mate.tui.list_external_drives", return_value=fake_drives):
+            with patch("file_ferry.tui.list_external_drives", return_value=fake_drives):
                 async with app.run_test(size=(120, 40)) as pilot:
                     await pilot.press("r")
                     screen = app.screen
@@ -409,7 +409,7 @@ class TestListExternalDrives:
 
         async def run() -> None:
             app = MediaMateApp(tmp_path / "audit.db")
-            with patch("media_mate.tui.list_external_drives", return_value=[]):
+            with patch("file_ferry.tui.list_external_drives", return_value=[]):
                 async with app.run_test(size=(120, 40)) as pilot:
                     await pilot.press("r")
                     screen = app.screen
@@ -451,13 +451,13 @@ class TestPipelineDispatch:
             app = MediaMateApp(tmp_path / "audit.db")
             async with app.run_test(size=(120, 40)) as pilot:
                 await pilot.pause()
-                from media_mate.tui import _PipelineItemContext
+                from file_ferry.tui import _PipelineItemContext
 
                 ctx = _PipelineItemContext(
                     item=QueueItem(path=tmp_path / "src"),
                     out=tmp_path / "out",
                     store=MagicMock(),
-                    cfg=MediaMateConfig(),
+                    cfg=FerryConfig(),
                     options=self._opts(),
                 )
                 # All five known steps route without raising.
@@ -481,13 +481,13 @@ class TestPipelineDispatch:
     def test_dispatch_rejects_unknown_step(self, tmp_path: Path) -> None:
         async def run() -> None:
             MediaMateApp(tmp_path / "audit.db")
-            from media_mate.tui import _PipelineItemContext
+            from file_ferry.tui import _PipelineItemContext
 
             ctx = _PipelineItemContext(
                 item=QueueItem(path=tmp_path / "src"),
                 out=tmp_path / "out",
                 store=MagicMock(),
-                cfg=MediaMateConfig(),
+                cfg=FerryConfig(),
                 options=self._opts(),
             )
             with pytest.raises(ValueError, match="unknown pipeline step"):
@@ -520,13 +520,13 @@ class TestDryRunSkipSemantics:
         return PipelineOptions(**defaults)
 
     def _make_ctx(self, tmp_path: Path, dry_run: bool, organize_ran: bool):
-        from media_mate.tui import _PipelineItemContext
+        from file_ferry.tui import _PipelineItemContext
 
         return _PipelineItemContext(
             item=QueueItem(path=tmp_path / "src"),
             out=tmp_path / "out",
             store=MagicMock(),
-            cfg=MediaMateConfig(),
+            cfg=FerryConfig(),
             options=self._opts(dry_run=dry_run),
             organize_ran=organize_ran,
         )
@@ -568,8 +568,8 @@ class TestDryRunSkipSemantics:
         async def run() -> None:
             MediaMateApp(tmp_path / "audit.db")
             screen = PipelineScreen()
-            with patch("media_mate.proxy.generate_proxies") as mock_proxies:
-                from media_mate.proxy import ProxyBatchResult
+            with patch("file_ferry.proxy.generate_proxies") as mock_proxies:
+                from file_ferry.proxy import ProxyBatchResult
 
                 mock_proxies.return_value = ProxyBatchResult(
                     results=[], failures=[], skipped=[], already_existed=[]
@@ -592,8 +592,8 @@ class TestDryRunSkipSemantics:
         async def run() -> None:
             MediaMateApp(tmp_path / "audit.db")
             screen = PipelineScreen()
-            with patch("media_mate.proxy.generate_proxies") as mock_proxies:
-                from media_mate.proxy import ProxyBatchResult
+            with patch("file_ferry.proxy.generate_proxies") as mock_proxies:
+                from file_ferry.proxy import ProxyBatchResult
 
                 mock_proxies.return_value = ProxyBatchResult(
                     results=[], failures=[], skipped=[], already_existed=[]

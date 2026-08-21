@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
-# PyInstaller spec for the media-mate sidecar (plan §10.6.3).
-# Builds a console executable that runs media_mate.service on stdio.
+# PyInstaller spec for the ferry sidecar (plan §10.6.3).
+# Builds a console executable that runs file_ferry.service on stdio.
 #
 # The sidecar reads newline-delimited JSON-RPC from stdin and writes
 # responses to stdout; it must be a console app (no window on Windows).
@@ -13,7 +13,7 @@ import os
 # independent of the invoking working directory.
 SCRIPTS_DIR = os.path.dirname(os.path.abspath(SPEC))
 ROOT = os.path.abspath(os.path.join(SCRIPTS_DIR, "..", "src"))
-ENTRY = os.path.join(ROOT, "media_mate", "service", "cli.py")
+ENTRY = os.path.join(ROOT, "file_ferry", "service", "cli.py")
 
 a = Analysis(
     [ENTRY],
@@ -21,8 +21,8 @@ a = Analysis(
     binaries=[],
     datas=[],
     hiddenimports=[
-        "media_mate.persistence.migrations.001_initial_legacy",
-        "media_mate.persistence.migrations.002_vnext_entities",
+        "file_ferry.persistence.migrations.001_initial_legacy",
+        "file_ferry.persistence.migrations.002_vnext_entities",
     ],
     hookspath=[],
     hooksconfig={},
@@ -40,7 +40,7 @@ a = Analysis(
 
 # Onefile mode: a single self-extracting executable at the output path.
 # This matches what electron/sidecar-command.ts resolves
-# (resources/sidecar/media-mate-service) and keeps the packaged layout
+# (resources/sidecar/ferry-service) and keeps the packaged layout
 # a single file rather than a onedir bundle.
 pyz = PYZ(a.pure)
 
@@ -50,7 +50,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name="media-mate-service",
+    name="ferry-service",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

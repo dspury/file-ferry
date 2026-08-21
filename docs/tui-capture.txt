@@ -1,4 +1,4 @@
-┌─ MEDIA MATE ─────────────────────── POST WORKSTATION / v0.2.1 ──────────────┐
+┌─ FERRY ─────────────────────── POST WORKSTATION / v0.2.1 ───────────────────┐
 │                                                                            │
 │   MEDIA BROWSER                    PIPELINE QUEUE                           │
 │   /Volumes/RAID/SHOOT_07            #  Folder                    State       │

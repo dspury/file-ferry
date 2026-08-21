@@ -36,17 +36,17 @@ The plan §6.1 demands:
   and never held across an external-tool invocation (ffmpeg, ffprobe,
   Resolve).
 
-**App data layout** (`~/.media-mate/` on macOS and Linux;
-`%APPDATA%/media-mate/` on Windows):
+**App data layout** (`~/.ferry/` on macOS and Linux;
+`%APPDATA%/ferry/` on Windows):
 
 ```
-~/.media-mate/
-├── media-mate.db          # the SQLite database (WAL + SHM alongside)
-├── media-mate.db-shm
-├── media-mate.db-wal
+~/.ferry/
+├── ferry.db               # the SQLite database (WAL + SHM alongside)
+├── ferry.db-shm
+├── ferry.db-wal
 ├── backups/
-│   ├── media-mate-2026-08-12T17-30-00Z-pre-007.db
-│   └── media-mate-2026-08-12T17-30-00Z-pre-007.db.sha256
+│   ├── ferry-2026-08-12T17-30-00Z-pre-007.db
+│   └── ferry-2026-08-12T17-30-00Z-pre-007.db.sha256
 ├── logs/
 │   └── sidecar.log        # JSON-line timeline of sidecar events
 ├── receipts/
@@ -58,7 +58,7 @@ The plan §6.1 demands:
 ```
 
 **Numbered migrations.** Migrations are Python modules under
-`src/media_mate/persistence/migrations/`, named `NNN_description.py`
+`src/file_ferry/persistence/migrations/`, named `NNN_description.py`
 with `upgrade(conn)` and `downgrade(conn)` functions. The migration
 runner is a single-pass loader that:
 
@@ -68,7 +68,7 @@ runner is a single-pass loader that:
 4. For each migration to apply, in source order:
    - Verify the target version is not less than the current version.
    - Take a backup of the DB file at
-     `backups/media-mate-{ISO8601}-pre-{NNN}.db` and a `.sha256`
+     `backups/ferry-{ISO8601}-pre-{NNN}.db` and a `.sha256`
      sidecar.
    - Run `upgrade(conn)` inside a transaction.
    - Update `schema_meta.schema_version` to the new version.
@@ -140,7 +140,7 @@ Neutral:
 
 ## References
 
-- `docs/MEDIA-MATE-FULL-APP-IMPLEMENTATION-PLAN.md` §6.1, §6.2, §6.5
+- `docs/FILE-FERRY-FULL-APP-IMPLEMENTATION-PLAN.md` §6.1, §6.2, §6.5
 - v0.2.4 `SPEC.md` §7 (legacy schema, preserved)
 - SQLite WAL docs: https://www.sqlite.org/wal.html
 - SQLite backup API: https://www.sqlite.org/backup.html

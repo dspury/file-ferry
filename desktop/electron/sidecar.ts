@@ -28,6 +28,11 @@ export interface SidecarSupervisorOptions {
   readonly maxRestarts?: number;
   readonly initialBackoffMs?: number;
   /**
+   * How long `start()` waits for the sidecar to announce `sidecar.ready`
+   * before giving up. Bootstrapping runs migrations, so this is generous.
+   */
+  readonly readyTimeoutMs?: number;
+  /**
    * Optional guard consulted before an automatic restart. Return false
    * to defer the restart (e.g. while a job is mid-flight); the process
    * stays stopped and the caller decides when to re-run ``start()``.
@@ -98,6 +103,7 @@ export class SidecarSupervisor extends EventEmitter {
       cwd: options.cwd ?? process.cwd(),
       maxRestarts: options.maxRestarts ?? 5,
       initialBackoffMs: options.initialBackoffMs ?? 500,
+      readyTimeoutMs: options.readyTimeoutMs ?? 15_000,
       restartSafe: options.restartSafe ?? (() => true),
     };
   }
@@ -114,9 +120,14 @@ export class SidecarSupervisor extends EventEmitter {
   }
 
   /**
-   * Start the sidecar. Resolves once the first frame is received; the
-   * caller should treat that as the sidecar being ready to receive
-   * requests. Rejects if the executable cannot be spawned.
+   * Start the sidecar and resolve once it announces `sidecar.ready`, i.e.
+   * once it can actually serve requests. Rejects if the executable cannot be
+   * spawned, if it exits first, or if readiness does not arrive in time.
+   *
+   * This used to resolve as soon as the child was spawned, which let the
+   * caller open a window that raced the sidecar's bootstrap: a renderer that
+   * loaded quickly (the packaged `file://` path always does) fired its first
+   * requests into `sidecar not ready` and latched the error.
    */
   async start(): Promise<void> {
     if (this.state !== 'stopped') {
@@ -124,6 +135,33 @@ export class SidecarSupervisor extends EventEmitter {
     }
     this.stopRequested = false;
     await this.spawnOnce();
+    await this.whenReady();
+  }
+
+  /** Resolve when the sidecar announces readiness; reject on exit or timeout. */
+  whenReady(timeoutMs: number = this.options.readyTimeoutMs): Promise<void> {
+    if (this.state === 'ready') return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const cleanup = (): void => {
+        clearTimeout(timer);
+        this.removeListener('ready', onReady);
+        this.removeListener('crashed', onCrashed);
+      };
+      const onReady = (): void => {
+        cleanup();
+        resolve();
+      };
+      const onCrashed = ({ exitCode }: { exitCode: number | null }): void => {
+        cleanup();
+        reject(new Error(`sidecar exited before announcing readiness (exit=${exitCode})`));
+      };
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error(`sidecar did not announce readiness within ${timeoutMs}ms`));
+      }, timeoutMs);
+      this.on('ready', onReady);
+      this.on('crashed', onCrashed);
+    });
   }
 
   /**
@@ -205,7 +243,13 @@ export class SidecarSupervisor extends EventEmitter {
       env: { ...process.env, ...this.options.env },
       cwd: this.options.cwd,
     };
-    const child = spawn(pathResolve(this.options.executable), [...this.options.args], spawnOptions);
+    // A bare command name (e.g. `python3`) has to be resolved by the OS via
+    // PATH; pathResolve() would rewrite it to <cwd>/python3 and the spawn
+    // would fail with ENOENT.
+    const { executable } = this.options;
+    const command =
+      executable.includes('/') || executable.includes('\\') ? pathResolve(executable) : executable;
+    const child = spawn(command, [...this.options.args], spawnOptions);
     this.child = child;
 
     if (!child.stdout || !child.stdin || !child.stderr) {
@@ -237,11 +281,23 @@ export class SidecarSupervisor extends EventEmitter {
       });
       return;
     }
-    // The sidecar is a responder on stdin; it should never send a
-    // request or an unsolicited response up to us. Treat those as
-    // protocol violations worth surfacing rather than forwarding.
-    if (frame.kind === 'request' || frame.kind === 'response') {
+    // The sidecar is a responder on stdin: it has no peer to call, so a
+    // `request` coming up from it is always a protocol violation.
+    if (frame.kind === 'request') {
       this.emit('log', `unexpected frame kind on sidecar stdout: ${frame.kind}`);
+      this.emit('protocolError', {
+        reason: classifyUnexpectedFrame(frame),
+        line,
+        at: new Date().toISOString(),
+      });
+      return;
+    }
+    // A response or error is legitimate exactly when it answers a request we
+    // sent -- that is what `pendingIds` is for. Anything else is unsolicited.
+    // (Dropping *every* response, pending or not, is what left `sendRequest`
+    // hanging forever and made the desktop unusable.)
+    if ((frame.kind === 'response' || frame.kind === 'error') && !this.pendingIds.has(frame.id)) {
+      this.emit('log', `unsolicited ${frame.kind} frame on sidecar stdout: id=${frame.id}`);
       this.emit('protocolError', {
         reason: classifyUnexpectedFrame(frame),
         line,

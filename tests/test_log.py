@@ -6,8 +6,8 @@ from datetime import UTC, datetime
 
 import pytest
 
-from media_mate.log import SCHEMA_VERSION, LogStore
-from media_mate.models import (
+from file_ferry.log import SCHEMA_VERSION, LogStore
+from file_ferry.models import (
     OrganizeOpRecord,
     ProbeRecord,
     ProjectRecord,
@@ -19,17 +19,17 @@ from media_mate.models import (
 
 @pytest.fixture
 def store(tmp_path) -> LogStore:
-    s = LogStore(tmp_path / "media-mate.db")
+    s = LogStore(tmp_path / "ferry.db")
     s.initialize()
     return s
 
 
 class TestSchema:
     def test_initialize_creates_db(self, store: LogStore, tmp_path) -> None:
-        assert (tmp_path / "media-mate.db").exists()
+        assert (tmp_path / "ferry.db").exists()
 
     def test_schema_version_recorded(self, store: LogStore) -> None:
-        run = store.start_run("media-mate test")
+        run = store.start_run("ferry test")
         assert run > 0  # just exercising the connection works
         # verify schema_meta row
         import sqlite3
@@ -42,10 +42,10 @@ class TestSchema:
             assert row[0] == str(SCHEMA_VERSION)
 
     def test_initialize_is_idempotent(self, tmp_path) -> None:
-        s = LogStore(tmp_path / "media-mate.db")
+        s = LogStore(tmp_path / "ferry.db")
         s.initialize()
         s.initialize()  # second call must not raise
-        assert (tmp_path / "media-mate.db").exists()
+        assert (tmp_path / "ferry.db").exists()
 
     def test_initialize_migrates_legacy_organize_operations(self, tmp_path) -> None:
         """The v0.2.2 audit column is added to pre-existing databases."""
@@ -62,7 +62,7 @@ class TestSchema:
 
         legacy = LogStore(db_path)
         legacy.initialize()
-        run_id = legacy.start_run("media-mate organize ./raw")
+        run_id = legacy.start_run("ferry organize ./raw")
         legacy.insert_organize_op(
             OrganizeOpRecord(
                 run_id=run_id,
@@ -131,12 +131,12 @@ class TestSchema:
 
 class TestRuns:
     def test_start_run_returns_id(self, store: LogStore) -> None:
-        run_id = store.start_run("media-mate probe ./raw")
+        run_id = store.start_run("ferry probe ./raw")
         assert isinstance(run_id, int)
         assert run_id > 0
 
     def test_finish_run_marks_status(self, store: LogStore) -> None:
-        run_id = store.start_run("media-mate probe ./raw")
+        run_id = store.start_run("ferry probe ./raw")
         store.finish_run(run_id, RunStatus.SUCCESS)
         record = store.get_run(run_id)
         assert record is not None
@@ -144,7 +144,7 @@ class TestRuns:
         assert record.finished_at is not None
 
     def test_finish_run_with_error(self, store: LogStore) -> None:
-        run_id = store.start_run("media-mate probe ./raw")
+        run_id = store.start_run("ferry probe ./raw")
         store.finish_run(run_id, RunStatus.FAILED, error="boom")
         record = store.get_run(run_id)
         assert record is not None
@@ -155,13 +155,13 @@ class TestRuns:
         assert store.get_run(99999) is None
 
     def test_start_run_persists_config_hash(self, store: LogStore) -> None:
-        run_id = store.start_run("media-mate proxy ./raw", config_hash="abc123def456")
+        run_id = store.start_run("ferry proxy ./raw", config_hash="abc123def456")
         record = store.get_run(run_id)
         assert record is not None
         assert record.config_hash == "abc123def456"
 
     def test_start_run_config_hash_optional(self, store: LogStore) -> None:
-        run_id = store.start_run("media-mate probe ./raw")
+        run_id = store.start_run("ferry probe ./raw")
         record = store.get_run(run_id)
         assert record is not None
         assert record.config_hash is None
@@ -182,14 +182,14 @@ class TestFiles:
         assert fid1 == fid2
 
     def test_upsert_updates_last_seen_run(self, store: LogStore) -> None:
-        run1 = store.start_run("media-mate probe ./raw")
+        run1 = store.start_run("ferry probe ./raw")
         fid = store.upsert_file("/tmp/clip.mov", run_id=run1)
         record = store.get_file(fid)
         assert record is not None
         assert record.first_seen_run == run1
         assert record.last_seen_run == run1
 
-        run2 = store.start_run("media-mate probe ./raw")
+        run2 = store.start_run("ferry probe ./raw")
         store.upsert_file("/tmp/clip.mov", run_id=run2)
         record2 = store.get_file(fid)
         assert record2 is not None
@@ -199,7 +199,7 @@ class TestFiles:
 
 class TestProbes:
     def test_insert_probe(self, store: LogStore) -> None:
-        run_id = store.start_run("media-mate probe ./raw")
+        run_id = store.start_run("ferry probe ./raw")
         file_id = store.upsert_file("/tmp/clip.mov", run_id=run_id)
         now = datetime.now(UTC)
         pid = store.insert_probe(
@@ -231,7 +231,7 @@ class TestProbes:
         because either the INSERT rejects unknown columns or the
         SELECT loses the values.
         """
-        run_id = store.start_run("media-mate probe ./raw")
+        run_id = store.start_run("ferry probe ./raw")
         file_id = store.upsert_file("/tmp/vfr_clip.mov", run_id=run_id)
         now = datetime.now(UTC)
         mtime = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
@@ -278,7 +278,7 @@ class TestProbes:
 
 class TestProxies:
     def test_insert_proxy(self, store: LogStore) -> None:
-        run_id = store.start_run("media-mate proxy ./raw")
+        run_id = store.start_run("ferry proxy ./raw")
         file_id = store.upsert_file("/tmp/clip.mov", run_id=run_id)
         pid = store.insert_proxy(
             ProxyRecord(
@@ -297,7 +297,7 @@ class TestProxies:
 
 class TestProjects:
     def test_insert_project(self, store: LogStore) -> None:
-        run_id = store.start_run("media-mate resolve create ./raw")
+        run_id = store.start_run("ferry resolve create ./raw")
         pid = store.insert_project(
             ProjectRecord(
                 name="Episode-12",
@@ -317,7 +317,7 @@ class TestProjects:
 
 class TestVerifications:
     def test_insert_verification(self, store: LogStore) -> None:
-        run_id = store.start_run("media-mate verify ./raw")
+        run_id = store.start_run("ferry verify ./raw")
         vid = store.insert_verification(
             VerificationRecord(
                 folder="/tmp/raw",
@@ -335,7 +335,7 @@ class TestVerifications:
 
 class TestOrganizeOps:
     def test_insert_organize_op(self, store: LogStore) -> None:
-        run_id = store.start_run("media-mate organize ./raw")
+        run_id = store.start_run("ferry organize ./raw")
         oid = store.insert_organize_op(
             OrganizeOpRecord(
                 run_id=run_id,

@@ -15,7 +15,7 @@ export interface DiagnosticReport {
 /** Build the full diagnostic report text from the summary. */
 export function buildReportText(report: DiagnosticReport): string {
   const header = [
-    `media-mate diagnostic report`,
+    `ferry diagnostic report`,
     `generated at: ${report.generatedAt}`,
     `app version: ${report.appVersion}`,
     '',
@@ -32,5 +32,5 @@ export function canCopy(report: DiagnosticReport | null): boolean {
 /** Suggested file name for an exported diagnostic report. */
 export function diagnosticFileName(stamp: string, ext = 'txt'): string {
   const safe = stamp.replace(/[^0-9]/g, '').slice(0, 14) || 'unknown';
-  return `media-mate-diagnostics-${safe}.${ext}`;
+  return `ferry-diagnostics-${safe}.${ext}`;
 }

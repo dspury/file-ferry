@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for media-mate tests."""
+"""Shared pytest fixtures for ferry tests."""
 
 from __future__ import annotations
 

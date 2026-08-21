@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from media_mate.application.assets import AssetNotFoundError, AssetService
-from media_mate.service.protocol import SourceInventoryEntry
+from file_ferry.application.assets import AssetNotFoundError, AssetService
+from file_ferry.service.protocol import SourceInventoryEntry
 
 ENTRIES = [
     SourceInventoryEntry(path="DCIM/A001.mov", size=100, mtime=1.0),
@@ -18,9 +18,9 @@ ENTRIES = [
 
 @pytest.fixture
 def service(tmp_path: Path) -> AssetService:
-    from media_mate.application.service import ApplicationService
+    from file_ferry.application.service import ApplicationService
 
-    db = tmp_path / "media-mate.db"
+    db = tmp_path / "ferry.db"
     boot = ApplicationService(db_path=db, app_data_dir=tmp_path / "app")
     boot.bootstrap()
     boot.close()

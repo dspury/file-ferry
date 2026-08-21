@@ -39,7 +39,7 @@ Envelope:
 ```jsonc
 {
   "jsonrpc": "2.0",
-  "v": 1,                      // media-mate protocol version
+  "v": 1,                      // file-ferry protocol version
   "kind": "request" | "response" | "event" | "error",
   "id": "<uuid>",              // present on request and response
   "method": "<dotted.name>",   // present on request and event
@@ -119,6 +119,6 @@ Neutral:
 
 ## References
 
-- `docs/MEDIA-MATE-FULL-APP-IMPLEMENTATION-PLAN.md` §5.1, §8.3
+- `docs/FILE-FERRY-FULL-APP-IMPLEMENTATION-PLAN.md` §5.1, §8.3
 - ADR-0001 (desktop shell architecture)
 - JSON-RPC 2.0 spec: https://www.jsonrpc.org/specification

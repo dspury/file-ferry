@@ -9,36 +9,95 @@
  * we verify the decision logic that drives them.
  */
 import { describe, expect, it } from 'vitest';
-import { joinPath, resolveSidecarCommand } from '../electron/sidecar-command.js';
-import { classifyUnexpectedFrame } from '../electron/sidecar.js';
+import { joinPath, resolveDevPython, resolveSidecarCommand } from '../electron/sidecar-command.js';
+import { SidecarSupervisor, classifyUnexpectedFrame } from '../electron/sidecar.js';
 import type { ProtocolErrorEvent } from '../electron/sidecar.js';
 import { decodeFrame, encodeFrame, type RequestFrame } from '../shared/ipc-schema.js';
 import { PROTOCOL_VERSION } from '../shared/version.js';
 
+const DEV = {
+  isPackaged: false,
+  resourcesPath: '/resources',
+  workspaceRoot: '/repo',
+  platform: 'darwin' as NodeJS.Platform,
+};
+
+const PACKAGED = {
+  isPackaged: true,
+  workspaceRoot: '/repo',
+  platform: 'darwin' as NodeJS.Platform,
+};
+
 describe('resolveSidecarCommand', () => {
-  it('uses python -m media_mate.service in development', () => {
-    const cmd = resolveSidecarCommand(false, '/resources', '/usr/local/bin/node', () => false);
-    expect(cmd.executable).toBe('/usr/local/bin/node');
-    expect(cmd.args).toEqual(['-m', 'media_mate.service']);
+  // Regression: development used to launch `process.execPath -m file_ferry.service`,
+  // i.e. the Electron binary with a Python flag. It must launch an interpreter.
+  it('runs the workspace virtualenv interpreter in development', () => {
+    const cmd = resolveSidecarCommand({
+      ...DEV,
+      exists: (p) => p === '/repo/.venv/bin/python',
+    });
+    expect(cmd.executable).toBe('/repo/.venv/bin/python');
+    expect(cmd.args).toEqual(['-m', 'file_ferry.service']);
+    expect(cmd.cwd).toBe('/repo');
+  });
+
+  it('falls back to python3 on PATH when there is no workspace virtualenv', () => {
+    const cmd = resolveSidecarCommand({ ...DEV, exists: () => false });
+    expect(cmd.executable).toBe('python3');
+    expect(cmd.args).toEqual(['-m', 'file_ferry.service']);
+  });
+
+  it('honors a FERRY_PYTHON override ahead of the virtualenv', () => {
+    const cmd = resolveSidecarCommand({
+      ...DEV,
+      pythonOverride: '/opt/py/bin/python3.13',
+      exists: () => true,
+    });
+    expect(cmd.executable).toBe('/opt/py/bin/python3.13');
   });
 
   it('resolves the frozen executable in a packaged build', () => {
-    const exists = (p: string) => p.endsWith('/sidecar/media-mate-service');
-    const cmd = resolveSidecarCommand(true, '/app/Resources', '/app/electron', exists);
-    expect(cmd.executable).toBe('/app/Resources/sidecar/media-mate-service');
+    const cmd = resolveSidecarCommand({
+      ...PACKAGED,
+      resourcesPath: '/app/Resources',
+      exists: (p: string) => p.endsWith('/sidecar/ferry-service'),
+    });
+    expect(cmd.executable).toBe('/app/Resources/sidecar/ferry-service');
     expect(cmd.args).toEqual([]);
+    // Packaged builds inherit the app's cwd; nothing workspace-relative.
+    expect(cmd.cwd).toBeUndefined();
   });
 
   it('prefers the .exe candidate on Windows', () => {
-    const exists = (p: string) => p.endsWith('media-mate-service.exe');
-    const cmd = resolveSidecarCommand(true, 'C:/app/Resources', 'C:/app/electron', exists);
-    expect(cmd.executable).toBe('C:/app/Resources/sidecar/media-mate-service.exe');
+    const cmd = resolveSidecarCommand({
+      ...PACKAGED,
+      platform: 'win32',
+      resourcesPath: 'C:/app/Resources',
+      exists: (p: string) => p.endsWith('ferry-service.exe'),
+    });
+    expect(cmd.executable).toBe('C:/app/Resources/sidecar/ferry-service.exe');
   });
 
   it('throws when no frozen executable exists', () => {
-    expect(() => resolveSidecarCommand(true, '/res', '/electron', () => false)).toThrow(
-      'sidecar executable not found',
+    expect(() =>
+      resolveSidecarCommand({ ...PACKAGED, resourcesPath: '/res', exists: () => false }),
+    ).toThrow('sidecar executable not found');
+  });
+});
+
+describe('resolveDevPython', () => {
+  it('uses the Scripts layout on Windows', () => {
+    const python = resolveDevPython(
+      'C:/repo',
+      'win32',
+      undefined,
+      (p) => p === 'C:/repo/.venv/Scripts/python.exe',
     );
+    expect(python).toBe('C:/repo/.venv/Scripts/python.exe');
+  });
+
+  it('falls back to `python` (not `python3`) on Windows', () => {
+    expect(resolveDevPython('C:/repo', 'win32', undefined, () => false)).toBe('python');
   });
 });
 
@@ -103,5 +162,42 @@ describe('classifyUnexpectedFrame', () => {
     // are valid members of ProtocolErrorEvent['reason'].
     const typed: ProtocolErrorEvent['reason'][] = reasons;
     expect(typed).toHaveLength(2);
+  });
+});
+
+describe('readiness gate', () => {
+  // Regression: `start()` documented "resolves once the sidecar is ready" but
+  // returned as soon as the child was spawned. The window then opened ahead of
+  // the sidecar, and a fast renderer (the packaged file:// path) latched
+  // "sidecar not ready" on its first request and never recovered.
+  const supervisor = (): SidecarSupervisor =>
+    new SidecarSupervisor({ executable: '/nonexistent/python', readyTimeoutMs: 50 });
+
+  it('resolves when the sidecar announces readiness', async () => {
+    const sup = supervisor();
+    const ready = sup.whenReady(1000);
+    sup.emit('ready', undefined);
+    await expect(ready).resolves.toBeUndefined();
+  });
+
+  it('rejects when the sidecar exits before announcing readiness', async () => {
+    const sup = supervisor();
+    const ready = sup.whenReady(1000);
+    sup.emit('crashed', { exitCode: 3 });
+    await expect(ready).rejects.toThrow('exited before announcing readiness (exit=3)');
+  });
+
+  it('rejects when readiness never arrives', async () => {
+    const sup = supervisor();
+    await expect(sup.whenReady(10)).rejects.toThrow('did not announce readiness within 10ms');
+  });
+
+  it('does not leave listeners behind once settled', async () => {
+    const sup = supervisor();
+    const ready = sup.whenReady(1000);
+    sup.emit('ready', undefined);
+    await ready;
+    expect(sup.listenerCount('ready')).toBe(0);
+    expect(sup.listenerCount('crashed')).toBe(0);
   });
 });

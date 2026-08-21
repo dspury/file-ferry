@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from media_mate.persistence import runner
+from file_ferry.persistence import runner
 
 VNEXT_TABLES = ("projects", "sources", "assets", "replicas", "jobs", "operation_receipts")
 LEGACY_TABLES = ("runs", "files", "probes", "legacy_resolve_projects")

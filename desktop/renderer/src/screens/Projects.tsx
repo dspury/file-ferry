@@ -11,8 +11,8 @@ import { projectRow, policyLabel } from '../lib/projects.js';
 import { navigateTo } from '../views.js';
 
 export function Projects(): JSX.Element {
-  const projects = useAsync(() => window.mediaMate.project.list());
-  const assets = useAsync(() => window.mediaMate.asset.list());
+  const projects = useAsync(() => window.ferry.project.list());
+  const assets = useAsync(() => window.ferry.asset.list());
 
   const loading = projects.loading || assets.loading;
   const error = projects.error ?? assets.error;

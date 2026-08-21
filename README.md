@@ -1,9 +1,9 @@
-# media-mate
+# file-ferry
 
-[![Version](https://img.shields.io/badge/version-0.2.4-blue)](https://github.com/dspury/media-mate)
+[![Version](https://img.shields.io/badge/version-0.3.0-blue)](https://github.com/dspury/file-ferry)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![CI](https://img.shields.io/github/actions/workflow/status/dspury/media-mate/ci.yml?style=flat-square)](https://github.com/dspury/media-mate/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/dspury/file-ferry/ci.yml?style=flat-square)](https://github.com/dspury/file-ferry/actions/workflows/ci.yml)
 
 > A CLI + interactive TUI for the boring-but-critical infrastructure underneath video post-production: probe camera cards, organize them, generate proxies, spin up a DaVinci Resolve project, and verify backups — every step logged to a local SQLite audit trail.
 
@@ -16,7 +16,7 @@ No API keys. No cloud. Just FFmpeg, your local SQLite, and (optionally) DaVinci 
 **1. The interactive TUI** (the primary interface for most people)
 
 ```bash
-media-mate
+ferry
 ```
 
 Launches a full-screen Textual workstation with four screens: **Home** (dashboard), **Pipelines** (browse + queue + watch runs live), **Audit Log** (browse and search run history), and **Settings** (edit and persist config). See [The TUI](#the-tui) below for the full keymap.
@@ -24,7 +24,7 @@ Launches a full-screen Textual workstation with four screens: **Home** (dashboar
 **2. The CLI** (for scripts, cron, and quick one-offs)
 
 ```bash
-media-mate run ./raw/ --organize --proxy --resolve-project --verify --project-name "Episode-12"
+ferry run ./raw/ --organize --proxy --resolve-project --verify --project-name "Episode-12"
 ```
 
 Chains probe → organize → proxy → resolve-project → verify in one call. Each command also runs standalone — see [The CLI](#the-cli).
@@ -32,7 +32,7 @@ Chains probe → organize → proxy → resolve-project → verify in one call. 
 Prefer scripts and one-liners? Add `--no-tui` to skip the TUI auto-launch and stay in CLI mode:
 
 ```bash
-media-mate --no-tui run ./raw/
+ferry --no-tui run ./raw/
 ```
 
 ---
@@ -41,8 +41,8 @@ media-mate --no-tui run ./raw/
 
 ```bash
 # 1. Get the code
-git clone https://github.com/dspury/media-mate.git
-cd media-mate
+git clone https://github.com/dspury/file-ferry.git
+cd file-ferry
 
 # 2. Install (use pipx for an isolated install, or pip if you don't have it)
 pipx install .
@@ -54,7 +54,7 @@ brew install ffmpeg         # macOS
 sudo apt install ffmpeg     # Debian/Ubuntu
 
 # 4. Launch the TUI
-media-mate
+ferry
 ```
 
 Want to try it without your own media? Bundled sample footage is in [`examples/`](./examples/):
@@ -91,7 +91,7 @@ The TUI is a full-screen Textual workstation. It's keyboard-driven and lives ins
 | `Ctrl+S`        | Save settings                                                  |
 | `Q`             | Quit                                                           |
 
-The TUI is optional — `media-mate --no-tui` keeps you in CLI mode and prints command help.
+The TUI is optional — `ferry --no-tui` keeps you in CLI mode and prints command help.
 
 ---
 
@@ -109,10 +109,10 @@ Each capability runs standalone or as part of the `run` pipeline. Step order in 
 | `log`            | Query the audit log (text or JSON)                                                                                  |
 | `run`            | Orchestrate any combination of the above as a pipeline                                                              |
 
-Run `media-mate <command> --help` for the full flag list. Example output:
+Run `ferry <command> --help` for the full flag list. Example output:
 
 ```
-$ media-mate run ./raw/ --organize --proxy --resolve-project --verify --project-name "Episode-12"
+$ ferry run ./raw/ --organize --proxy --resolve-project --verify --project-name "Episode-12"
 
 Step 1: probe
   Probed 4 file(s)
@@ -132,7 +132,7 @@ Done.
 
 ```cron
 # Every night at 3am, verify the backup drive and alert on any change
-0 3 * * * cd /path/to/workspace && media-mate verify /Volumes/Backup/ || mail -s "Backup alert" me@example.com
+0 3 * * * cd /path/to/workspace && ferry verify /Volumes/Backup/ || mail -s "Backup alert" me@example.com
 ```
 
 Exit codes from `verify`: `0` = clean, `1` = missing, `2` = modified, `3` = added.
@@ -150,8 +150,8 @@ Exit codes from `verify`: `0` = clean, `1` = missing, `2` = modified, `3` = adde
 **Install:**
 
 ```bash
-git clone https://github.com/dspury/media-mate.git
-cd media-mate
+git clone https://github.com/dspury/file-ferry.git
+cd file-ferry
 pipx install .                # clean isolated install
 #   — or —
 pip install .                 # into your current environment
@@ -160,23 +160,23 @@ pip install .                 # into your current environment
 **From a working tree (development):**
 
 ```bash
-git clone https://github.com/dspury/media-mate.git
-cd media-mate
+git clone https://github.com/dspury/file-ferry.git
+cd file-ferry
 pip install -e ".[dev]"
 ```
 
 **Verify:**
 
 ```bash
-media-mate --version
-media-mate --help
+ferry --version
+ferry --help
 ```
 
 ---
 
 ## Configuration (optional)
 
-media-mate works with sensible defaults. Drop a `media-mate.toml` in your project root or `~/.media-mate/` to override. Search order: `--config <path>` / `MEDIA_MATE_CONFIG` env var → `./media-mate.toml` → `~/.media-mate/config.toml`.
+ferry works with sensible defaults. Drop a `ferry.toml` in your project root or `~/.ferry/` to override. Search order: `--config <path>` / `FERRY_CONFIG` env var → `./ferry.toml` → `~/.ferry/config.toml`.
 
 ```toml
 # Proxy generation defaults (any ProRes variant)
@@ -187,13 +187,33 @@ proxy_height = 1080
 checksum_algo = "xxhash"
 ```
 
-See [`media-mate.toml.example`](./media-mate.toml.example) for the full reference.
+See [`ferry.toml.example`](./ferry.toml.example) for the full reference.
+
+### Upgrading from media-mate (v0.2.x)
+
+v0.3.0 renamed the project, and with it every path it reads. Nothing is migrated
+automatically — `ferry` looks only at the new locations, and your old data is
+left untouched where it is. To carry it over:
+
+```bash
+mv ~/.media-mate ~/.ferry                      # config + audit log
+mv ~/.ferry/media-mate.db ~/.ferry/ferry.db    # the database itself
+mv ./media-mate.toml ./ferry.toml              # per-project config, if you have one
+```
+
+The desktop app keeps its data separately, under
+`~/Library/Application Support/ferry/` (was `.../media-mate/`) on macOS. That
+directory holds the vNext database, operation receipts and diagnostic logs, so
+move it too — left behind, the app starts with an empty database and your
+projects, jobs and receipts are not carried over.
+
+The database schema did not change, so a moved `ferry.db` is read as-is.
 
 ---
 
 ## The audit log
 
-Every operation writes to `~/.media-mate/media-mate.db` (SQLite). The schema covers runs, files, probes, proxies, projects, verifications, and organize operations.
+Every operation writes to `~/.ferry/ferry.db` (SQLite). The schema covers runs, files, probes, proxies, projects, verifications, and organize operations.
 
 The log answers questions like:
 
@@ -205,9 +225,9 @@ The log answers questions like:
 It's the system of record — back it up, copy it between machines, trust it as ground truth. Query from the TUI's **Audit Log** screen or the CLI:
 
 ```bash
-media-mate log            # text table
-media-mate log --format json
-media-mate log --limit 5
+ferry log            # text table
+ferry log --format json
+ferry log --limit 5
 ```
 
 ---
@@ -215,12 +235,12 @@ media-mate log --limit 5
 ## Roadmap
 
 The next product direction is documented in
-[`docs/MEDIA-MATE-PRODUCT-DIRECTION.md`](./docs/MEDIA-MATE-PRODUCT-DIRECTION.md):
+[`docs/FILE-FERRY-PRODUCT-DIRECTION.md`](./docs/FILE-FERRY-PRODUCT-DIRECTION.md):
 a local-first desktop workstation for verified card offload, existing-folder
 adoption, project reconciliation, and a retained CLI/TUI.
 
 The full build plan is in
-[`docs/MEDIA-MATE-FULL-APP-IMPLEMENTATION-PLAN.md`](./docs/MEDIA-MATE-FULL-APP-IMPLEMENTATION-PLAN.md).
+[`docs/FILE-FERRY-FULL-APP-IMPLEMENTATION-PLAN.md`](./docs/FILE-FERRY-FULL-APP-IMPLEMENTATION-PLAN.md).
 **All nine implementation packages are landed** (see its §0 progress table):
 Electron shell + secure bridge, the complete desktop experience, TUI/CLI
 parity, and packaged-release hardening. The remaining items are operator-owned
@@ -238,13 +258,13 @@ Longer-term ideas (not yet scheduled):
 
 ## Contributing
 
-Open source under the MIT license. Issues and PRs welcome on [GitHub](https://github.com/dspury/media-mate).
+Open source under the MIT license. Issues and PRs welcome on [GitHub](https://github.com/dspury/file-ferry).
 
 Development setup:
 
 ```bash
-git clone https://github.com/dspury/media-mate.git
-cd media-mate
+git clone https://github.com/dspury/file-ferry.git
+cd file-ferry
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
@@ -254,7 +274,7 @@ ruff check . && ruff format --check .
 mypy src
 ```
 
-Full specification: [`SPEC.md`](./SPEC.md). Archived superseded docs: [`docs/archive/`](./docs/archive/).
+Full specification: [`SPEC.md`](./SPEC.md).
 
 ---
 

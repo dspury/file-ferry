@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from media_mate.application.organize import OrganizeError, OrganizeService
-from media_mate.service.protocol import (
+from file_ferry.application.organize import OrganizeError, OrganizeService
+from file_ferry.service.protocol import (
     OrganizeApplyParams,
     OrganizePreviewParams,
     SourceInventoryEntry,

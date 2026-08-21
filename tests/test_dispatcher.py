@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 import time
 
-from media_mate.application.dispatcher import JobDispatcher
+from file_ferry.application.dispatcher import JobDispatcher
 
 
 class _StubJob:
@@ -17,7 +17,7 @@ class _StubJob:
 
 
 class _JobsServiceStub:
-    """Stands in for :class:`media_mate.application.jobs.JobService`.
+    """Stands in for :class:`file_ferry.application.jobs.JobService`.
 
     The dispatcher reads ``scheduler._jobs.list()`` to find queued
     jobs and never calls any other method on it, so a one-method
@@ -35,7 +35,7 @@ class _JobsServiceStub:
 
 
 class _SchedulerStub:
-    """Stands in for :class:`media_mate.application.scheduler.JobScheduler`.
+    """Stands in for :class:`file_ferry.application.scheduler.JobScheduler`.
 
     Exposes ``_jobs`` (the queue) and ``dispatch`` (the action).
     """
@@ -130,10 +130,10 @@ def test_dispatcher_thread_is_daemon() -> None:
 
 def test_application_service_starts_dispatcher_on_bootstrap(tmp_path) -> None:
     """``bootstrap`` wires the dispatcher and the shutdown path stops it."""
-    from media_mate.application.service import ApplicationService
+    from file_ferry.application.service import ApplicationService
 
     svc = ApplicationService(
-        db_path=tmp_path / "media-mate.db",
+        db_path=tmp_path / "ferry.db",
         app_data_dir=tmp_path / "app",
     )
     svc.bootstrap()

@@ -22,7 +22,7 @@ import {
 import type { OrganizePreview, OrganizationProfile } from '../../../shared/ipc-methods.js';
 
 export function Organize(): JSX.Element {
-  const profiles = useAsync(() => window.mediaMate.profile.list());
+  const profiles = useAsync(() => window.ferry.profile.list());
 
   const [sourcePath, setSourcePath] = useState<string | null>(null);
   const [destRoot, setDestRoot] = useState<string | null>(null);
@@ -40,7 +40,7 @@ export function Organize(): JSX.Element {
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const pickSource = async () => {
-    const r = await window.mediaMate.dialog.pick({ kind: 'directory' });
+    const r = await window.ferry.dialog.pick({ kind: 'directory' });
     if (!r.cancelled && r.path) {
       setSourcePath(r.path);
       setPreview(null);
@@ -48,7 +48,7 @@ export function Organize(): JSX.Element {
   };
 
   const pickDest = async () => {
-    const r = await window.mediaMate.dialog.pick({ kind: 'directory' });
+    const r = await window.ferry.dialog.pick({ kind: 'directory' });
     if (!r.cancelled && r.path) {
       setDestRoot(r.path);
       setPreview(null);
@@ -64,7 +64,7 @@ export function Organize(): JSX.Element {
     setPreview(null);
     try {
       // Inspect the source read-only, then preview the target tree.
-      const inspected = await window.mediaMate.source.inspect({
+      const inspected = await window.ferry.source.inspect({
         path: sourcePath,
         kind: 'existing_media',
       });
@@ -75,7 +75,7 @@ export function Organize(): JSX.Element {
         mode,
         ...(selectedProfile ? { template: selectedProfile.template } : {}),
       };
-      const p = await window.mediaMate.organize.preview(previewParams);
+      const p = await window.ferry.organize.preview(previewParams);
       setPreview(p);
     } catch (err) {
       setPreviewError(err instanceof Error ? err.message : String(err));
@@ -97,7 +97,7 @@ export function Organize(): JSX.Element {
     setApplying(true);
     setApplyError(null);
     try {
-      const inspected = await window.mediaMate.source.inspect({
+      const inspected = await window.ferry.source.inspect({
         path: sourcePath,
         kind: 'existing_media',
       });
@@ -109,7 +109,7 @@ export function Organize(): JSX.Element {
         ...(selectedProfile ? { template: selectedProfile.template } : {}),
         ...(mode === 'move' ? { confirmMove } : {}),
       };
-      const result = await window.mediaMate.organize.apply(applyParams);
+      const result = await window.ferry.organize.apply(applyParams);
       setOutcome(outcomeSummary(result.entries));
     } catch (err) {
       setApplyError(err instanceof Error ? err.message : String(err));
@@ -257,7 +257,7 @@ export function Organize(): JSX.Element {
       {confirmOpen ? (
         <ConfirmDialog
           title="Move files"
-          body="This will move source files into the destination. This is destructive and cannot be undone by media-mate."
+          body="This will move source files into the destination. This is destructive and cannot be undone by ferry."
           phrase="move"
           confirmLabel="Move files"
           onConfirm={() => {

@@ -83,8 +83,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint (eslint + anti-slop oxlint)
-        run: npm run lint
+      - name: Lint (eslint)
+        run: npm run lint:eslint
+
+      # oxlint loads the anti-slop plugin as a .ts file, which relies on
+      # Node's TypeScript type-stripping. Node 20 cannot import .ts at all
+      # (ERR_UNKNOWN_FILE_EXTENSION), so this half runs on 22 only. A lint
+      # only needs to run once; everything else below still runs on both,
+      # which is what actually establishes Node 20 support.
+      - name: Lint (anti-slop oxlint)
+        if: matrix.node-version == '22'
+        run: npm run lint:anti-slop
 
       - name: Check formatting
         run: npm run format:check

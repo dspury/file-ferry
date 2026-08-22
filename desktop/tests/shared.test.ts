@@ -4,7 +4,7 @@
  * These run in vitest without Electron.
  */
 import { describe, expect, it } from 'vitest';
-import { sanitizePickedPath } from '../shared/dialog.js';
+import { sanitizePickedPath, type PickedPathInput } from '../shared/dialog.js';
 import { isJobUpdatedParams, JobSnapshotStore, replayPayload } from '../shared/replay.js';
 import { formatDiagnosticSummary, logDirectoryName } from '../shared/diagnostics.js';
 import type { JobSnapshot } from '../shared/ipc-methods.js';
@@ -31,12 +31,13 @@ describe('sanitizePickedPath', () => {
   });
 
   it('rejects non-strings', () => {
-    // `123` is outside the declared PickedPathInput contract on purpose.
-    // The runtime guard is defence in depth for a value crossing the IPC
-    // boundary, so it is still worth asserting that a non-string is
-    // rejected rather than trusted. (Test files are not in any tsconfig
-    // project, so this call is not type-checked.)
-    expect(sanitizePickedPath(123)).toBeNull();
+    // Outside the declared PickedPathInput contract on purpose: the runtime
+    // guard is defence in depth for a value crossing the IPC boundary, so a
+    // non-string must still be rejected rather than trusted. `JSON.parse`
+    // is typed `any`, which hands the function a genuine number at runtime
+    // without needing a type assertion to get past the signature.
+    const notAString: PickedPathInput = JSON.parse('123');
+    expect(sanitizePickedPath(notAString)).toBeNull();
     expect(sanitizePickedPath(null)).toBeNull();
     expect(sanitizePickedPath(undefined)).toBeNull();
   });

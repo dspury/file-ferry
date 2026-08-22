@@ -7,34 +7,19 @@
  * The set of methods here is the renderer-visible attack surface;
  * every method passes through to a typed request on the sidecar.
  */
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { Frame, ResponseFrame, EventFrame } from '../shared/ipc-schema.js';
 import type { MethodName, ParamsOf, ResultOf } from '../shared/ipc-methods.js';
 import type { PickRequest, PickResult } from '../shared/dialog.js';
 
-interface PendingRequest {
-  readonly resolve: (value: unknown) => void;
-  readonly reject: (reason: Error) => void;
-}
-
-const pending: Map<string, PendingRequest> = new Map();
-
-ipcRenderer.on('sidecar:frame', (_event, frame: Frame) => {
-  if (frame.kind === 'response' || frame.kind === 'error') {
-    const waiter = pending.get(frame.id);
-    if (!waiter) return;
-    pending.delete(frame.id);
-    if (frame.kind === 'error') {
-      waiter.reject(new Error(frame.error.message));
-    } else {
-      waiter.resolve(frame.result);
-    }
-  }
-  // Events are forwarded as a separate channel; the renderer
-  // subscribes via `sidecarEvents`.
-});
-
 function invoke<M extends MethodName>(method: M, params: ParamsOf<M>): Promise<ResultOf<M>> {
+  // SAFETY: `ipcRenderer.invoke` is typed `Promise<any>` because the channel
+  // is untyped by construction. The result shape is pinned by the shared
+  // catalog: main forwards `method` to the sidecar, which validates the
+  // params and answers with `ResultOf<M>` for that same method, and the
+  // response frame is rejected unless its protocol version matches
+  // (`isFrame` in ipc-schema.ts). The method string is the single key tying
+  // request and result together, and it is `M` on both sides.
   return ipcRenderer.invoke('sidecar:request', { method, params }) as Promise<ResultOf<M>>;
 }
 
@@ -43,11 +28,19 @@ const api = {
     getStatus: () => invoke('app.getStatus', {}),
     getCapabilities: () => invoke('app.getCapabilities', {}),
     doctor: () => invoke('app.doctor', {}),
+    // SAFETY: native-only channels that never reach the sidecar. Each is
+    // answered by exactly one `ipcMain.handle` in electron/main.ts, whose
+    // return type is checked by tsc there; these assertions restate that
+    // handler's declared shape across the untyped bridge.
     openDiagnosticFolder: () =>
       ipcRenderer.invoke('app:openDiagnosticFolder') as Promise<{ logDir: string }>,
+    // SAFETY: same handler contract as `openDiagnosticFolder` above.
     diagnostics: () => ipcRenderer.invoke('app:diagnostics') as Promise<{ summary: string }>,
   },
   dialog: {
+    // SAFETY: as above — `dialog:pick` is handled once in main, which runs
+    // the picked path through `sanitizePickedPath` and can only return a
+    // `PickResult`.
     pick: (request: PickRequest) =>
       ipcRenderer.invoke('dialog:pick', request) as Promise<PickResult>,
   },
@@ -141,7 +134,7 @@ const api = {
   },
   sidecarEvents: {
     onJobUpdated(handler: (event: EventFrame) => void): () => void {
-      const listener = (_e: unknown, frame: EventFrame) => handler(frame);
+      const listener = (_event: IpcRendererEvent, frame: EventFrame) => handler(frame);
       ipcRenderer.on('sidecar:event:job.updated', listener);
       return () => ipcRenderer.removeListener('sidecar:event:job.updated', listener);
     },

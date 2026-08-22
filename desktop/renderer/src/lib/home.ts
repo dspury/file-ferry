@@ -25,15 +25,23 @@ export interface HomeSummary {
 const ACTIVE_STATES = new Set(['queued', 'running', 'verifying', 'resumable']);
 const ATTENTION_STATES = new Set(['needs_attention', 'awaiting_review']);
 
-export function isJobActive(job: JobDetail): boolean {
+/**
+ * These three classifiers read nothing but `state`, so they ask for nothing
+ * but `state`. A full `JobDetail` still satisfies the parameter, while a
+ * caller holding only the state (the Home job chip) no longer has to
+ * fabricate a whole job object to ask the question.
+ */
+export type JobStateOnly = Pick<JobDetail, 'state'>;
+
+export function isJobActive(job: JobStateOnly): boolean {
   return ACTIVE_STATES.has(job.state);
 }
 
-export function isJobAttention(job: JobDetail): boolean {
+export function isJobAttention(job: JobStateOnly): boolean {
   return ATTENTION_STATES.has(job.state);
 }
 
-export function isJobFailed(job: JobDetail): boolean {
+export function isJobFailed(job: JobStateOnly): boolean {
   return job.state === 'failed';
 }
 

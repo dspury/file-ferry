@@ -35,9 +35,9 @@ export function useAsync<T>(
         if (cancelled || reqId !== reqIdRef.current) return;
         setData(result);
       })
-      .catch((err: unknown) => {
+      .catch((cause: unknown) => {
         if (cancelled || reqId !== reqIdRef.current) return;
-        setError(err instanceof Error ? err.message : String(err));
+        setError(cause instanceof Error ? cause.message : String(cause));
       })
       .finally(() => {
         if (cancelled || reqId !== reqIdRef.current) return;

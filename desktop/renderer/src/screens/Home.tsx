@@ -118,13 +118,13 @@ export function Home(): JSX.Element {
 }
 
 function JobStateChip({ state }: { state: JobDetail['state'] }): JSX.Element {
-  if (isJobActive({ state } as JobDetail)) {
+  if (isJobActive({ state })) {
     return <Chip tone="ok">{state}</Chip>;
   }
-  if (isJobAttention({ state } as JobDetail)) {
+  if (isJobAttention({ state })) {
     return <Chip tone="attention">{state}</Chip>;
   }
-  if (isJobFailed({ state } as JobDetail)) {
+  if (isJobFailed({ state })) {
     return <Chip tone="danger">{state}</Chip>;
   }
   return <Chip>{state}</Chip>;

@@ -12,6 +12,7 @@
  * method in this map through a pair of in-process transceivers.
  */
 import type { ProtocolVersion } from './version.js';
+import type { JsonObject } from './ipc-schema.js';
 
 export interface AppStatus {
   readonly sidecarVersion: string;
@@ -59,8 +60,8 @@ export interface ProjectSummary {
 
 export interface ProjectDetail extends ProjectSummary {
   readonly organizationProfileId: number | null;
-  readonly proxyDefaults: Record<string, unknown> | null;
-  readonly resolveDefaults: Record<string, unknown> | null;
+  readonly proxyDefaults: JsonObject | null;
+  readonly resolveDefaults: JsonObject | null;
 }
 
 export interface UpdateProjectParams {
@@ -107,7 +108,7 @@ export interface OrganizationProfile {
   readonly id: number;
   readonly name: string;
   readonly version: number;
-  readonly template: Record<string, unknown>;
+  readonly template: JsonObject;
   readonly conflictPolicy: string;
   readonly mutationPolicy: string;
   readonly createdAt: string;
@@ -116,7 +117,7 @@ export interface OrganizationProfile {
 
 export interface SaveProfileParams {
   readonly name: string;
-  readonly template: Record<string, unknown>;
+  readonly template: JsonObject;
   readonly conflictPolicy?: string;
   readonly mutationPolicy?: string;
 }
@@ -266,7 +267,7 @@ export interface AuditEvent {
   readonly eventType: string;
   readonly entityType: string | null;
   readonly entityId: string | null;
-  readonly data: Record<string, unknown> | null;
+  readonly data: JsonObject | null;
   readonly runId: number | null;
 }
 
@@ -387,7 +388,7 @@ export interface OrganizePreviewParams {
   readonly sourceRoot: string;
   readonly destRoot: string;
   readonly entries: readonly SourceInventoryEntry[];
-  readonly template?: Record<string, unknown>;
+  readonly template?: JsonObject;
   readonly mode?: 'copy' | 'move' | 'link';
 }
 
@@ -397,7 +398,7 @@ export interface OrganizeApplyParams {
   readonly entries: readonly SourceInventoryEntry[];
   readonly mode?: 'copy' | 'move' | 'link';
   readonly confirmMove?: boolean;
-  readonly template?: Record<string, unknown>;
+  readonly template?: JsonObject;
 }
 
 export interface OrganizeResult {
@@ -511,7 +512,7 @@ export interface ListVolumesResult {
 
 export interface ProfilePreviewParams {
   readonly name?: string;
-  readonly template: Record<string, unknown>;
+  readonly template: JsonObject;
   readonly sourceRoot: string;
   readonly destRoot: string;
   readonly entries: readonly SourceInventoryEntry[];
@@ -604,7 +605,7 @@ export interface MethodCatalog {
   'job.retry': { params: { id: string }; result: JobDetail };
   'plan.build': { params: BuildPlanParams; result: IntakePlan };
   'receipt.export': { params: ExportReceiptParams; result: ExportReceiptResult };
-  'receipt.get': { params: { operationId: string }; result: Record<string, unknown> };
+  'receipt.get': { params: { operationId: string }; result: JsonObject };
   'reconcile.asset': { params: ReconcileAssetParams; result: ReconcileReport };
   'reconcile.project': { params: ReconcileProjectParams; result: ReconcileReport[] };
   'reconcile.acceptChange': { params: AcceptChangeParams; result: ReconcileReport };

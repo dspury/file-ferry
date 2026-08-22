@@ -68,13 +68,16 @@ export function Organize(): JSX.Element {
         path: sourcePath,
         kind: 'existing_media',
       });
-      const previewParams = {
+      const baseParams = {
         sourceRoot: sourcePath,
         destRoot,
         entries: inspected.entries,
         mode,
-        ...(selectedProfile ? { template: selectedProfile.template } : {}),
       };
+      // `template` is optional; add it only when a profile is selected.
+      const previewParams = selectedProfile
+        ? { ...baseParams, template: selectedProfile.template }
+        : baseParams;
       const p = await window.ferry.organize.preview(previewParams);
       setPreview(p);
     } catch (err) {
@@ -101,14 +104,17 @@ export function Organize(): JSX.Element {
         path: sourcePath,
         kind: 'existing_media',
       });
-      const applyParams = {
+      const baseParams = {
         sourceRoot: sourcePath,
         destRoot,
         entries: inspected.entries,
         mode,
-        ...(selectedProfile ? { template: selectedProfile.template } : {}),
-        ...(mode === 'move' ? { confirmMove } : {}),
       };
+      // Both fields are optional; each is added only when it applies.
+      const withTemplate = selectedProfile
+        ? { ...baseParams, template: selectedProfile.template }
+        : baseParams;
+      const applyParams = mode === 'move' ? { ...withTemplate, confirmMove } : withTemplate;
       const result = await window.ferry.organize.apply(applyParams);
       setOutcome(outcomeSummary(result.entries));
     } catch (err) {
@@ -160,7 +166,15 @@ export function Organize(): JSX.Element {
           </select>
         </Field>
         <Field label="Mode">
-          <select value={mode} onChange={(e) => setMode(e.target.value as typeof mode)}>
+          <select
+            value={mode}
+            onChange={(e) => {
+              // SAFETY: a <select> can only emit one of its own <option>
+              // values, and the three below are exactly the members of
+              // `mode`.
+              setMode(e.target.value as typeof mode);
+            }}
+          >
             <option value="copy">copy</option>
             <option value="move">move (requires confirm)</option>
             <option value="link">link</option>

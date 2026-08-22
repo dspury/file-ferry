@@ -11,6 +11,21 @@ import { PROTOCOL_VERSION } from './version.js';
 
 export { PROTOCOL_VERSION };
 
+/**
+ * Any value that can survive the JSON round-trip to the sidecar.
+ *
+ * Free-form payloads on this wire — rule templates, error `data`, receipt
+ * bodies — are not arbitrary values: they have been through `JSON.parse`,
+ * so every leaf is a string, number, boolean or null. Typing them as
+ * `JsonValue` rather than `unknown` gives callers something they can
+ * actually narrow, while still refusing to pretend we know the schema.
+ */
+export type JsonValue =
+  string | number | boolean | null | JsonValue[] | { readonly [key: string]: JsonValue };
+
+/** A JSON object payload whose keys are not known ahead of time. */
+export type JsonObject = { readonly [key: string]: JsonValue };
+
 export type FrameKind = 'request' | 'response' | 'event' | 'error';
 
 export interface RequestFrame<P = unknown> {
@@ -51,7 +66,7 @@ export type Frame = RequestFrame | ResponseFrame | EventFrame | ErrorFrame;
 export interface RpcError {
   readonly code: RpcErrorCode;
   readonly message: string;
-  readonly data?: Record<string, unknown>;
+  readonly data?: JsonObject;
 }
 
 /**
@@ -70,7 +85,7 @@ export type RpcErrorCode =
   | 'needs_attention'
   | 'unsafe_state';
 
-export const RPC_ERROR_CODES: Record<RpcErrorCode, number> = {
+export const RPC_ERROR_CODES = {
   parse_error: -32700,
   invalid_request: -32600,
   method_not_found: -32601,
@@ -99,9 +114,13 @@ export function encodeFrame(frame: Frame): string {
 export function decodeFrame(line: string): Frame | null {
   const trimmed = line.trim();
   if (trimmed.length === 0) return null;
-  let parsed: unknown;
+  let parsed: JsonValue;
   try {
-    parsed = JSON.parse(trimmed);
+    // SAFETY: `JSON.parse` is typed `any`, but by definition it can only
+    // produce a JSON value — object, array, string, number, boolean or null.
+    // Naming that here is what lets `isFrame` take a real type instead of
+    // `unknown`; every field is still checked before the frame is trusted.
+    parsed = JSON.parse(trimmed) as JsonValue;
   } catch {
     return null;
   }
@@ -109,9 +128,9 @@ export function decodeFrame(line: string): Frame | null {
   return parsed;
 }
 
-function isFrame(value: unknown): value is Frame {
-  if (typeof value !== 'object' || value === null) return false;
-  const obj = value as Record<string, unknown>;
+function isFrame(value: JsonValue): value is Frame & JsonObject {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const obj: JsonObject = value;
   if (obj['jsonrpc'] !== '2.0') return false;
   if (obj['v'] !== PROTOCOL_VERSION) return false;
   const kind = obj['kind'];

@@ -7,12 +7,12 @@
  */
 import { app, BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron';
 import { resolve as pathResolve } from 'node:path';
-import { SidecarSupervisor } from './sidecar.js';
+import { SidecarSupervisor, type SidecarSupervisorOptions } from './sidecar.js';
 import { resolveSidecarCommand } from './sidecar-command.js';
 import { showPicker } from './dialogs.js';
 import { ensureLogDir, appendLog, countLogFiles, openDiagnosticFolder } from './diagnostics.js';
 import { applyContentSecurityPolicy, baseWindowOptions } from './security.js';
-import { JobSnapshotStore, replayPayload } from '../shared/replay.js';
+import { JobSnapshotStore, replayPayload, isJobUpdatedParams } from '../shared/replay.js';
 import { formatDiagnosticSummary } from '../shared/diagnostics.js';
 import { PROTOCOL_VERSION } from '../shared/version.js';
 import { getReleaseInfo, releaseSummary } from '../shared/release.js';
@@ -45,11 +45,8 @@ async function createMainWindow(supervisor: SidecarSupervisor): Promise<BrowserW
   // recorded into the replay store so a reloaded window can be caught up.
   supervisor.on('frame', (frame) => {
     if (frame.kind === 'event') {
-      if (frame.method === 'job.updated') {
-        const snapshot = (frame as { params: { snapshot: { id: string } } }).params?.snapshot;
-        if (snapshot && snapshot.id) {
-          snapshotStore.record(snapshot as never);
-        }
+      if (frame.method === 'job.updated' && isJobUpdatedParams(frame.params)) {
+        snapshotStore.record(frame.params.snapshot);
       }
       window.webContents.send(`sidecar:event:${frame.method}`, frame);
     }
@@ -123,17 +120,21 @@ async function main(): Promise<void> {
     platform: process.platform,
     pythonOverride: process.env.FERRY_PYTHON,
   });
-  const supervisor = new SidecarSupervisor({
+  const supervisorOptions: SidecarSupervisorOptions = {
     executable,
     // The sidecar can derive these itself, but then two implementations own
     // the same paths and drift (the diagnostics panel reported a db the
     // sidecar never opened). The shell is authoritative.
     args: [...args, '--db', dbPath, '--app-data', appDataDir],
-    ...(cwd === undefined ? {} : { cwd }),
     env: {
       FERRY_PROTOCOL_VERSION: String(PROTOCOL_VERSION),
     },
-  });
+  };
+  // `cwd` is optional under exactOptionalPropertyTypes, so it is added only
+  // when it has a value rather than passed as an explicit undefined.
+  const supervisor = new SidecarSupervisor(
+    cwd === undefined ? supervisorOptions : { ...supervisorOptions, cwd },
+  );
 
   // Sidecar stderr/stdout go to the local diagnostic log (plan §8.1).
   supervisor.on('log', (line) => {

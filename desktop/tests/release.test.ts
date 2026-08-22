@@ -9,8 +9,8 @@ describe('release provenance', () => {
   it('defaults to a dev stamp with the frozen protocol version', () => {
     const info = getReleaseInfo();
     expect(info.protocolVersion).toBe(PROTOCOL_VERSION);
-    expect(typeof info.version).toBe('string');
-    expect(typeof info.commit).toBe('string');
+    expect(info.version).toBeTypeOf('string');
+    expect(info.commit).toBeTypeOf('string');
   });
 
   it('supports a stamped override for packaged builds', () => {

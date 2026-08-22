@@ -27,6 +27,11 @@ desktop/
 
 ## Development
 
+Requires **Node 22+**. The floor is set by the anti-slop lint: oxlint loads
+its plugin as a `.ts` file, which relies on Node's TypeScript
+type-stripping, and Node 20 cannot import `.ts` at all. (This is the
+toolchain requirement — unrelated to the Node that Electron bundles.)
+
 ```bash
 npm install
 npm run typecheck

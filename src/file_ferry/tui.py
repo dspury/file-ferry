@@ -257,10 +257,20 @@ class HomeScreen(Screen[Any]):
                 yield Button("DURABLE JOBS  [J]", id="jobs")
                 yield Button("SETTINGS  [S]", id="settings")
             with Horizontal(id="stats-row"):
-                yield Static("", id="stat-total", classes="stat-tile")
-                yield Static("", id="stat-success", classes="stat-tile")
-                yield Static("", id="stat-failed", classes="stat-tile")
-                yield Static("", id="stat-live", classes="stat-tile")
+                # The tiles start empty and are filled by _refresh_stats, so
+                # without a tooltip they have no accessible name on first
+                # mount (WCAG 4.1.2). It also helps sighted users on hover.
+                # Static takes no tooltip kwarg — assign it after construction,
+                # as the Resolve step checkbox below already does.
+                for tile_id, tile_tip in (
+                    ("stat-total", "Total pipeline runs"),
+                    ("stat-success", "Runs that succeeded"),
+                    ("stat-failed", "Runs that failed"),
+                    ("stat-live", "Runs currently in progress"),
+                ):
+                    tile = Static("", id=tile_id, classes="stat-tile")
+                    tile.tooltip = tile_tip
+                    yield tile
             yield Static("", id="system")
         yield Footer()
 
@@ -280,14 +290,23 @@ class HomeScreen(Screen[Any]):
     def _refresh_stats(self) -> None:
         app = cast("FerryApp", self.app)
         total, success, failed, running = get_run_counts(app.db_path)
+        # The count is the dominant mark on each tile and the label above it
+        # is deliberately dim, so colour was the only thing separating
+        # succeeded from failed (WCAG 1.4.1). Reuse the _STATUS_GLYPH marks
+        # already established in the audit log so the row stays scannable
+        # without colour.
         self.query_one("#stat-total", Static).update(
             f"[dim]TOTAL RUNS[/]\n[bright_white bold]{total}[/]"
         )
         self.query_one("#stat-success", Static).update(
-            f"[dim]SUCCEEDED[/]\n[green bold]{success}[/]"
+            f"[dim]SUCCEEDED[/]\n{_STATUS_GLYPH['success']} [green bold]{success}[/]"
         )
-        self.query_one("#stat-failed", Static).update(f"[dim]FAILED[/]\n[red bold]{failed}[/]")
-        self.query_one("#stat-live", Static).update(f"[dim]LIVE[/]\n[cyan bold]{running}[/]")
+        self.query_one("#stat-failed", Static).update(
+            f"[dim]FAILED[/]\n{_STATUS_GLYPH['failed']} [red bold]{failed}[/]"
+        )
+        self.query_one("#stat-live", Static).update(
+            f"[dim]LIVE[/]\n{_STATUS_GLYPH['running']} [cyan bold]{running}[/]"
+        )
         self._update_system_line(_ffmpeg_version or "checking…")
 
     def _update_system_line(self, ffmpeg_version: str) -> None:
@@ -361,6 +380,7 @@ class PipelineScreen(Screen[Any]):
         yield Header()
         with Horizontal(id="workspace"):
             with Vertical(id="browser-pane"):
+                yield Label("Browse path", classes="field-label")
                 yield Input(
                     value=str(Path.home()), placeholder="Path to browse…", id="browser-path"
                 )
@@ -383,6 +403,7 @@ class PipelineScreen(Screen[Any]):
                         )
                         yield resolve_step
                         yield Checkbox("5 Verify", id="verify")
+                    yield Label("Output root", classes="field-label")
                     yield Input(
                         placeholder="Output root  (blank = beside source)",
                         id="output-root",
@@ -391,31 +412,45 @@ class PipelineScreen(Screen[Any]):
                         yield Checkbox("Move originals", id="move")
                         yield Checkbox("Dry-run organize", id="dry-run")
                         yield Checkbox("Accept verify changes", id="accept-changes")
+                    # Each control in this row carries its own visible label
+                    # (WCAG 1.3.1 / 4.1.2). A placeholder disappears the moment
+                    # the field has a value, so it cannot be the only name a
+                    # control has — the two Selects never had one at all.
                     with Horizontal(id="resolve-options"):
-                        yield Input(placeholder="Resolve project name", id="project-name")
-                        yield Select(
-                            [("720p", "720"), ("1080p", "1080"), ("4K", "4K")],
-                            value="1080",
-                            id="resolution",
-                        )
-                        yield Select(
-                            [
-                                (value, value)
-                                for value in (
-                                    "23.976",
-                                    "24",
-                                    "25",
-                                    "29.97",
-                                    "30",
-                                    "50",
-                                    "59.94",
-                                    "60",
-                                )
-                            ],
-                            value="24",
-                            id="frame-rate",
-                        )
-                        yield Input(value="Rec.709", placeholder="Color space", id="color-space")
+                        with Vertical(classes="field-col field-col--grow"):
+                            yield Label("Project name", classes="field-label")
+                            yield Input(placeholder="Resolve project name", id="project-name")
+                        with Vertical(classes="field-col field-col--narrow"):
+                            yield Label("Resolution", classes="field-label")
+                            yield Select(
+                                [("720p", "720"), ("1080p", "1080"), ("4K", "4K")],
+                                value="1080",
+                                id="resolution",
+                            )
+                        with Vertical(classes="field-col field-col--narrow"):
+                            yield Label("Frame rate", classes="field-label")
+                            yield Select(
+                                [
+                                    (value, value)
+                                    for value in (
+                                        "23.976",
+                                        "24",
+                                        "25",
+                                        "29.97",
+                                        "30",
+                                        "50",
+                                        "59.94",
+                                        "60",
+                                    )
+                                ],
+                                value="24",
+                                id="frame-rate",
+                            )
+                        with Vertical(classes="field-col field-col--grow"):
+                            yield Label("Color space", classes="field-label")
+                            yield Input(
+                                value="Rec.709", placeholder="Color space", id="color-space"
+                            )
                 with Vertical(id="activity-panel"):
                     yield ProgressBar(id="progress", show_eta=False)
                     yield Static("IDLE  •  select a folder and press A", id="stats")
@@ -922,6 +957,7 @@ class LogScreen(Screen[Any]):
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="log-panel"):
+            yield Label("Search", classes="field-label")
             yield Input(placeholder="Search command or status…", id="search")
             yield DataTable(id="log-table")
         yield Footer()
@@ -1122,8 +1158,12 @@ class FerryApp(App[Any]):
     /* Inputs default to width 100% — inside a Horizontal that pushes every
        sibling Select off-screen. Share the row instead. */
     #resolve-options { height: auto; }
-    #resolve-options Input { width: 1fr; margin: 0 1 0 0; }
-    #resolve-options Select { width: 13; margin: 0 1 0 0; }
+    #resolve-options .field-col { height: auto; margin: 0 1 0 0; }
+    #resolve-options .field-col--grow { width: 1fr; }
+    #resolve-options .field-col--narrow { width: 15; }
+    #resolve-options .field-label { margin: 0; }
+    #resolve-options Input { width: 100%; margin: 0; }
+    #resolve-options Select { width: 100%; margin: 0; }
     #activity-panel { height: 1fr; border: round $surface-lighten-2; background: $panel; padding: 0 1; }
     #progress { margin: 1 0; }
     #stats { color: $accent; text-style: bold; height: 1; }

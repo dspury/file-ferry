@@ -13,9 +13,9 @@ from file_ferry.config import load_config, save_config
 from file_ferry.models import ChecksumAlgo, FerryConfig, OrganizeResult
 from file_ferry.organize import compute_output_tree
 from file_ferry.tui import (
+    FerryApp,
     HomeScreen,
     LogScreen,
-    MediaMateApp,
     PipelineOptions,
     PipelineScreen,
     QueueItem,
@@ -62,7 +62,7 @@ def test_save_config_preserves_comments_and_layout(tmp_path: Path) -> None:
 
 def test_keyboard_screen_navigation(tmp_path: Path) -> None:
     async def navigate() -> None:
-        app = MediaMateApp(tmp_path / "audit.db")
+        app = FerryApp(tmp_path / "audit.db")
         async with app.run_test(size=(120, 40)) as pilot:
             await pilot.pause()
             assert isinstance(app.screen, HomeScreen)
@@ -386,7 +386,7 @@ class TestListExternalDrives:
         fake_drives = [Path("/Volumes/Card"), Path("/Volumes/Backup")]
 
         async def run() -> None:
-            app = MediaMateApp(tmp_path / "audit.db")
+            app = FerryApp(tmp_path / "audit.db")
             with patch("file_ferry.tui.list_external_drives", return_value=fake_drives):
                 async with app.run_test(size=(120, 40)) as pilot:
                     await pilot.press("r")
@@ -408,7 +408,7 @@ class TestListExternalDrives:
         """When no external drives are connected, the drives section stays hidden."""
 
         async def run() -> None:
-            app = MediaMateApp(tmp_path / "audit.db")
+            app = FerryApp(tmp_path / "audit.db")
             with patch("file_ferry.tui.list_external_drives", return_value=[]):
                 async with app.run_test(size=(120, 40)) as pilot:
                     await pilot.press("r")
@@ -448,7 +448,7 @@ class TestPipelineDispatch:
 
     def test_dispatch_routes_known_steps(self, tmp_path: Path) -> None:
         async def run() -> None:
-            app = MediaMateApp(tmp_path / "audit.db")
+            app = FerryApp(tmp_path / "audit.db")
             async with app.run_test(size=(120, 40)) as pilot:
                 await pilot.pause()
                 from file_ferry.tui import _PipelineItemContext
@@ -480,7 +480,7 @@ class TestPipelineDispatch:
 
     def test_dispatch_rejects_unknown_step(self, tmp_path: Path) -> None:
         async def run() -> None:
-            MediaMateApp(tmp_path / "audit.db")
+            FerryApp(tmp_path / "audit.db")
             from file_ferry.tui import _PipelineItemContext
 
             ctx = _PipelineItemContext(
@@ -533,7 +533,7 @@ class TestDryRunSkipSemantics:
 
     def test_proxy_step_skips_when_organize_was_dry_run(self, tmp_path: Path) -> None:
         async def run() -> None:
-            MediaMateApp(tmp_path / "audit.db")
+            FerryApp(tmp_path / "audit.db")
             screen = PipelineScreen()
             ctx = self._make_ctx(tmp_path, dry_run=True, organize_ran=True)
             detail = screen._run_proxy_step(ctx)
@@ -544,7 +544,7 @@ class TestDryRunSkipSemantics:
 
     def test_resolve_step_skips_when_organize_was_dry_run(self, tmp_path: Path) -> None:
         async def run() -> None:
-            MediaMateApp(tmp_path / "audit.db")
+            FerryApp(tmp_path / "audit.db")
             screen = PipelineScreen()
             ctx = self._make_ctx(tmp_path, dry_run=True, organize_ran=True)
             detail = screen._run_resolve_step(ctx)
@@ -555,7 +555,7 @@ class TestDryRunSkipSemantics:
 
     def test_verify_step_skips_when_organize_was_dry_run(self, tmp_path: Path) -> None:
         async def run() -> None:
-            MediaMateApp(tmp_path / "audit.db")
+            FerryApp(tmp_path / "audit.db")
             screen = PipelineScreen()
             ctx = self._make_ctx(tmp_path, dry_run=True, organize_ran=True)
             detail = screen._run_verify_step(ctx)
@@ -566,7 +566,7 @@ class TestDryRunSkipSemantics:
         """Counter-test: the skip is gated on BOTH organize_ran AND dry_run."""
 
         async def run() -> None:
-            MediaMateApp(tmp_path / "audit.db")
+            FerryApp(tmp_path / "audit.db")
             screen = PipelineScreen()
             with patch("file_ferry.proxy.generate_proxies") as mock_proxies:
                 from file_ferry.proxy import ProxyBatchResult
@@ -590,7 +590,7 @@ class TestDryRunSkipSemantics:
         """
 
         async def run() -> None:
-            MediaMateApp(tmp_path / "audit.db")
+            FerryApp(tmp_path / "audit.db")
             screen = PipelineScreen()
             with patch("file_ferry.proxy.generate_proxies") as mock_proxies:
                 from file_ferry.proxy import ProxyBatchResult

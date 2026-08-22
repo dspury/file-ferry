@@ -63,12 +63,15 @@ MM_THEME = Theme(
     dark=True,
 )
 
+# figlet, "slant" font — regenerate with:
+#   python -c "import pyfiglet; print(pyfiglet.figlet_format('ferry', font='slant'))"
 ASCII_LOGO = r"""
-                       ___                             __
-   ____ ___  ___  ____/ (_)___ _      ____ ___  ____ _/ /____
-  / __ `__ \/ _ \/ __  / / __ `/_____/ __ `__ \/ __ `/ __/ _ \
- / / / / / /  __/ /_/ / / /_/ /_____/ / / / / / /_/ / /_/  __/
-/_/ /_/ /_/\___/\__,_/_/\__,_/     /_/ /_/ /_/\__,_/\__/\___/
+    ____
+   / __/__  ____________  __
+  / /_/ _ \/ ___/ ___/ / / /
+ / __/  __/ /  / /  / /_/ /
+/_/  \___/_/  /_/   \__, /
+                   /____/
 """
 
 STRAP = "INGEST  ·  ORGANIZE  ·  PROXY  ·  RESOLVE  ·  VERIFY"
@@ -275,7 +278,7 @@ class HomeScreen(Screen[Any]):
         self._refresh_stats()
 
     def _refresh_stats(self) -> None:
-        app = cast("MediaMateApp", self.app)
+        app = cast("FerryApp", self.app)
         total, success, failed, running = get_run_counts(app.db_path)
         self.query_one("#stat-total", Static).update(
             f"[dim]TOTAL RUNS[/]\n[bright_white bold]{total}[/]"
@@ -288,7 +291,7 @@ class HomeScreen(Screen[Any]):
         self._update_system_line(_ffmpeg_version or "checking…")
 
     def _update_system_line(self, ffmpeg_version: str) -> None:
-        app = cast("MediaMateApp", self.app)
+        app = cast("FerryApp", self.app)
         self.query_one("#system", Static).update(
             f"[dim]FFMPEG[/] [bold]{ffmpeg_version}[/]   [dim]DB[/] {app.db_path}"
         )
@@ -643,7 +646,7 @@ class PipelineScreen(Screen[Any]):
         invariants: cancellation, per-item output isolation, progress
         accounting, error containment, final queue summary.
         """
-        app = cast("MediaMateApp", self.app)
+        app = cast("FerryApp", self.app)
         try:
             store = LogStore(app.db_path)
             store.initialize()
@@ -888,7 +891,7 @@ class JobsScreen(Screen[Any]):
         self._refresh()
 
     def _refresh(self) -> None:
-        app = cast("MediaMateApp", self.app)
+        app = cast("FerryApp", self.app)
         table = self.query_one("#jobs-table", DataTable)
         table.clear()
         try:
@@ -950,7 +953,7 @@ class LogScreen(Screen[Any]):
         table = self.query_one("#log-table", DataTable)
         table.clear()
         needle = self.query_one("#search", Input).value.lower()
-        app = cast("MediaMateApp", self.app)
+        app = cast("FerryApp", self.app)
         panel = self.query_one("#log-panel", Vertical)
         if not app.db_path.exists():
             panel.border_subtitle = "no runs yet"
@@ -978,7 +981,7 @@ class LogScreen(Screen[Any]):
 
 class SettingsScreen(Screen[Any]):
     def compose(self) -> ComposeResult:
-        app = cast("MediaMateApp", self.app)
+        app = cast("FerryApp", self.app)
         cfg = load_config(app.config_path)
         yield Header()
         with VerticalScroll(id="settings-scroll"), Container(id="settings-panel"):
@@ -1039,7 +1042,7 @@ class SettingsScreen(Screen[Any]):
     BINDINGS: ClassVar = [Binding("ctrl+s", "save", "Save")]
 
     def action_save(self) -> None:
-        app = cast("MediaMateApp", self.app)
+        app = cast("FerryApp", self.app)
         old = load_config(app.config_path)
         height = self.query_one("#height", Select).value
         assert isinstance(height, int)
@@ -1074,7 +1077,7 @@ class SettingsScreen(Screen[Any]):
         self.action_save() if event.button.id == "save" else self.app.pop_screen()
 
 
-class MediaMateApp(App[Any]):
+class FerryApp(App[Any]):
     TITLE = "FERRY"
     SUB_TITLE = f"POST WORKSTATION  /  v{__version__}"
     THEMES: ClassVar = [MM_THEME]
@@ -1196,7 +1199,7 @@ class MediaMateApp(App[Any]):
 
 
 def main(db_path: Path = DEFAULT_DB, config_path: Path | None = None) -> None:
-    MediaMateApp(db_path, config_path).run()
+    FerryApp(db_path, config_path).run()
 
 
 if __name__ == "__main__":

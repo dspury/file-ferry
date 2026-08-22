@@ -1,12 +1,20 @@
 /**
- * Home screen.
+ * Dashboard screen.
  *
  * Active jobs, connected sources, unsafe cards, missing/unverified
  * replicas, failed work, and proxy readiness (plan §8.2). Aggregates the
  * pure logic in lib/home.ts; the screen is a thin renderer.
  */
 import { useAsync } from '../hooks/useAsync.js';
-import { Chip, Panel, LoadingState, ErrorState } from '../components/ui.js';
+import {
+  Chip,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  Panel,
+  PathCell,
+  StatCard,
+} from '../components/ui.js';
 import {
   homeCards,
   isJobActive,
@@ -14,7 +22,13 @@ import {
   isJobFailed,
   type HomeSummary,
 } from '../lib/home.js';
+import { formatBytes } from '../lib/doctor.js';
+import { navigateTo } from '../views.js';
 import type { JobDetail } from '../../../shared/ipc-methods.js';
+
+/** Jobs are listed newest-work-first; the dashboard shows only the head of
+ *  the list and defers the rest to Activity, which can filter and search. */
+const RECENT_JOB_LIMIT = 6;
 
 export function Home(): JSX.Element {
   const jobs = useAsync(() => window.ferry.job.list());
@@ -25,7 +39,7 @@ export function Home(): JSX.Element {
   const error = jobs.error ?? volumes.error ?? assets.error;
 
   if (loading) {
-    return <LoadingState message="Loading Home…" />;
+    return <LoadingState message="Loading dashboard…" />;
   }
   if (error !== null) {
     return <ErrorState message={error} />;
@@ -46,71 +60,115 @@ export function Home(): JSX.Element {
   };
 
   const cards = homeCards(summary);
+  const recent = jobList.slice(0, RECENT_JOB_LIMIT);
 
   return (
-    <div className="stack">
-      <h2>Home</h2>
-
-      <div className="card">
-        <div className="row" style={{ gap: 16, alignItems: 'stretch' }}>
-          {cards.map((c) => (
-            <div key={c.label} className="grow">
-              <div className="muted">{c.label}</div>
-              <div style={{ fontSize: 28, fontWeight: 700 }}>
-                <Chip tone={c.tone}>{c.count}</Chip>
-              </div>
-            </div>
-          ))}
-        </div>
+    <div className="page">
+      {/*
+        A tile only earns colour when it is reporting something. At zero,
+        "Failed" in red reads as an alarm for a healthy system, so a zero
+        count falls back to the neutral tone and the number stays plain.
+      */}
+      <div className="stats">
+        {cards.map((c) => (
+          <StatCard
+            key={c.label}
+            label={c.label}
+            value={c.count}
+            tone={c.count > 0 ? c.tone : 'neutral'}
+          />
+        ))}
       </div>
 
-      <Panel title="Connected sources">
+      <Panel
+        title="Connected sources"
+        description="Volumes ferry can currently see"
+        flush={volumesList.length > 0}
+      >
         {volumesList.length === 0 ? (
-          <p className="muted">No volumes detected.</p>
+          <EmptyState
+            message="No volumes detected"
+            hint="Connect a card reader or an external drive and it will appear here."
+          />
         ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Mount</th>
-                <th>Filesystem</th>
-              </tr>
-            </thead>
-            <tbody>
-              {volumesList.map((v) => (
-                <tr key={v.path}>
-                  <td>{v.path}</td>
-                  <td className="muted">{v.filesystem}</td>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Mount</th>
+                  <th>Filesystem</th>
+                  <th className="cell-num">Free</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {volumesList.map((v) => (
+                  <tr key={v.path}>
+                    <td>
+                      <PathCell path={v.path} />
+                    </td>
+                    <td className="muted">{v.filesystem}</td>
+                    <td className="cell-num muted">{formatBytes(v.freeBytes)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Panel>
 
-      <Panel title="Jobs">
-        {jobList.length === 0 ? (
-          <p className="muted">No jobs yet.</p>
+      <Panel
+        title="Recent jobs"
+        description={
+          jobList.length > RECENT_JOB_LIMIT
+            ? `Showing ${RECENT_JOB_LIMIT} of ${jobList.length}`
+            : undefined
+        }
+        actions={
+          jobList.length === 0 ? undefined : (
+            <button type="button" className="btn btn--sm" onClick={() => navigateTo('activity')}>
+              View all in Activity
+            </button>
+          )
+        }
+        flush={recent.length > 0}
+      >
+        {recent.length === 0 ? (
+          <EmptyState
+            message="No jobs yet"
+            hint="Offload a camera card or organize existing media to create the first one."
+            action={
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={() => navigateTo('ingest')}
+              >
+                Start an offload
+              </button>
+            }
+          />
         ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Command</th>
-                <th>State</th>
-                <th>Project</th>
-              </tr>
-            </thead>
-            <tbody>
-              {jobList.map((j) => (
-                <tr key={j.id}>
-                  <td>{j.command}</td>
-                  <td>
-                    <JobStateChip state={j.state} />
-                  </td>
-                  <td className="muted">{j.projectId}</td>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Command</th>
+                  <th>State</th>
+                  <th>Project</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {recent.map((j) => (
+                  <tr key={j.id}>
+                    <td>{j.command}</td>
+                    <td>
+                      <JobStateChip state={j.state} />
+                    </td>
+                    <td className="muted">{j.projectId}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Panel>
     </div>

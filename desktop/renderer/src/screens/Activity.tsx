@@ -8,7 +8,17 @@
  */
 import { useState } from 'react';
 import { useAsync } from '../hooks/useAsync.js';
-import { Chip, Panel, LoadingState, ErrorState, type Tone } from '../components/ui.js';
+import {
+  Banner,
+  Chip,
+  EmptyState,
+  ErrorState,
+  LoadingState,
+  Panel,
+  Progress,
+  SegmentedControl,
+  type Tone,
+} from '../components/ui.js';
 import {
   jobMatchesFilter,
   jobProgress,
@@ -21,7 +31,7 @@ import {
 } from '../lib/activity.js';
 import type { JobDetail } from '../../../shared/ipc-methods.js';
 
-const FILTERS: JobFilter[] = ['all', 'active', 'attention', 'failed', 'finished'];
+const FILTERS: readonly JobFilter[] = ['all', 'active', 'attention', 'failed', 'finished'];
 
 export function Activity(): JSX.Element {
   const jobs = useAsync(() => window.ferry.job.list());
@@ -64,70 +74,104 @@ export function Activity(): JSX.Element {
   }
 
   return (
-    <div className="stack">
-      <h2>Activity</h2>
+    <div className="page">
+      {actionError !== null ? <Banner tone="danger">{actionError}</Banner> : null}
 
-      <Panel title="Filter & search">
-        <div className="row">
-          {FILTERS.map((f) => (
-            <button
-              key={f}
-              className={`btn${filter === f ? ' btn--primary' : ''}`}
-              onClick={() => setFilter(f)}
-            >
-              {f}
-            </button>
-          ))}
-          <input
-            className="grow"
-            type="search"
-            aria-label="Search jobs"
-            placeholder="Search command, project, state…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </div>
-      </Panel>
-
-      {actionError !== null ? <Chip tone="danger">{actionError}</Chip> : null}
-
-      <Panel title="Jobs">
+      <Panel
+        title="Jobs"
+        description={
+          filtered.length === list.length
+            ? `${list.length} total`
+            : `${filtered.length} of ${list.length}`
+        }
+        actions={
+          <>
+            {/*
+              A search input needs no visible label here: it sits in a
+              toolbar with a placeholder and an aria-label, and a "Search"
+              caption beside it would only cost horizontal room. The
+              segmented control carries its own group label.
+            */}
+            <SegmentedControl
+              label="Filter jobs by state"
+              value={filter}
+              options={FILTERS}
+              onChange={setFilter}
+            />
+            <input
+              type="search"
+              className="toolbar__search"
+              aria-label="Search jobs"
+              placeholder="Search command, project, state…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </>
+        }
+        flush={filtered.length > 0}
+      >
         {filtered.length === 0 ? (
-          <p className="muted">No jobs match.</p>
+          <EmptyState
+            message={list.length === 0 ? 'No jobs yet' : 'No jobs match'}
+            hint={
+              list.length === 0
+                ? 'Offloads and organize runs show up here as soon as they are created.'
+                : 'Try a different filter or clear the search.'
+            }
+            action={
+              list.length === 0 || (filter === 'all' && query === '') ? undefined : (
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={() => {
+                    setFilter('all');
+                    setQuery('');
+                  }}
+                >
+                  Clear filters
+                </button>
+              )
+            }
+          />
         ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Command</th>
-                <th>State</th>
-                <th>Progress</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((j) => (
-                <ActivityRow
-                  key={j.id}
-                  job={j}
-                  onCancel={() => act(() => window.ferry.job.cancel(j.id))}
-                  onResume={() => act(() => window.ferry.job.resume(j.id))}
-                  onRetry={() => act(() => window.ferry.job.retry(j.id))}
-                  onReceipt={() => exportReceipt(j.id)}
-                />
-              ))}
-            </tbody>
-          </table>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Command</th>
+                  <th>State</th>
+                  <th>Progress</th>
+                  <th className="cell-actions">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((j) => (
+                  <ActivityRow
+                    key={j.id}
+                    job={j}
+                    onCancel={() => act(() => window.ferry.job.cancel(j.id))}
+                    onResume={() => act(() => window.ferry.job.resume(j.id))}
+                    onRetry={() => act(() => window.ferry.job.retry(j.id))}
+                    onReceipt={() => exportReceipt(j.id)}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Panel>
 
       {exportContent !== null ? (
-        <Panel title="Receipt">
-          <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 300, overflowY: 'auto' }}>
-            {exportContent}
-          </pre>
-          <button className="btn" onClick={() => setExportContent(null)}>
-            Close
-          </button>
+        <Panel
+          title="Receipt"
+          description="The durable record of what was written and verified"
+          actions={
+            <button type="button" className="btn btn--sm" onClick={() => setExportContent(null)}>
+              Close
+            </button>
+          }
+        >
+          <pre className="pre pre--tall">{exportContent}</pre>
         </Panel>
       ) : null}
     </div>
@@ -154,27 +198,31 @@ function ActivityRow({
         <Chip tone={stateTone(job.state)}>{job.state}</Chip>
       </td>
       <td>
-        <ProgressBar value={jobProgress(job)} label={`Progress for ${job.command}`} />
+        <Progress
+          percent={progressPercent(jobProgress(job))}
+          label={`Progress for ${job.command}`}
+          tone={progressTone(job.state)}
+        />
       </td>
-      <td>
-        <div className="row" style={{ gap: 4 }}>
+      <td className="cell-actions">
+        <div className="row">
           {canCancel(job) ? (
-            <button className="btn btn--danger" onClick={onCancel}>
+            <button type="button" className="btn btn--danger btn--sm" onClick={onCancel}>
               Cancel
             </button>
           ) : null}
           {canResume(job) ? (
-            <button className="btn" onClick={onResume}>
+            <button type="button" className="btn btn--sm" onClick={onResume}>
               Resume
             </button>
           ) : null}
           {canRetry(job) ? (
-            <button className="btn" onClick={onRetry}>
+            <button type="button" className="btn btn--sm" onClick={onRetry}>
               Retry
             </button>
           ) : null}
           {job.state === 'succeeded' ? (
-            <button className="btn" onClick={onReceipt}>
+            <button type="button" className="btn btn--sm" onClick={onReceipt}>
               Receipt
             </button>
           ) : null}
@@ -184,41 +232,18 @@ function ActivityRow({
   );
 }
 
-/**
- * Job progress meter.
- *
- * Carries explicit `progressbar` semantics (WCAG 4.1.2) — without them a
- * screen reader sees two nested divs and announces nothing. `aria-valuetext`
- * gives the percentage a spoken form, and the label names which job the
- * meter belongs to so a table of them stays distinguishable.
- */
-function ProgressBar({ value, label }: { value: number; label?: string }): JSX.Element {
-  const pct = progressPercent(value);
-  return (
-    <div
-      role="progressbar"
-      aria-valuenow={pct}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-valuetext={`${pct}%`}
-      aria-label={label ?? 'Job progress'}
-      style={{
-        width: 120,
-        height: 8,
-        background: 'var(--c-surface-2)',
-        borderRadius: 4,
-        overflow: 'hidden',
-      }}
-    >
-      <div style={{ width: `${pct}%`, height: '100%', background: 'var(--c-accent)' }} />
-    </div>
-  );
-}
-
 function stateTone(state: JobDetail['state']): Tone {
   if (['succeeded'].includes(state)) return 'ok';
   if (['failed'].includes(state)) return 'danger';
   if (['needs_attention', 'awaiting_review'].includes(state)) return 'attention';
   if (['queued', 'running', 'verifying', 'resumable'].includes(state)) return 'neutral';
+  return 'neutral';
+}
+
+/** The bar echoes the row's outcome so a finished table can be read down
+ *  the progress column alone. */
+function progressTone(state: JobDetail['state']): 'neutral' | 'ok' | 'danger' {
+  if (state === 'succeeded') return 'ok';
+  if (state === 'failed') return 'danger';
   return 'neutral';
 }

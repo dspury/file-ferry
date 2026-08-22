@@ -9,7 +9,7 @@
  */
 import { useEffect, useState } from 'react';
 import { useAsync } from '../hooks/useAsync.js';
-import { Chip, Field, Panel, LoadingState, ErrorState } from '../components/ui.js';
+import { Banner, Field, Panel, LoadingState, ErrorState } from '../components/ui.js';
 import { validateSettings } from '../lib/settings.js';
 import { buildReportText, canCopy, diagnosticFileName } from '../lib/diagnostics.js';
 import type { AppSettings } from '../../../shared/ipc-methods.js';
@@ -71,7 +71,7 @@ export function Settings(): JSX.Element {
       });
       // Reflect the persisted result, not an optimistic value.
       setForm(updated);
-      setSavedMsg('Saved.');
+      setSavedMsg('Settings saved.');
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -80,36 +80,33 @@ export function Settings(): JSX.Element {
   };
 
   return (
-    <div className="stack">
-      <h2>Settings</h2>
-
-      <Panel title="Proxy defaults">
-        <div className="row">
-          <div className="grow">
-            <Field label="Codec">
-              <select value={form.proxyCodec} onChange={(e) => set('proxyCodec', e.target.value)}>
-                {CODECS.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
-          <div className="grow">
-            <Field label="Proxy height">
-              <input
-                type="number"
-                min={1}
-                value={form.proxyHeight}
-                onChange={(e) => set('proxyHeight', Number(e.target.value))}
-              />
-            </Field>
-          </div>
+    <div className="page">
+      <Panel title="Proxy defaults" description="Applied to derivatives generated after an offload">
+        <div className="field-grid">
+          <Field label="Codec">
+            <select value={form.proxyCodec} onChange={(e) => set('proxyCodec', e.target.value)}>
+              {CODECS.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Proxy height" hint="Pixels; the width follows the source aspect">
+            <input
+              type="number"
+              min={1}
+              value={form.proxyHeight}
+              onChange={(e) => set('proxyHeight', Number(e.target.value))}
+            />
+          </Field>
         </div>
       </Panel>
 
-      <Panel title="Checksum policy">
+      <Panel
+        title="Checksum policy"
+        description="How every copy is verified. xxhash64 is fast; sha256 is cryptographic."
+      >
         <Field label="Checksum algorithm">
           <select value={form.checksumAlgo} onChange={(e) => set('checksumAlgo', e.target.value)}>
             {CHECKSUM_ALGOS.map((a) => (
@@ -121,67 +118,73 @@ export function Settings(): JSX.Element {
         </Field>
       </Panel>
 
-      <Panel title="Tool paths">
+      <Panel title="Tool paths" description="Override auto-detection when a tool is not on PATH">
         <Field label="ffmpeg path" hint="Leave empty to auto-detect on PATH">
           <input
             value={form.ffmpegPath ?? ''}
+            placeholder="/usr/local/bin/ffmpeg"
             onChange={(e) => set('ffmpegPath', e.target.value || null)}
           />
         </Field>
         <Field label="Resolve path" hint="Optional DaVinci Resolve path">
           <input
             value={form.resolvePath ?? ''}
+            placeholder="/Applications/DaVinci Resolve"
             onChange={(e) => set('resolvePath', e.target.value || null)}
           />
         </Field>
       </Panel>
 
-      <Panel title="Organization">
-        <Field label="Template">
+      <Panel title="Organization" description="Defaults the Organize screen starts from">
+        <Field label="Template" hint="Tokens are expanded per file, e.g. {date}/{camera}">
           <input
             value={form.organizeTemplate}
             onChange={(e) => set('organizeTemplate', e.target.value)}
           />
         </Field>
-        <div className="row">
-          <div className="grow">
-            <Field label="Mode">
-              <select
-                value={form.organizeMode}
-                onChange={(e) => set('organizeMode', e.target.value)}
-              >
-                {MODES.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
-          <div className="grow">
-            <Field label="On conflict">
-              <select
-                value={form.organizeOnConflict}
-                onChange={(e) => set('organizeOnConflict', e.target.value)}
-              >
-                {CONFLICTS.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          </div>
+        <div className="field-grid">
+          <Field label="Mode">
+            <select value={form.organizeMode} onChange={(e) => set('organizeMode', e.target.value)}>
+              {MODES.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="On conflict">
+            <select
+              value={form.organizeOnConflict}
+              onChange={(e) => set('organizeOnConflict', e.target.value)}
+            >
+              {CONFLICTS.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </Field>
         </div>
       </Panel>
 
+      {/*
+        One save for the whole screen, and it stays put at the bottom of the
+        form rather than one per panel — the panels are groupings, not
+        separate transactions.
+      */}
       <div className="row">
-        <button className="btn btn--primary" onClick={save} disabled={saving || !validation.valid}>
+        <button
+          type="button"
+          className="btn btn--primary"
+          onClick={save}
+          disabled={saving || !validation.valid}
+        >
           {saving ? 'Saving…' : 'Save settings'}
         </button>
-        {savedMsg !== null ? <Chip tone="ok">{savedMsg}</Chip> : null}
-        {saveError !== null ? <Chip tone="danger">{saveError}</Chip> : null}
+        {!validation.valid ? <span className="muted">{validation.errors.join('; ')}</span> : null}
       </div>
+      {savedMsg !== null ? <Banner tone="ok">{savedMsg}</Banner> : null}
+      {saveError !== null ? <Banner tone="danger">{saveError}</Banner> : null}
 
       <DiagnosticsPanel />
     </div>
@@ -202,7 +205,7 @@ function DiagnosticsPanel(): JSX.Element {
   if (diag.error !== null) {
     return (
       <Panel title="Diagnostics">
-        <p className="muted">Diagnostics unavailable: {diag.error}</p>
+        <Banner tone="warn">Diagnostics unavailable: {diag.error}</Banner>
       </Panel>
     );
   }
@@ -223,17 +226,25 @@ function DiagnosticsPanel(): JSX.Element {
   };
 
   return (
-    <Panel title="Diagnostics">
-      <pre style={{ whiteSpace: 'pre-wrap', maxHeight: 180, overflowY: 'auto' }}>{text}</pre>
-      <div className="row" style={{ marginTop: 8 }}>
-        <button className="btn" onClick={copy} disabled={!canCopy(report)}>
-          {copied ? 'Copied' : 'Copy diagnostics'}
-        </button>
-        <button className="btn" onClick={() => void window.ferry.app.openDiagnosticFolder()}>
-          Open diagnostics folder
-        </button>
-        <span className="muted">Save as: {diagnosticFileName(report.generatedAt)}</span>
-      </div>
+    <Panel
+      title="Diagnostics"
+      description={`Attach this to a bug report. Saves as ${diagnosticFileName(report.generatedAt)}`}
+      actions={
+        <>
+          <button type="button" className="btn btn--sm" onClick={copy} disabled={!canCopy(report)}>
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+          <button
+            type="button"
+            className="btn btn--sm"
+            onClick={() => void window.ferry.app.openDiagnosticFolder()}
+          >
+            Open folder
+          </button>
+        </>
+      }
+    >
+      <pre className="pre">{text}</pre>
     </Panel>
   );
 }

@@ -12,6 +12,7 @@ import { Chip, Panel, LoadingState, ErrorState, type Tone } from '../components/
 import {
   jobMatchesFilter,
   jobProgress,
+  progressPercent,
   canCancel,
   canResume,
   canRetry,
@@ -79,6 +80,8 @@ export function Activity(): JSX.Element {
           ))}
           <input
             className="grow"
+            type="search"
+            aria-label="Search jobs"
             placeholder="Search command, project, state…"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -151,7 +154,7 @@ function ActivityRow({
         <Chip tone={stateTone(job.state)}>{job.state}</Chip>
       </td>
       <td>
-        <ProgressBar value={jobProgress(job)} />
+        <ProgressBar value={jobProgress(job)} label={`Progress for ${job.command}`} />
       </td>
       <td>
         <div className="row" style={{ gap: 4 }}>
@@ -181,10 +184,24 @@ function ActivityRow({
   );
 }
 
-function ProgressBar({ value }: { value: number }): JSX.Element {
-  const pct = Math.round(value * 100);
+/**
+ * Job progress meter.
+ *
+ * Carries explicit `progressbar` semantics (WCAG 4.1.2) — without them a
+ * screen reader sees two nested divs and announces nothing. `aria-valuetext`
+ * gives the percentage a spoken form, and the label names which job the
+ * meter belongs to so a table of them stays distinguishable.
+ */
+function ProgressBar({ value, label }: { value: number; label?: string }): JSX.Element {
+  const pct = progressPercent(value);
   return (
     <div
+      role="progressbar"
+      aria-valuenow={pct}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuetext={`${pct}%`}
+      aria-label={label ?? 'Job progress'}
       style={{
         width: 120,
         height: 8,

@@ -260,10 +260,16 @@ body {
   font-size: 13px;
 }
 
-.field input:focus,
-.field select:focus,
-.field textarea:focus {
-  outline: none;
+/*
+ * Keep a real outline on focus (WCAG 2.4.7). The border-colour shift alone
+ * is a colour-only signal, and this selector is specific enough that it was
+ * overriding the global :focus-visible rule below.
+ */
+.field input:focus-visible,
+.field select:focus-visible,
+.field textarea:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 1px;
   border-color: var(--c-accent);
 }
 

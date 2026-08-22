@@ -5,9 +5,14 @@
  * destructive button is enabled (plan §4 / §10 Pkg7 step 4). This makes
  * a single click unable to destroy data and keeps the safety-critical
  * state high-contrast and explicit.
+ *
+ * As a modal it also traps Tab focus and closes on Escape (WCAG 2.4.3):
+ * `aria-modal` is a promise to assistive tech that the rest of the UI is
+ * inert, so focus must not be able to wander out behind the dialog.
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { confirmEnabled, normalizePhrase } from '../lib/confirm.js';
+import { FOCUSABLE_SELECTOR, isTrapKey, nextFocusIndex } from '../lib/focus-trap.js';
 
 export function ConfirmDialog({
   title,
@@ -27,20 +32,66 @@ export function ConfirmDialog({
   onCancel: () => void;
 }): JSX.Element {
   const [typed, setTyped] = useState('');
+  const dialogRef = useRef<HTMLDivElement | null>(null);
   const enabled = exact
     ? normalizePhrase(typed) === normalizePhrase(phrase)
     : confirmEnabled({ phrase, typed, exact });
 
+  // Pull focus into the dialog on open and hand it back to whatever had it
+  // when the dialog closes, so a keyboard user is not dumped at the top of
+  // the document. When `exact` is false there is no input to autoFocus, so
+  // the first focusable element (the confirm button) takes it.
+  useEffect(() => {
+    const restoreTo = document.activeElement as HTMLElement | null;
+    const root = dialogRef.current;
+    if (root && !root.contains(document.activeElement)) {
+      root.querySelector<HTMLElement>(FOCUSABLE_SELECTOR)?.focus();
+    }
+    return () => restoreTo?.focus?.();
+  }, []);
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      onCancel();
+      return;
+    }
+    if (!isTrapKey(e.key)) return;
+    const root = dialogRef.current;
+    if (!root) return;
+    const items = Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+    const target = nextFocusIndex(
+      items.indexOf(document.activeElement as HTMLElement),
+      items.length,
+      e.shiftKey,
+    );
+    if (target === null) return;
+    e.preventDefault();
+    items[target]?.focus();
+  };
+
   return (
-    <div className="confirm" role="alertdialog" aria-modal="true" aria-label={title}>
+    <div
+      className="confirm"
+      role="alertdialog"
+      aria-modal="true"
+      aria-label={title}
+      ref={dialogRef}
+      onKeyDown={onKeyDown}
+    >
       <h3>{title}</h3>
       <p>{body}</p>
       {exact ? (
         <div className="field">
-          <label>
+          <label htmlFor="confirm-phrase">
             Type <strong>{phrase}</strong> to confirm
           </label>
-          <input value={typed} onChange={(e) => setTyped(e.target.value)} autoFocus />
+          <input
+            id="confirm-phrase"
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            autoFocus
+          />
         </div>
       ) : null}
       <div className="row">

@@ -66,8 +66,10 @@ export function App(): JSX.Element {
   const viewIds = VIEWS.map((v) => v.id);
   const activeIndex = viewIndex(viewId, viewIds);
 
-  // Keyboard navigation: ArrowDown/Up move between views, Enter/Space
-  // activates the focused one (plan §10 Pkg7 step 4).
+  // Keyboard navigation: ArrowDown/Up move between views (plan §10 Pkg7
+  // step 4). The handler is bound to the nav, not the app root — at the
+  // root it also swallowed arrow keys aimed at the screens, so ArrowUp in
+  // a <select> or a number input silently navigated away from the form.
   const onNavKeyDown = (e: React.KeyboardEvent) => {
     const action = keyToAction(e.key, e.ctrlKey, e.altKey);
     if (action === 'next') {
@@ -80,7 +82,7 @@ export function App(): JSX.Element {
   };
 
   return (
-    <div className="app" onKeyDown={onNavKeyDown}>
+    <div className="app">
       <a href="#content" className="skip-link">
         Skip to content
       </a>
@@ -89,15 +91,21 @@ export function App(): JSX.Element {
           ferry
           <small>vNext desktop</small>
         </div>
-        <div role="menu" aria-label="Views">
+        {/*
+          A plain group of buttons, not role="menu". `menu`/`menuitem` model
+          an application menu (File, Edit) and make assistive tech announce
+          and key-handle this as one; it is page navigation, which
+          `aria-current="page"` already conveys. `aria-keyshortcuts` is gone
+          for the same reason — it declares keys that *activate* an element,
+          while ArrowUp/Down here move between them.
+        */}
+        <div className="nav__items" role="group" aria-label="Views" onKeyDown={onNavKeyDown}>
           {VIEWS.map((v) => (
             <button
               key={v.id}
-              role="menuitem"
               className={`nav__item${v.id === active.id ? ' nav__item--active' : ''}`}
               onClick={() => navigateTo(v.id)}
               aria-current={v.id === active.id ? 'page' : undefined}
-              aria-keyshortcuts="ArrowDown ArrowUp"
             >
               {v.label}
             </button>

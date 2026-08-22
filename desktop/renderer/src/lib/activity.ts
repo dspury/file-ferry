@@ -35,6 +35,19 @@ export function jobProgress(job: JobDetail): number {
   return Math.min(1, Math.max(0, completed / job.totalSteps));
 }
 
+/**
+ * Render a 0..1 progress fraction as an integer percentage for ARIA.
+ *
+ * `aria-valuenow` must be a real number in [valuemin, valuemax]; an
+ * out-of-range fraction would otherwise reach the accessibility tree. Only
+ * NaN needs its own guard — it survives Math.min/max, whereas the
+ * infinities clamp to the ends like any other out-of-range value.
+ */
+export function progressPercent(value: number): number {
+  if (Number.isNaN(value)) return 0;
+  return Math.round(Math.min(1, Math.max(0, value)) * 100);
+}
+
 /** A job is safe to cancel when it is actively running/queued/verifying. */
 export function canCancel(job: JobDetail): boolean {
   return ACTIVE_STATES.has(job.state);

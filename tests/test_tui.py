@@ -604,3 +604,101 @@ class TestDryRunSkipSemantics:
             mock_proxies.assert_called_once()
 
         asyncio.run(run())
+
+
+class TestAccessibility:
+    """Rams design review a11y findings (#57, #58, #59).
+
+    These assert the non-colour status signal and the label/input pairing
+    survive refactors, since both are easy to drop by accident.
+    """
+
+    @staticmethod
+    def _labelled_control(screen: object, control_id: str) -> str:
+        """Return the text of the Label that immediately precedes a control.
+
+        Textual has no ``htmlFor``; a control is named by the Label rendered
+        directly above it, which is the pattern the Settings screen already
+        uses. Raises AssertionError if the preceding sibling is not a Label.
+        """
+        from textual.widgets import Label
+
+        control = screen.query_one(f"#{control_id}")  # type: ignore[attr-defined]
+        siblings = list(control.parent.children)
+        index = siblings.index(control)
+        assert index > 0, f"#{control_id} has no preceding sibling to name it"
+        label = siblings[index - 1]
+        assert isinstance(label, Label), (
+            f"#{control_id} is preceded by {type(label).__name__}, not a Label"
+        )
+        return str(label.content)
+
+    def test_stat_tiles_carry_a_glyph_not_only_colour(self, tmp_path: Path) -> None:
+        """#57 — succeeded/failed/live must be separable without colour."""
+        from textual.widgets import Static
+
+        async def run() -> None:
+            app = FerryApp(tmp_path / "audit.db")
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+                screen = app.screen
+                for tile_id in ("stat-success", "stat-failed", "stat-live"):
+                    rendered = str(screen.query_one(f"#{tile_id}", Static).content)
+                    assert "●" in rendered, f"#{tile_id} relies on colour alone: {rendered!r}"
+                # The neutral total tile is not a status, so it stays plain.
+                assert "●" not in str(screen.query_one("#stat-total", Static).content)
+
+        asyncio.run(run())
+
+    def test_stat_tiles_have_tooltips_before_they_are_populated(self, tmp_path: Path) -> None:
+        """#59 — the tiles mount empty, so the tooltip is their only name."""
+        from textual.widgets import Static
+
+        async def run() -> None:
+            app = FerryApp(tmp_path / "audit.db")
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.pause()
+                screen = app.screen
+                for tile_id in ("stat-total", "stat-success", "stat-failed", "stat-live"):
+                    tooltip = screen.query_one(f"#{tile_id}", Static).tooltip
+                    assert tooltip, f"#{tile_id} has no tooltip"
+
+        asyncio.run(run())
+
+    def test_pipeline_inputs_are_labelled(self, tmp_path: Path) -> None:
+        """#58 — placeholders are not names; every control needs a Label."""
+
+        async def run() -> None:
+            app = FerryApp(tmp_path / "audit.db")
+            with patch("file_ferry.tui.list_external_drives", return_value=[]):
+                async with app.run_test(size=(120, 40)) as pilot:
+                    await pilot.press("r")
+                    await pilot.pause()
+                    screen = app.screen
+                    assert isinstance(screen, PipelineScreen)
+                    expected = {
+                        "browser-path": "Browse path",
+                        "output-root": "Output root",
+                        "project-name": "Project name",
+                        "color-space": "Color space",
+                        "resolution": "Resolution",
+                        "frame-rate": "Frame rate",
+                    }
+                    for control_id, label in expected.items():
+                        assert self._labelled_control(screen, control_id) == label
+
+        asyncio.run(run())
+
+    def test_log_search_input_is_labelled(self, tmp_path: Path) -> None:
+        """#58 — the audit log search box was named only by its placeholder."""
+
+        async def run() -> None:
+            app = FerryApp(tmp_path / "audit.db")
+            async with app.run_test(size=(120, 40)) as pilot:
+                await pilot.press("l")
+                await pilot.pause()
+                screen = app.screen
+                assert isinstance(screen, LogScreen)
+                assert self._labelled_control(screen, "search") == "Search"
+
+        asyncio.run(run())

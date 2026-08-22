@@ -16,6 +16,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc -b tsconfig.json",
     "lint": "eslint electron renderer shared tests --ext .ts,.tsx",
+    "lint:anti-slop": "oxlint",
     "format": "prettier --write \"**/*.{ts,tsx,json,md,yaml,yml}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,json,md,yaml,yml}\"",
     "build:sidecar": "bash ../scripts/build-sidecar.sh",
@@ -28,6 +29,7 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@oxlint/plugins": "^1.79.0",
     "@types/node": "^22.10.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
@@ -40,6 +42,7 @@
     "eslint": "^8.57.1",
     "eslint-plugin-react": "^7.37.2",
     "eslint-plugin-react-hooks": "^5.0.0",
+    "oxlint": "^1.79.0",
     "prettier": "^3.4.2",
     "typescript": "^5.7.2",
     "vite": "^5.4.11",

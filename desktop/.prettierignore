@@ -1,0 +1,10 @@
+# Build output
+dist/
+build/
+release/
+
+# Vendored third-party lint plugin (copied verbatim by the install-anti-slop
+# skill). Reformatting it would create spurious diffs against upstream every
+# time the plugin is re-copied, so it is excluded from `format:check` — the
+# same reason it is in .oxlintrc.json's ignorePatterns.
+tools/oxlint/anti-slop/

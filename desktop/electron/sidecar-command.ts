@@ -42,6 +42,9 @@ export interface SidecarCommandInput {
 
 function defaultExists(path: string): boolean {
   // Injected at call sites in the real main; default lazily requires fs.
+  // SAFETY: 'node:fs' is a builtin, so `require` returns exactly the module
+  // whose type is being named here. It is required lazily rather than
+  // imported so this module stays loadable in the renderer-side tests.
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const fs = require('node:fs') as typeof import('node:fs');
   return fs.existsSync(path);

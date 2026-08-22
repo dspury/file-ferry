@@ -9,13 +9,15 @@ import { cloneElement, isValidElement, useId, type ReactElement, type ReactNode 
 
 export type Tone = 'neutral' | 'ok' | 'warn' | 'danger' | 'attention';
 
-const CHIP_CLASS: Record<Tone, string> = {
+const CHIP_CLASS = {
   neutral: 'chip',
   ok: 'chip chip--ok',
   warn: 'chip chip--warn',
   danger: 'chip chip--danger',
   attention: 'chip chip--attention',
-};
+  // `satisfies` checks every Tone is covered without widening the values
+  // back to `string`, so the exact class strings stay visible to callers.
+} satisfies Record<Tone, string>;
 
 export function Chip({
   tone = 'neutral',
@@ -81,6 +83,10 @@ export function Field({
 }): JSX.Element {
   const reactId = useId();
   const hintId = hint ? `${reactId}-hint` : null;
+  // SAFETY: guarded by `isValidElement` on the same line, so `children` is a
+  // React element here. Its props are then only *read* optionally (`id`,
+  // `aria-describedby`), and both are re-supplied via cloneElement, so an
+  // element without them is handled rather than assumed.
   const single = isValidElement(children) ? (children as ReactElement<ControlProps>) : null;
 
   let control: ReactNode = children;
@@ -88,10 +94,14 @@ export function Field({
   if (single) {
     controlId = single.props.id ?? reactId;
     const describedBy = joinIds(single.props['aria-describedby'] ?? null, hintId);
-    control = cloneElement(single, {
-      id: controlId,
-      ...(describedBy === null ? {} : { 'aria-describedby': describedBy }),
-    });
+    // `aria-describedby` is only set when there is a hint (or the caller
+    // already supplied one); under exactOptionalPropertyTypes it cannot be
+    // passed as an explicit undefined.
+    const idProp: ControlProps = { id: controlId };
+    control = cloneElement(
+      single,
+      describedBy === null ? idProp : { ...idProp, 'aria-describedby': describedBy },
+    );
   }
 
   return (

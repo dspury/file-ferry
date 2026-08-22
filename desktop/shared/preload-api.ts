@@ -8,8 +8,16 @@ import type { EventFrame } from './ipc-schema.js';
 import type { MethodName, ParamsOf, ResultOf } from './ipc-methods.js';
 import type { PickRequest, PickResult } from './dialog.js';
 
-function invoke<M extends MethodName>(_method: M, _params: ParamsOf<M>): Promise<ResultOf<M>> {
-  return Promise.resolve(undefined as unknown as ResultOf<M>);
+/**
+ * Placeholder body. This module exists to *declare* the API shape — the
+ * real implementation is wired in `electron/preload.ts`. Rejecting keeps
+ * the signature honest without an `undefined as unknown as T` cast, and
+ * makes accidental runtime use of this stub loud instead of silently
+ * yielding `undefined`. `Promise.reject` is `Promise<never>`, which is
+ * assignable to every `ResultOf<M>`, so no assertion is needed.
+ */
+function invoke<M extends MethodName>(method: M, _params: ParamsOf<M>): Promise<ResultOf<M>> {
+  return Promise.reject(new Error(`preload-api declares ${method}; it has no implementation`));
 }
 
 export const api = {
@@ -17,11 +25,11 @@ export const api = {
     getStatus: () => invoke('app.getStatus', {}),
     getCapabilities: () => invoke('app.getCapabilities', {}),
     doctor: () => invoke('app.doctor', {}),
-    openDiagnosticFolder: () => Promise.resolve({ logDir: '' }) as Promise<{ logDir: string }>,
-    diagnostics: () => Promise.resolve({ summary: '' }) as Promise<{ summary: string }>,
+    openDiagnosticFolder: () => Promise.resolve<{ logDir: string }>({ logDir: '' }),
+    diagnostics: () => Promise.resolve<{ summary: string }>({ summary: '' }),
   },
   dialog: {
-    pick: (_request: PickRequest) => Promise.resolve({ path: null, cancelled: true } as PickResult),
+    pick: (_request: PickRequest) => Promise.resolve<PickResult>({ path: null, cancelled: true }),
   },
   project: {
     list: () => invoke('project.list', {}),

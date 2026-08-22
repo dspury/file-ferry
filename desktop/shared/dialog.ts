@@ -25,9 +25,25 @@ export interface PickResult {
   readonly cancelled: boolean;
 }
 
+/**
+ * What a native picker can hand back for a path.
+ *
+ * Electron's dialog API yields `string | undefined` (an absent
+ * `filePaths[0]`, or an unset `defaultPath`), and callers may pass an
+ * explicit null. Naming that is more honest than `unknown` — but the
+ * runtime check below is still a real check, not a formality: this value
+ * crosses the IPC boundary, so it is verified rather than trusted.
+ */
+export type PickedPathInput = string | null | undefined;
+
+/** True when the input is a string with content. */
+function isNonEmptyString(value: PickedPathInput): value is string {
+  return typeof value === 'string' && value.length > 0;
+}
+
 /** Validate a picked path before returning it to the renderer. */
-export function sanitizePickedPath(raw: unknown): string | null {
-  if (typeof raw !== 'string') return null;
+export function sanitizePickedPath(raw: PickedPathInput): string | null {
+  if (!isNonEmptyString(raw)) return null;
   const value = raw.trim();
   if (value.length === 0) return null;
   // Absolute path only; a relative or empty path cannot be a real

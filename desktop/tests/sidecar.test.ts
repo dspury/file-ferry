@@ -15,6 +15,8 @@ import type { ProtocolErrorEvent } from '../electron/sidecar.js';
 import { decodeFrame, encodeFrame, type RequestFrame } from '../shared/ipc-schema.js';
 import { PROTOCOL_VERSION } from '../shared/version.js';
 
+// SAFETY: 'darwin' is a member of the NodeJS.Platform union; the assertion
+// only stops TypeScript widening the literal to `string` in these fixtures.
 const DEV = {
   isPackaged: false,
   resourcesPath: '/resources',
@@ -22,6 +24,7 @@ const DEV = {
   platform: 'darwin' as NodeJS.Platform,
 };
 
+// SAFETY: as above.
 const PACKAGED = {
   isPackaged: true,
   workspaceRoot: '/repo',

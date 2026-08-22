@@ -81,12 +81,12 @@ describe('narrow preload surface (ADR-0001)', () => {
   it('exposes every method in the typed catalog via a namespace', () => {
     // Spot-check that the sidecar method families are reachable; a
     // missing bridge method would make the renderer unable to drive it.
-    expect(typeof api.project.list).toBe('function');
-    expect(typeof api.job.cancel).toBe('function');
-    expect(typeof api.reconcile.acceptChange).toBe('function');
-    expect(typeof api.organize.apply).toBe('function');
-    expect(typeof api.dialog.pick).toBe('function');
-    expect(typeof api.app.openDiagnosticFolder).toBe('function');
+    expect(api.project.list).toBeTypeOf('function');
+    expect(api.job.cancel).toBeTypeOf('function');
+    expect(api.reconcile.acceptChange).toBeTypeOf('function');
+    expect(api.organize.apply).toBeTypeOf('function');
+    expect(api.dialog.pick).toBeTypeOf('function');
+    expect(api.app.openDiagnosticFolder).toBeTypeOf('function');
   });
 
   it('dialog.pick and openDiagnosticFolder are the only native-only entries', () => {

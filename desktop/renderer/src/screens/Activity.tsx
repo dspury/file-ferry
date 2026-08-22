@@ -33,7 +33,7 @@ export function Activity(): JSX.Element {
   const list = jobs.data?.jobs ?? [];
   const filtered = searchJobs(list, query).filter((j) => jobMatchesFilter(j, filter));
 
-  const act = async (fn: () => Promise<unknown>) => {
+  const act = async <T,>(fn: () => Promise<T>) => {
     setActionError(null);
     try {
       await fn();

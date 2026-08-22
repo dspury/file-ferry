@@ -9,22 +9,22 @@ import { api } from '../shared/preload-api.js';
 
 describe('Package 7 IPC surface', () => {
   it('exposes the settings family', () => {
-    expect(typeof api.settings.get).toBe('function');
-    expect(typeof api.settings.update).toBe('function');
+    expect(api.settings.get).toBeTypeOf('function');
+    expect(api.settings.update).toBeTypeOf('function');
   });
 
   it('exposes the doctor surface', () => {
-    expect(typeof api.app.doctor).toBe('function');
+    expect(api.app.doctor).toBeTypeOf('function');
   });
 
   it('exposes job resume/retry', () => {
-    expect(typeof api.job.resume).toBe('function');
-    expect(typeof api.job.retry).toBe('function');
+    expect(api.job.resume).toBeTypeOf('function');
+    expect(api.job.retry).toBeTypeOf('function');
   });
 
   it('exposes profile.preview and receipt.get', () => {
-    expect(typeof api.profile.preview).toBe('function');
-    expect(typeof api.receipt.get).toBe('function');
+    expect(api.profile.preview).toBeTypeOf('function');
+    expect(api.receipt.get).toBeTypeOf('function');
   });
 
   it('keeps the settings namespace narrow (only get/update)', () => {

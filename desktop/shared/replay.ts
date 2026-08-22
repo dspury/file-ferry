@@ -8,7 +8,8 @@
  * is testable without Electron.
  */
 
-import type { JobSnapshot } from './ipc-methods.js';
+import type { JobSnapshot, JobEvent } from './ipc-methods.js';
+import type { EventFrame } from './ipc-schema.js';
 
 /**
  * Bounded store of the latest job snapshots keyed by job id.
@@ -18,6 +19,24 @@ import type { JobSnapshot } from './ipc-methods.js';
  * guard against an unbounded number of historical jobs being replayed to
  * a freshly reloaded window.
  */
+/**
+ * Narrow a `job.updated` event payload to the snapshot it carries.
+ *
+ * The frame arrives off the wire, so its params are untyped. This checks
+ * the shape rather than asserting it: the previous call site cast the frame
+ * to a hand-written shape and passed the snapshot through `as never`, which
+ * silenced the compiler no matter what the sidecar actually sent. The
+ * accepted condition is the one that code tested — an object carrying a
+ * snapshot whose `id` is a non-empty string.
+ */
+export function isJobUpdatedParams(params: EventFrame['params']): params is JobEvent {
+  if (typeof params !== 'object' || params === null) return false;
+  if (!('snapshot' in params)) return false;
+  const snapshot = params.snapshot;
+  if (typeof snapshot !== 'object' || snapshot === null) return false;
+  return 'id' in snapshot && typeof snapshot.id === 'string' && snapshot.id.length > 0;
+}
+
 export class JobSnapshotStore {
   private readonly snapshots: Map<string, JobSnapshot>;
   private readonly maxEntries: number;
@@ -31,7 +50,7 @@ export class JobSnapshotStore {
     this.snapshots.set(snapshot.id, snapshot);
     // Evict oldest beyond the bound (Map preserves insertion order).
     while (this.snapshots.size > this.maxEntries) {
-      const first = this.snapshots.keys().next().value as string | undefined;
+      const first = this.snapshots.keys().next().value;
       if (first === undefined) break;
       this.snapshots.delete(first);
     }

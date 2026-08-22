@@ -112,6 +112,10 @@ export class SidecarSupervisor extends EventEmitter {
     event: K,
     listener: (payload: SidecarEventMap[K]) => void,
   ): this {
+    // SAFETY: `EventEmitter.on` is untyped (`...args: any[]`). This override
+    // is the only way to add listeners, and the matching `emit` override
+    // below accepts exactly `SidecarEventMap[K]`, so every payload delivered
+    // on `event` has the type this listener declares.
     return super.on(event, listener as (...args: unknown[]) => void);
   }
 

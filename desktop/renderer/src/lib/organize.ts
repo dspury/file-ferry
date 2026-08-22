@@ -47,11 +47,14 @@ export function moveRequiresConfirm(mode: 'copy' | 'move' | 'link', confirmMove:
 }
 
 /** Summarize the apply outcome (no optimistic success: only real rows). */
-export function outcomeSummary(outcomes: readonly OrganizeOutcome[]): {
-  ok: number;
-  failed: number;
-  total: number;
-} {
+/** Tally of an organize run, as shown in the Apply panel. */
+export interface OrganizeOutcomeSummary {
+  readonly ok: number;
+  readonly failed: number;
+  readonly total: number;
+}
+
+export function outcomeSummary(outcomes: readonly OrganizeOutcome[]): OrganizeOutcomeSummary {
   const ok = outcomes.filter((o) => o.ok).length;
   const failed = outcomes.filter((o) => !o.ok).length;
   return { ok, failed, total: outcomes.length };

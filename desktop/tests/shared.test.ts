@@ -4,8 +4,8 @@
  * These run in vitest without Electron.
  */
 import { describe, expect, it } from 'vitest';
-import { sanitizePickedPath } from '../shared/dialog.js';
-import { JobSnapshotStore, replayPayload } from '../shared/replay.js';
+import { sanitizePickedPath, type PickedPathInput } from '../shared/dialog.js';
+import { isJobUpdatedParams, JobSnapshotStore, replayPayload } from '../shared/replay.js';
 import { formatDiagnosticSummary, logDirectoryName } from '../shared/diagnostics.js';
 import type { JobSnapshot } from '../shared/ipc-methods.js';
 
@@ -31,7 +31,13 @@ describe('sanitizePickedPath', () => {
   });
 
   it('rejects non-strings', () => {
-    expect(sanitizePickedPath(123)).toBeNull();
+    // Outside the declared PickedPathInput contract on purpose: the runtime
+    // guard is defence in depth for a value crossing the IPC boundary, so a
+    // non-string must still be rejected rather than trusted. `JSON.parse`
+    // is typed `any`, which hands the function a genuine number at runtime
+    // without needing a type assertion to get past the signature.
+    const notAString: PickedPathInput = JSON.parse('123');
+    expect(sanitizePickedPath(notAString)).toBeNull();
     expect(sanitizePickedPath(null)).toBeNull();
     expect(sanitizePickedPath(undefined)).toBeNull();
   });
@@ -117,5 +123,53 @@ describe('diagnostics helpers', () => {
     expect(summary).toContain('protocol=1');
     expect(summary).toContain('sidecar=ready');
     expect(summary).toContain('logCount=3');
+  });
+});
+
+describe('isJobUpdatedParams', () => {
+  // The shape the sidecar actually emits: service/protocol.py JobUpdatedEvent
+  // is `{ jobId, snapshot }`, and JobSnapshot carries a string `id`.
+  const snapshot = {
+    id: 'job-1',
+    state: 'running',
+    currentStep: 'copy',
+    completedSteps: ['probe'],
+    totalSteps: 4,
+    startedAt: '2026-08-22T00:00:00Z',
+    updatedAt: '2026-08-22T00:00:01Z',
+  };
+
+  it('accepts a real job.updated payload', () => {
+    expect(isJobUpdatedParams({ jobId: 'job-1', snapshot })).toBe(true);
+  });
+
+  it('accepts the snapshot even when other fields are absent', () => {
+    // The guard deliberately checks only what the store needs (a keyed id);
+    // it is not a full schema validator.
+    expect(isJobUpdatedParams({ snapshot: { id: 'job-2' } })).toBe(true);
+  });
+
+  it('rejects payloads with no snapshot', () => {
+    expect(isJobUpdatedParams({ jobId: 'job-1' })).toBe(false);
+  });
+
+  it('rejects a snapshot with no usable id', () => {
+    expect(isJobUpdatedParams({ snapshot: {} })).toBe(false);
+    expect(isJobUpdatedParams({ snapshot: { id: '' } })).toBe(false);
+    expect(isJobUpdatedParams({ snapshot: { id: 42 } })).toBe(false);
+    expect(isJobUpdatedParams({ snapshot: null })).toBe(false);
+  });
+
+  it('rejects non-object payloads', () => {
+    expect(isJobUpdatedParams(null)).toBe(false);
+    expect(isJobUpdatedParams('job-1')).toBe(false);
+    expect(isJobUpdatedParams(7)).toBe(false);
+  });
+
+  it('feeds the snapshot store, which is what the guard gates', () => {
+    const params = { jobId: 'job-1', snapshot };
+    const store = new JobSnapshotStore();
+    if (isJobUpdatedParams(params)) store.record(params.snapshot);
+    expect(store.snapshotFor('job-1')?.id).toBe('job-1');
   });
 });

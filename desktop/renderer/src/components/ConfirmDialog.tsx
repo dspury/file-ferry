@@ -42,6 +42,10 @@ export function ConfirmDialog({
   // the document. When `exact` is false there is no input to autoFocus, so
   // the first focusable element (the confirm button) takes it.
   useEffect(() => {
+    // SAFETY: `document.activeElement` is typed `Element | null`, but focus
+    // restoration only makes sense for an HTMLElement. The narrowing is not
+    // trusted — the call below is optional (`restoreTo?.focus?.()`), so a
+    // non-HTML element (an SVG node) simply does not get focused back.
     const restoreTo = document.activeElement as HTMLElement | null;
     const root = dialogRef.current;
     if (root && !root.contains(document.activeElement)) {
@@ -60,6 +64,10 @@ export function ConfirmDialog({
     const root = dialogRef.current;
     if (!root) return;
     const items = Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+    // SAFETY: used only as the needle for `indexOf` against a list of
+    // HTMLElements. A null or non-HTML activeElement simply is not found,
+    // yielding -1, which `nextFocusIndex` already handles as "focus is
+    // outside the trap".
     const target = nextFocusIndex(
       items.indexOf(document.activeElement as HTMLElement),
       items.length,

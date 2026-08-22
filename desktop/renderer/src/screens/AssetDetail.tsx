@@ -2,15 +2,28 @@
  * Asset / Clip detail screen.
  *
  * Metadata, source provenance, logical grouping, every replica,
- * verification/proxy state, and related clips (plan §8.2). Uses a simple
- * prompt for the asset id until a project-detail selection passes one in.
+ * verification/proxy state, and related clips (plan §8.2). Uses the first
+ * asset as a safe default until a project-detail selection passes one in.
  */
 import { useAsync } from '../hooks/useAsync.js';
-import { Chip, Panel, LoadingState, ErrorState, type Tone } from '../components/ui.js';
+import {
+  Chip,
+  EmptyState,
+  ErrorState,
+  KeyValue,
+  LoadingState,
+  Panel,
+  PathCell,
+  Progress,
+  type Tone,
+} from '../components/ui.js';
 import { assetOverview, replicaHealth, proxyReadiness } from '../lib/asset.js';
+import { navigateTo } from '../views.js';
+import type { ReplicaSummary } from '../../../shared/ipc-methods.js';
+import type { AssetOverview } from '../lib/asset.js';
 
 export function AssetDetail(): JSX.Element {
-  // TODO(7c): replace the prompt with real navigation from Projects. The
+  // TODO(7c): replace the default with real navigation from Projects. The
   // first asset is shown as a safe default so the screen is navigable.
   const assets = useAsync(() => window.ferry.asset.list());
   const assetId = assets.data?.assets[0]?.id;
@@ -20,8 +33,31 @@ export function AssetDetail(): JSX.Element {
   const derivatives = useAsync(() => window.ferry.derivatives.list(assetId ?? ''), [assetId]);
   const clips = useAsync(() => window.ferry.clips.list(assetId ? Number(assetId) : 0), [assetId]);
 
-  if (assets.loading || !assetId) {
-    return <LoadingState message="Loading assets…" />;
+  if (assets.loading) {
+    return <LoadingState message="Loading media…" />;
+  }
+  // An empty library is not an error — it is the normal state before the
+  // first offload, and it should say what to do about it.
+  if (assetId === undefined) {
+    return (
+      <div className="page">
+        <Panel>
+          <EmptyState
+            message="No media yet"
+            hint="Assets appear here once an offload or an organize run has adopted them."
+            action={
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={() => navigateTo('ingest')}
+              >
+                Go to Offload
+              </button>
+            }
+          />
+        </Panel>
+      </div>
+    );
   }
   if (asset.error !== null) {
     return <ErrorState message={asset.error} />;
@@ -36,57 +72,98 @@ export function AssetDetail(): JSX.Element {
     derivatives: derivatives.data ?? [],
     clips: clips.data ?? [],
   });
+  const readiness = proxyReadiness(overview);
 
   return (
-    <div className="stack">
-      <h2>Asset detail</h2>
-      <p className="muted">
-        {a.sourceRelativePath} · <Chip>{a.lifecycleState}</Chip>
-      </p>
+    <div className="page">
+      <div className="page__intro">
+        <div className="grow">
+          <PathCell path={a.sourceRelativePath} />
+        </div>
+        <Chip>{a.lifecycleState}</Chip>
+      </div>
 
       <Panel title="Metadata">
-        <p>
-          <span className="muted">Media kind:</span> {a.mediaKind ?? 'unknown'}
-        </p>
-        <p>
-          <span className="muted">Size:</span>{' '}
-          {a.observedSize != null ? formatBytes(a.observedSize) : '—'}
-        </p>
-        <p>
-          <span className="muted">Source id:</span> {a.sourceId ?? '—'}
-        </p>
-        <p>
-          <span className="muted">First seen:</span> {a.firstSeenAt}
-        </p>
+        <KeyValue
+          rows={[
+            { label: 'Media kind', value: a.mediaKind ?? <span className="faint">unknown</span> },
+            {
+              label: 'Size',
+              value:
+                a.observedSize != null ? (
+                  formatBytes(a.observedSize)
+                ) : (
+                  <span className="faint">—</span>
+                ),
+            },
+            { label: 'Source id', value: a.sourceId ?? <span className="faint">—</span> },
+            { label: 'First seen', value: a.firstSeenAt },
+          ]}
+        />
       </Panel>
 
-      <Panel title="Replicas">
+      <Panel
+        title="Replicas"
+        description="Every copy ferry knows about, and whether it has been verified"
+        flush={overview.replicas.length > 0}
+      >
         <ReplicaTable overview={overview} />
       </Panel>
 
-      <Panel title="Proxy state">
-        <Chip tone={proxyTone(proxyReadiness(overview))}>{proxyReadiness(overview)}</Chip>
-        {overview.derivatives.length > 0 ? (
-          <ul>
-            {overview.derivatives.map((d) => (
-              <li key={d.id}>
-                <code>{d.kind}</code> · {d.status} ({Math.round(d.readiness * 100)}%)
-              </li>
-            ))}
-          </ul>
+      <Panel
+        title="Proxy state"
+        description="Derivatives generated for editing"
+        actions={<Chip tone={proxyTone(readiness)}>{readiness}</Chip>}
+        flush={overview.derivatives.length > 0}
+      >
+        {overview.derivatives.length === 0 ? (
+          <EmptyState
+            message="No derivatives"
+            hint="Proxies are generated after an offload verifies."
+          />
         ) : (
-          <p className="muted">No derivatives.</p>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Kind</th>
+                  <th>Status</th>
+                  <th>Readiness</th>
+                </tr>
+              </thead>
+              <tbody>
+                {overview.derivatives.map((d) => (
+                  <tr key={d.id}>
+                    <td>
+                      <code>{d.kind}</code>
+                    </td>
+                    <td className="muted">{d.status}</td>
+                    <td>
+                      <Progress
+                        percent={Math.round(d.readiness * 100)}
+                        label={`${d.kind} readiness`}
+                        tone={d.status === 'ready' ? 'ok' : 'neutral'}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Panel>
 
-      <Panel title="Logical clips">
+      <Panel
+        title="Logical clips"
+        description="Spanned or multi-file recordings this asset belongs to"
+      >
         {overview.clips.length === 0 ? (
-          <p className="muted">Not part of any clip group.</p>
+          <EmptyState message="Not part of any clip group" />
         ) : (
-          <ul>
+          <ul className="plain-list">
             {overview.clips.map((c) => (
               <li key={c.id}>
-                {c.clipName} ·{' '}
+                <span className="grow">{c.clipName}</span>
                 <Chip tone={c.resolved ? 'ok' : 'warn'}>{c.resolved ? 'resolved' : 'partial'}</Chip>
               </li>
             ))}
@@ -97,34 +174,42 @@ export function AssetDetail(): JSX.Element {
   );
 }
 
-import type { ReplicaSummary } from '../../../shared/ipc-methods.js';
-import type { AssetOverview } from '../lib/asset.js';
-
 function ReplicaTable({ overview }: { overview: AssetOverview }): JSX.Element {
   if (overview.replicas.length === 0) {
-    return <p className="muted">No replicas recorded.</p>;
+    return (
+      <EmptyState
+        message="No replicas recorded"
+        hint="A verified copy is written by an offload job."
+      />
+    );
   }
   return (
-    <table className="table">
-      <thead>
-        <tr>
-          <th>Path</th>
-          <th>Status</th>
-          <th>Checksum</th>
-        </tr>
-      </thead>
-      <tbody>
-        {overview.replicas.map((r: ReplicaSummary) => (
-          <tr key={r.id}>
-            <td>{r.path}</td>
-            <td>
-              <Chip tone={replicaTone(replicaHealth(r))}>{replicaHealth(r)}</Chip>
-            </td>
-            <td className="muted">{r.verified ? 'verified' : '—'}</td>
+    <div className="table-wrap">
+      <table className="table">
+        <thead>
+          <tr>
+            <th>Path</th>
+            <th>Status</th>
+            <th>Checksum</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {overview.replicas.map((r: ReplicaSummary) => (
+            <tr key={r.id}>
+              <td>
+                <PathCell path={r.path} />
+              </td>
+              <td>
+                <Chip tone={replicaTone(replicaHealth(r))}>{replicaHealth(r)}</Chip>
+              </td>
+              <td className="muted">
+                {r.verified ? 'verified' : <span className="faint">—</span>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

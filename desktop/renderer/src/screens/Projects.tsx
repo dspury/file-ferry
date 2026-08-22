@@ -6,7 +6,7 @@
  * with the Asset/Clip detail flow; this screen lists and lets you select.
  */
 import { useAsync } from '../hooks/useAsync.js';
-import { Chip, Panel, LoadingState, ErrorState } from '../components/ui.js';
+import { Chip, EmptyState, ErrorState, LoadingState, Panel } from '../components/ui.js';
 import { projectRow, policyLabel } from '../lib/projects.js';
 import { navigateTo } from '../views.js';
 
@@ -29,48 +29,69 @@ export function Projects(): JSX.Element {
 
   if (projectList.length === 0) {
     return (
-      <div className="stack">
-        <h2>Projects</h2>
+      <div className="page">
         <Panel>
-          <p className="muted">No projects yet. Create one from the Ingest flow.</p>
+          <EmptyState
+            message="No projects yet"
+            hint="A project is created as part of an offload — it is what destinations, assets, and receipts hang off."
+            action={
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={() => navigateTo('ingest')}
+              >
+                Go to Offload
+              </button>
+            }
+          />
         </Panel>
       </div>
     );
   }
 
   return (
-    <div className="stack">
-      <h2>Projects</h2>
-      <Panel>
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Policy health</th>
-              <th>Policy</th>
-              <th>Created</th>
-            </tr>
-          </thead>
-          <tbody>
-            {projectList.map((p) => {
-              const row = projectRow(p, assetList, [], []);
-              return (
-                <tr key={p.id}>
-                  <td>
-                    <button className="btn" onClick={() => navigateTo('asset')}>
-                      {p.name}
-                    </button>
-                  </td>
-                  <td>
-                    <Chip tone={row.health}>{row.health}</Chip>
-                  </td>
-                  <td className="muted">{policyLabel(p.storagePolicy)}</td>
-                  <td className="muted">{p.createdAt.slice(0, 10)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+    <div className="page">
+      <Panel title="Projects" description={`${projectList.length} total`} flush>
+        <div className="table-wrap">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Policy health</th>
+                <th>Policy</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>
+              {projectList.map((p) => {
+                const row = projectRow(p, assetList, [], []);
+                return (
+                  <tr key={p.id}>
+                    <td>
+                      {/*
+                        A link, not a button: this navigates to another view
+                        rather than performing an action, and styling it as a
+                        bordered button made every row look like a form.
+                      */}
+                      <button
+                        type="button"
+                        className="btn btn--ghost btn--sm"
+                        onClick={() => navigateTo('asset')}
+                      >
+                        {p.name}
+                      </button>
+                    </td>
+                    <td>
+                      <Chip tone={row.health}>{row.health}</Chip>
+                    </td>
+                    <td className="muted">{policyLabel(p.storagePolicy)}</td>
+                    <td className="muted">{p.createdAt.slice(0, 10)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </Panel>
     </div>
   );

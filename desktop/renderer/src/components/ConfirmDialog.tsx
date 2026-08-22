@@ -8,11 +8,15 @@
  *
  * As a modal it also traps Tab focus and closes on Escape (WCAG 2.4.3):
  * `aria-modal` is a promise to assistive tech that the rest of the UI is
- * inert, so focus must not be able to wander out behind the dialog.
+ * inert, so focus must not be able to wander out behind the dialog. The
+ * backdrop is what makes that promise true for sighted users too — the
+ * dialog used to render inline at the bottom of the page, below the
+ * content it was blocking.
  */
 import { useEffect, useRef, useState } from 'react';
 import { confirmEnabled, normalizePhrase } from '../lib/confirm.js';
 import { FOCUSABLE_SELECTOR, isTrapKey, nextFocusIndex } from '../lib/focus-trap.js';
+import { IconAlert } from './icons.js';
 
 export function ConfirmDialog({
   title,
@@ -79,36 +83,41 @@ export function ConfirmDialog({
   };
 
   return (
-    <div
-      className="confirm"
-      role="alertdialog"
-      aria-modal="true"
-      aria-label={title}
-      ref={dialogRef}
-      onKeyDown={onKeyDown}
-    >
-      <h3>{title}</h3>
-      <p>{body}</p>
-      {exact ? (
-        <div className="field">
-          <label htmlFor="confirm-phrase">
-            Type <strong>{phrase}</strong> to confirm
-          </label>
-          <input
-            id="confirm-phrase"
-            value={typed}
-            onChange={(e) => setTyped(e.target.value)}
-            autoFocus
-          />
+    <div className="modal">
+      <div
+        className="confirm"
+        role="alertdialog"
+        aria-modal="true"
+        aria-label={title}
+        ref={dialogRef}
+        onKeyDown={onKeyDown}
+      >
+        <h3 className="confirm__title">
+          <IconAlert size={18} />
+          {title}
+        </h3>
+        <p>{body}</p>
+        {exact ? (
+          <div className="field">
+            <label htmlFor="confirm-phrase">
+              Type <strong>{phrase}</strong> to confirm
+            </label>
+            <input
+              id="confirm-phrase"
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              autoFocus
+            />
+          </div>
+        ) : null}
+        <div className="row">
+          <button type="button" className="btn" onClick={onCancel}>
+            Cancel
+          </button>
+          <button type="button" className="btn btn--danger" onClick={onConfirm} disabled={!enabled}>
+            {confirmLabel}
+          </button>
         </div>
-      ) : null}
-      <div className="row">
-        <button className="btn btn--danger" onClick={onConfirm} disabled={!enabled}>
-          {confirmLabel}
-        </button>
-        <button className="btn" onClick={onCancel}>
-          Cancel
-        </button>
       </div>
     </div>
   );

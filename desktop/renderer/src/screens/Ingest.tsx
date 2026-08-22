@@ -1,5 +1,5 @@
 /**
- * Ingest screen.
+ * Offload screen.
  *
  * Camera-card offload following plan -> review -> execute -> verify ->
  * receipt (plan §4.2). This screen drives source pick/inspect, project
@@ -9,7 +9,17 @@
  */
 import { useState } from 'react';
 import { useAsync } from '../hooks/useAsync.js';
-import { Chip, Panel, Field } from '../components/ui.js';
+import {
+  Banner,
+  Chip,
+  EmptyState,
+  Field,
+  Panel,
+  PathCell,
+  PathPicker,
+  Steps,
+  type StepDef,
+} from '../components/ui.js';
 import {
   ingestStage,
   planReviewable,
@@ -18,7 +28,27 @@ import {
   capacityLabel,
   formatBytes,
 } from '../lib/ingest.js';
+import { navigateTo } from '../views.js';
 import type { IntakePlan, SourceInspectResult } from '../../../shared/ipc-methods.js';
+
+/** How many plan rows to render before deferring to a summary line. The
+ *  plan can be tens of thousands of files; the review only needs a sample
+ *  plus the totals, which are shown above the table. */
+const PLAN_PREVIEW_ROWS = 100;
+
+/*
+ * The rail mirrors `ingestStage` exactly. Keeping the ids equal to the
+ * stage strings means the two cannot drift: the screen never decides which
+ * step is current, it just hands the stage over.
+ */
+const STEPS: readonly StepDef[] = [
+  { id: 'source', label: 'Source' },
+  { id: 'destinations', label: 'Destinations' },
+  { id: 'plan', label: 'Plan' },
+  { id: 'ready', label: 'Review' },
+  { id: 'running', label: 'Execute' },
+  { id: 'done', label: 'Done' },
+];
 
 export function Ingest(): JSX.Element {
   const projects = useAsync(() => window.ferry.project.list());
@@ -145,66 +175,75 @@ export function Ingest(): JSX.Element {
     }
   };
 
-  const stage = ingestStage({
-    source,
-    plan,
-    executing,
-    done: executed,
-  });
+  const stage = ingestStage({ source, plan, executing, done: executed });
+  const projectList = projects.data?.projects ?? [];
+  const hidden = plan === null ? 0 : Math.max(0, plan.entries.length - PLAN_PREVIEW_ROWS);
 
   return (
-    <div className="stack">
-      <h2>Ingest</h2>
-      <p className="muted">Stage: {stage}</p>
+    <div className="page">
+      <Steps label="Offload progress" steps={STEPS} activeId={stage} />
 
-      <Panel title="1 · Source">
+      <Panel
+        title="Source"
+        description="A camera card or any folder to copy from. Reading it never modifies it."
+      >
+        <Field label="Source folder">
+          <PathPicker value={sourcePath} onPick={pickSource} buttonLabel="Browse…" />
+        </Field>
         <div className="row">
-          <button className="btn" onClick={pickSource}>
-            Choose source folder
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={inspect}
+            disabled={!sourcePath || inspecting}
+          >
+            {inspecting ? 'Scanning…' : 'Scan source'}
           </button>
-          <span className="muted grow">{sourcePath ?? 'none selected'}</span>
+          {source && sourceReady(source) ? (
+            <span className="muted">
+              {source.fileCount.toLocaleString()} files · {formatBytes(source.totalBytes)} ·
+              manifest <code>{source.manifestHash.slice(0, 8)}</code>
+            </span>
+          ) : null}
         </div>
-        {sourcePath ? (
-          <div className="row" style={{ marginTop: 8 }}>
-            <button className="btn btn--primary" onClick={inspect} disabled={inspecting}>
-              {inspecting ? 'Scanning…' : 'Scan source'}
-            </button>
-          </div>
-        ) : null}
-        {inspectError !== null ? <Chip tone="danger">{inspectError}</Chip> : null}
-        {source && sourceReady(source) ? (
-          <p className="muted" style={{ marginTop: 8 }}>
-            {source.fileCount} files · {formatBytes(source.totalBytes)} · manifest{' '}
-            {source.manifestHash.slice(0, 8)}
-          </p>
-        ) : null}
+        {inspectError !== null ? <Banner tone="danger">{inspectError}</Banner> : null}
       </Panel>
 
-      <Panel title="2 · Project & destinations">
+      <Panel
+        title="Project & destinations"
+        description="At least one destination is required. A backup root gives you a second verified copy."
+      >
         <Field label="Project">
           <select value={projectId} onChange={(e) => setProjectId(e.target.value)}>
             <option value="">Select a project…</option>
-            {(projects.data?.projects ?? []).map((p) => (
+            {projectList.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
               </option>
             ))}
           </select>
         </Field>
-        <div className="row">
-          <button className="btn" onClick={pickWorking} disabled={!source}>
-            Choose working root
-          </button>
-          <span className="muted grow">{workingRoot ?? 'none'}</span>
+        <div className="field-grid">
+          <Field label="Working root" hint="Where you will edit from">
+            <PathPicker
+              value={workingRoot}
+              onPick={pickWorking}
+              disabled={!source}
+              buttonLabel="Browse…"
+            />
+          </Field>
+          <Field label="Backup root" hint="Optional second copy">
+            <PathPicker
+              value={backupRoot}
+              onPick={pickBackup}
+              disabled={!source}
+              buttonLabel="Browse…"
+            />
+          </Field>
         </div>
-        <div className="row" style={{ marginTop: 8 }}>
-          <button className="btn" onClick={pickBackup} disabled={!source}>
-            Choose backup root
-          </button>
-          <span className="muted grow">{backupRoot ?? 'none'}</span>
-        </div>
-        <div className="row" style={{ marginTop: 8 }}>
+        <div className="form-actions">
           <button
+            type="button"
             className="btn btn--primary"
             onClick={buildPlan}
             disabled={!source || !projectId || (!workingRoot && !backupRoot) || building}
@@ -212,69 +251,95 @@ export function Ingest(): JSX.Element {
             {building ? 'Building plan…' : 'Build plan'}
           </button>
         </div>
-        {planError !== null ? <Chip tone="danger">{planError}</Chip> : null}
+        {planError !== null ? <Banner tone="danger">{planError}</Banner> : null}
       </Panel>
 
-      <Panel title="3 · Review plan">
+      <Panel
+        title="Review plan"
+        description="Nothing has been copied yet. This is exactly what will happen."
+        flush={plan !== null}
+        actions={
+          plan === null ? undefined : (
+            <>
+              <Chip tone={plan.capacityOk ? 'ok' : 'danger'}>{capacityLabel(plan)}</Chip>
+              <span className="muted">
+                {plan.entries.length.toLocaleString()} files · {formatBytes(plan.totalBytes)}
+              </span>
+            </>
+          )
+        }
+      >
         {plan === null ? (
-          <p className="muted">Build a plan to review it.</p>
+          <EmptyState
+            message="No plan yet"
+            hint="Scan a source and choose a destination, then build a plan to review it here."
+          />
         ) : (
           <>
-            <p>
-              <Chip tone={plan.capacityOk ? 'ok' : 'danger'}>{capacityLabel(plan)}</Chip>{' '}
-              <span className="muted">
-                {plan.entries.length} files · {formatBytes(plan.totalBytes)}
-              </span>
-            </p>
             {plan.collisions.length > 0 ? (
-              <p>
-                <Chip tone="danger">
-                  {plan.collisions.length} collision group(s) — review required
-                </Chip>
-              </p>
+              <div className="card__body">
+                <Banner tone="danger" label="Collisions">
+                  {plan.collisions.length} group(s) would overwrite existing files. Review before
+                  executing.
+                </Banner>
+              </div>
             ) : null}
-            <div style={{ maxHeight: 200, overflowY: 'auto', marginTop: 8 }}>
+            <div className="table-wrap table-wrap--short">
               <table className="table">
                 <thead>
                   <tr>
                     <th>Source</th>
-                    <th>Dest</th>
+                    <th>Destination</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {plan.entries.slice(0, 100).map((e) => (
+                  {plan.entries.slice(0, PLAN_PREVIEW_ROWS).map((e) => (
                     <tr key={e.relPath}>
-                      <td className="muted">{e.relPath}</td>
-                      <td className="muted">{e.destPath}</td>
+                      <td>
+                        <PathCell path={e.relPath} />
+                      </td>
+                      <td>
+                        <PathCell path={e.destPath} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              {plan.entries.length > 100 ? (
-                <p className="muted">…and {plan.entries.length - 100} more</p>
-              ) : null}
             </div>
+            {hidden > 0 ? (
+              <div className="card__footer muted">
+                Showing the first {PLAN_PREVIEW_ROWS} of {plan.entries.length.toLocaleString()}{' '}
+                files · {hidden.toLocaleString()} more not listed
+              </div>
+            ) : null}
           </>
         )}
       </Panel>
 
-      <Panel title="4 · Execute">
-        <p className="muted">
-          Executing creates a durable offload job for the reviewed plan. It is not run until you
-          confirm; the result is verified by the sidecar and shown in Activity.
-        </p>
-        <button
-          className="btn btn--primary"
-          onClick={execute}
-          disabled={!planReviewable(plan) || planBlocked(plan) || executed || executing}
-        >
-          {executing ? 'Creating job…' : executed ? 'Offload job created' : 'Create offload job'}
-        </button>
-        {executeError !== null ? <Chip tone="danger">{executeError}</Chip> : null}
+      <Panel
+        title="Execute"
+        description="Creates a durable offload job for the reviewed plan. The sidecar verifies the result; progress appears in Activity."
+      >
+        <div className="row">
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={execute}
+            disabled={!planReviewable(plan) || planBlocked(plan) || executed || executing}
+          >
+            {executing ? 'Creating job…' : executed ? 'Offload job created' : 'Create offload job'}
+          </button>
+          {executed ? (
+            <button type="button" className="btn" onClick={() => navigateTo('activity')}>
+              Watch in Activity
+            </button>
+          ) : null}
+        </div>
+        {executeError !== null ? <Banner tone="danger">{executeError}</Banner> : null}
         {executed ? (
-          <p>
-            <Chip tone="ok">Job handed to Activity</Chip>
-          </p>
+          <Banner tone="ok" label="Handed off">
+            The job is queued. Activity shows its progress, and the receipt when it finishes.
+          </Banner>
         ) : null}
       </Panel>
     </div>

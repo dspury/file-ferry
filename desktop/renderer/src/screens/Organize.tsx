@@ -8,7 +8,17 @@
  */
 import { useState } from 'react';
 import { useAsync } from '../hooks/useAsync.js';
-import { Chip, Panel, Field } from '../components/ui.js';
+import {
+  Banner,
+  Chip,
+  EmptyState,
+  Field,
+  Panel,
+  PathCell,
+  PathPicker,
+  Steps,
+  type StepDef,
+} from '../components/ui.js';
 import { ConfirmDialog } from '../components/ConfirmDialog.js';
 import {
   organizeStage,
@@ -20,6 +30,27 @@ import {
   collisionCount,
 } from '../lib/organize.js';
 import type { OrganizePreview, OrganizationProfile } from '../../../shared/ipc-methods.js';
+
+const PREVIEW_ROWS = 100;
+
+const STEPS: readonly StepDef[] = [
+  { id: 'source', label: 'Source' },
+  { id: 'preview', label: 'Profile' },
+  { id: 'ready', label: 'Review' },
+  { id: 'running', label: 'Apply' },
+  { id: 'done', label: 'Done' },
+];
+
+/*
+ * Copy and link leave the source intact; move does not. Saying so next to
+ * the choice — rather than only in the confirm dialog after the fact — is
+ * what stops the wrong one being picked.
+ */
+const MODE_NOTE = {
+  copy: 'Source files are left untouched.',
+  move: 'Source files are removed after a successful write. Destructive.',
+  link: 'No bytes are copied; the destination points at the source.',
+} satisfies Record<'copy' | 'move' | 'link', string>;
 
 export function Organize(): JSX.Element {
   const profiles = useAsync(() => window.ferry.profile.list());
@@ -131,67 +162,86 @@ export function Organize(): JSX.Element {
     done: outcome !== null,
   });
 
-  return (
-    <div className="stack">
-      <h2>Organize</h2>
-      <p className="muted">Stage: {stage}</p>
+  const hidden = preview === null ? 0 : Math.max(0, preview.entries.length - PREVIEW_ROWS);
 
-      <Panel title="1 · Source & destination">
-        <div className="row">
-          <button className="btn" onClick={pickSource}>
-            Choose source folder
-          </button>
-          <span className="muted grow">{sourcePath ?? 'none'}</span>
-        </div>
-        <div className="row" style={{ marginTop: 8 }}>
-          <button className="btn" onClick={pickDest} disabled={!sourcePath}>
-            Choose destination
-          </button>
-          <span className="muted grow">{destRoot ?? 'none'}</span>
+  return (
+    <div className="page">
+      <Steps label="Organize progress" steps={STEPS} activeId={stage} />
+
+      <Panel
+        title="Source & destination"
+        description="Existing media to reorganize, and the root the new structure is written under."
+      >
+        <div className="field-grid">
+          <Field label="Source folder">
+            <PathPicker value={sourcePath} onPick={pickSource} buttonLabel="Browse…" />
+          </Field>
+          <Field label="Destination root">
+            <PathPicker
+              value={destRoot}
+              onPick={pickDest}
+              disabled={!sourcePath}
+              buttonLabel="Browse…"
+            />
+          </Field>
         </div>
       </Panel>
 
-      <Panel title="2 · Organization profile">
-        <Field label="Profile">
-          <select
-            value={profileId ?? ''}
-            onChange={(e) => setProfileId(e.target.value ? Number(e.target.value) : null)}
-          >
-            <option value="">Use default template</option>
-            {(profiles.data?.profiles ?? []).map((p: OrganizationProfile) => (
-              <option key={p.id} value={p.id}>
-                {profileLabel(p)}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Mode">
-          <select
-            value={mode}
-            onChange={(e) => {
-              // SAFETY: a <select> can only emit one of its own <option>
-              // values, and the three below are exactly the members of
-              // `mode`.
-              setMode(e.target.value as typeof mode);
-            }}
-          >
-            <option value="copy">copy</option>
-            <option value="move">move (requires confirm)</option>
-            <option value="link">link</option>
-          </select>
-        </Field>
+      <Panel
+        title="Organization profile"
+        description="The profile decides the folder template; the mode decides what happens to the originals."
+      >
+        <div className="field-grid">
+          <Field label="Profile">
+            <select
+              value={profileId ?? ''}
+              onChange={(e) => setProfileId(e.target.value ? Number(e.target.value) : null)}
+            >
+              <option value="">Use default template</option>
+              {(profiles.data?.profiles ?? []).map((p: OrganizationProfile) => (
+                <option key={p.id} value={p.id}>
+                  {profileLabel(p)}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Mode" hint={MODE_NOTE[mode]}>
+            <select
+              value={mode}
+              onChange={(e) => {
+                // SAFETY: a <select> can only emit one of its own <option>
+                // values, and the three below are exactly the members of
+                // `mode`.
+                setMode(e.target.value as typeof mode);
+              }}
+            >
+              <option value="copy">Copy</option>
+              <option value="move">Move</option>
+              <option value="link">Link</option>
+            </select>
+          </Field>
+        </div>
+
         {mode === 'move' ? (
-          <label className="row" style={{ gap: 6 }}>
-            <input
-              type="checkbox"
-              checked={confirmMove}
-              onChange={(e) => setConfirmMove(e.target.checked)}
-            />
-            Confirm move (source files will be moved)
-          </label>
+          <>
+            <Banner tone="warn" label="Destructive">
+              Move deletes each source file once its copy is written and verified. ferry cannot undo
+              it.
+            </Banner>
+            <label className="checkline">
+              <input
+                type="checkbox"
+                checked={confirmMove}
+                onChange={(e) => setConfirmMove(e.target.checked)}
+              />
+              I understand the source files will be moved
+            </label>
+          </>
         ) : null}
-        <div className="row" style={{ marginTop: 8 }}>
+
+        <div className="form-actions">
           <button
+            type="button"
             className="btn btn--primary"
             onClick={buildPreview}
             disabled={!sourcePath || !destRoot || previewing}
@@ -199,31 +249,36 @@ export function Organize(): JSX.Element {
             {previewing ? 'Previewing…' : 'Preview target tree'}
           </button>
         </div>
-        {previewError !== null ? <Chip tone="danger">{previewError}</Chip> : null}
+        {previewError !== null ? <Banner tone="danger">{previewError}</Banner> : null}
       </Panel>
 
-      <Panel title="3 · Review preview">
+      <Panel
+        title="Review preview"
+        description="A preview never touches the filesystem."
+        flush={preview !== null}
+        actions={
+          preview === null ? undefined : (
+            <>
+              {preview.collisions.length > 0 ? (
+                <Chip tone="danger">{collisionCount(preview.collisions)} collisions</Chip>
+              ) : (
+                <Chip tone="ok">No collisions</Chip>
+              )}
+              <span className="muted">
+                {preview.entries.length.toLocaleString()} files · {preview.mode}
+              </span>
+            </>
+          )
+        }
+      >
         {preview === null ? (
-          <p className="muted">Build a preview to review the target tree.</p>
+          <EmptyState
+            message="No preview yet"
+            hint="Choose a source and destination, then preview to see the exact target tree."
+          />
         ) : (
           <>
-            <p>
-              <span className="muted">
-                {preview.entries.length} files · mode {preview.mode}
-              </span>
-            </p>
-            {preview.collisions.length > 0 ? (
-              <p>
-                <Chip tone="danger">
-                  {collisionCount(preview.collisions)} collision(s) — resolve before applying
-                </Chip>
-              </p>
-            ) : (
-              <p>
-                <Chip tone="ok">No collisions</Chip>
-              </p>
-            )}
-            <div style={{ maxHeight: 200, overflowY: 'auto', marginTop: 8 }}>
+            <div className="table-wrap table-wrap--short">
               <table className="table">
                 <thead>
                   <tr>
@@ -232,39 +287,51 @@ export function Organize(): JSX.Element {
                   </tr>
                 </thead>
                 <tbody>
-                  {preview.entries.slice(0, 100).map((e) => (
+                  {preview.entries.slice(0, PREVIEW_ROWS).map((e) => (
                     <tr key={e.sourcePath}>
-                      <td className="muted">{e.sourcePath}</td>
-                      <td className="muted">{e.destPath}</td>
+                      <td>
+                        <PathCell path={e.sourcePath} />
+                      </td>
+                      <td>
+                        <PathCell path={e.destPath} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+            {hidden > 0 ? (
+              <div className="card__footer muted">
+                Showing the first {PREVIEW_ROWS} of {preview.entries.length.toLocaleString()} files
+                · {hidden.toLocaleString()} more not listed
+              </div>
+            ) : null}
           </>
         )}
       </Panel>
 
-      <Panel title="4 · Apply">
-        <button
-          className="btn btn--primary"
-          onClick={() => (mode === 'move' ? setConfirmOpen(true) : apply())}
-          disabled={
-            !previewApplyable(preview) ||
-            moveRequiresConfirm(mode, confirmMove) ||
-            applying ||
-            outcome !== null
-          }
-        >
-          {applying ? 'Applying…' : outcome !== null ? 'Done' : `Apply (${mode})`}
-        </button>
-        {applyError !== null ? <Chip tone="danger">{applyError}</Chip> : null}
+      <Panel title="Apply" description="The first step that writes to disk.">
+        <div className="row">
+          <button
+            type="button"
+            className={mode === 'move' ? 'btn btn--danger' : 'btn btn--primary'}
+            onClick={() => (mode === 'move' ? setConfirmOpen(true) : apply())}
+            disabled={
+              !previewApplyable(preview) ||
+              moveRequiresConfirm(mode, confirmMove) ||
+              applying ||
+              outcome !== null
+            }
+          >
+            {applying ? 'Applying…' : outcome !== null ? 'Done' : `Apply (${mode})`}
+          </button>
+        </div>
+        {applyError !== null ? <Banner tone="danger">{applyError}</Banner> : null}
         {outcome !== null ? (
-          <p>
-            <Chip tone="ok">
-              {outcome.ok} ok · {outcome.failed} failed
-            </Chip>
-          </p>
+          <Banner tone={outcome.failed > 0 ? 'warn' : 'ok'} label="Result">
+            {outcome.ok.toLocaleString()} of {outcome.total.toLocaleString()} entries written
+            {outcome.failed > 0 ? `, ${outcome.failed.toLocaleString()} failed` : ''}.
+          </Banner>
         ) : null}
       </Panel>
 

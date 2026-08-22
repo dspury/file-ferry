@@ -158,7 +158,24 @@ and bumped via additive migrations when columns are added — never
 drop or rename, only `ALTER TABLE ADD COLUMN`. See `SCHEMA_VERSION`
 for the current value.
 
+The code is the source of truth. This block is not hand-maintained
+against it: `tests/test_spec_schema.py` executes the SQL below into a
+scratch database and diffs it against a freshly initialized one, so any
+drift fails the suite. Note that a few columns (`projects.manifest_path`,
+the v7 `probes` fields) exist only in `_migrate`, not in `SCHEMA_SQL` —
+the sketch reflects the *effective* schema, which is what a fresh
+database actually gets. Column order is not compared, because
+`ALTER TABLE ADD COLUMN` appends while the sketch groups fields by
+meaning.
+
 ```sql
+-- Schema version marker. `LogStore.initialize` writes SCHEMA_VERSION here
+-- and `_migrate` reads it to decide which additive migrations to apply.
+CREATE TABLE schema_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
+
 -- One row per ferry run
 CREATE TABLE runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

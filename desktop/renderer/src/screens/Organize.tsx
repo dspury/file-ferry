@@ -26,6 +26,7 @@ import {
   collisionBlocks,
   moveRequiresConfirm,
   outcomeSummary,
+  outcomeTone,
   profileLabel,
   collisionCount,
 } from '../lib/organize.js';
@@ -37,7 +38,9 @@ const STEPS: readonly StepDef[] = [
   { id: 'source', label: 'Source' },
   { id: 'preview', label: 'Profile' },
   { id: 'ready', label: 'Review' },
-  { id: 'running', label: 'Apply' },
+  // A preview never touches the filesystem; Apply is the first stage that
+  // does, and in move mode it is also the stage that deletes originals.
+  { id: 'running', label: 'Apply', writes: true },
   { id: 'done', label: 'Done' },
 ];
 
@@ -226,7 +229,8 @@ export function Organize(): JSX.Element {
           <>
             <Banner tone="warn" label="Destructive">
               Move deletes each source file once its copy is written and verified. ferry cannot undo
-              it.
+              it. If this source is a camera card that has not been offloaded, use Offload instead —
+              it keeps the original and writes a receipt.
             </Banner>
             <label className="checkline">
               <input
@@ -274,10 +278,27 @@ export function Organize(): JSX.Element {
         {preview === null ? (
           <EmptyState
             message="No preview yet"
-            hint="Choose a source and destination, then preview to see the exact target tree."
+            hint="Choose a source and a destination root above, then preview. The preview is read-only — it shows the exact target tree without creating any of it."
           />
         ) : (
           <>
+            {preview.collisions.length > 0 ? (
+              <div className="card__body">
+                {/*
+                  Collisions hard-block Apply (`collisionBlocks`), and the
+                  only account of that was a chip in the panel header
+                  counting them. Ingest already banners the same condition;
+                  the screen that refuses to run on it should say more, not
+                  less.
+                */}
+                <Banner tone="danger" label="Collisions">
+                  {collisionCount(preview.collisions).toLocaleString()} file(s) would land on a path
+                  that another file in this run also claims. Apply stays disabled until that is
+                  resolved — change the profile template so the names differ, or set the conflict
+                  policy to rename.
+                </Banner>
+              </div>
+            ) : null}
             <div className="table-wrap table-wrap--short">
               <table className="table">
                 <thead>
@@ -328,17 +349,26 @@ export function Organize(): JSX.Element {
         </div>
         {applyError !== null ? <Banner tone="danger">{applyError}</Banner> : null}
         {outcome !== null ? (
-          <Banner tone={outcome.failed > 0 ? 'warn' : 'ok'} label="Result">
-            {outcome.ok.toLocaleString()} of {outcome.total.toLocaleString()} entries written
-            {outcome.failed > 0 ? `, ${outcome.failed.toLocaleString()} failed` : ''}.
-          </Banner>
+          <>
+            <Banner tone={outcomeTone(outcome)} label="Result">
+              {outcome.ok.toLocaleString()} of {outcome.total.toLocaleString()} entries written
+              {outcome.failed > 0 ? `, ${outcome.failed.toLocaleString()} failed` : ''}.
+            </Banner>
+            {outcome.failed > 0 ? (
+              <Banner tone="warn" label="Incomplete">
+                {mode === 'move'
+                  ? 'The sources behind the failed entries have not been removed. Check them before deleting anything by hand.'
+                  : 'The sources behind the failed entries are untouched. Nothing was lost; re-run once the cause is cleared.'}
+              </Banner>
+            ) : null}
+          </>
         ) : null}
       </Panel>
 
       {confirmOpen ? (
         <ConfirmDialog
           title="Move files"
-          body="This will move source files into the destination. This is destructive and cannot be undone by ferry."
+          body="Each source file is deleted once its copy is written and verified. This cannot be undone by ferry, and there is no second copy of a moved file until this run finishes."
           phrase="move"
           confirmLabel="Move files"
           onConfirm={() => {

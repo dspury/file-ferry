@@ -9,10 +9,10 @@ import { useAsync } from '../hooks/useAsync.js';
 import {
   Chip,
   EmptyState,
-  ErrorState,
-  LoadingState,
   Panel,
   PathCell,
+  ScreenError,
+  ScreenLoading,
   StatCard,
 } from '../components/ui.js';
 import {
@@ -22,6 +22,7 @@ import {
   isJobFailed,
   type HomeSummary,
 } from '../lib/home.js';
+import { jobStateTone } from '../lib/job-state.js';
 import { formatBytes } from '../lib/doctor.js';
 import { navigateTo } from '../views.js';
 import type { JobDetail } from '../../../shared/ipc-methods.js';
@@ -39,10 +40,24 @@ export function Home(): JSX.Element {
   const error = jobs.error ?? volumes.error ?? assets.error;
 
   if (loading) {
-    return <LoadingState message="Loading dashboard…" />;
+    return (
+      <ScreenLoading
+        message="Reading jobs, volumes, and media…"
+        hint="Nothing is being written. This is three read-only queries against the sidecar."
+      />
+    );
   }
   if (error !== null) {
-    return <ErrorState message={error} />;
+    return (
+      <ScreenError
+        message={error}
+        onRetry={() => {
+          jobs.reload();
+          volumes.reload();
+          assets.reload();
+        }}
+      />
+    );
   }
 
   const jobList = jobs.data?.jobs ?? [];
@@ -88,7 +103,12 @@ export function Home(): JSX.Element {
         {volumesList.length === 0 ? (
           <EmptyState
             message="No volumes detected"
-            hint="Connect a card reader or an external drive and it will appear here."
+            hint="Connect a card reader or an external drive and it will appear here. If one is already mounted, Environment shows what ferry can and cannot see."
+            action={
+              <button type="button" className="btn" onClick={() => navigateTo('onboarding')}>
+                Check environment
+              </button>
+            }
           />
         ) : (
           <div className="table-wrap">
@@ -175,15 +195,16 @@ export function Home(): JSX.Element {
   );
 }
 
+/**
+ * One chip, one mapping, shared with Activity.
+ *
+ * The three-branch cascade this replaces classified only active, attention,
+ * and failed, and fell through to an untoned chip for everything else -- so
+ * `succeeded` and `cancelled` drew as the same neutral plate, and a good
+ * outcome was indistinguishable from an aborted one. It also drew active
+ * work in the success tone, which Activity did not, so the same job wore two
+ * different colours on two screens.
+ */
 function JobStateChip({ state }: { state: JobDetail['state'] }): JSX.Element {
-  if (isJobActive({ state })) {
-    return <Chip tone="ok">{state}</Chip>;
-  }
-  if (isJobAttention({ state })) {
-    return <Chip tone="attention">{state}</Chip>;
-  }
-  if (isJobFailed({ state })) {
-    return <Chip tone="danger">{state}</Chip>;
-  }
-  return <Chip>{state}</Chip>;
+  return <Chip tone={jobStateTone(state)}>{state}</Chip>;
 }

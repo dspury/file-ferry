@@ -149,7 +149,9 @@ describe('home', () => {
       proxyPending: 3,
     });
     expect(cards.find((c) => c.label === 'Failed')?.tone).toBe('danger');
-    expect(cards.find((c) => c.label === 'Active jobs')?.tone).toBe('ok');
+    // `active`, not `ok`: running is not succeeded, and the success tone on
+    // this tile made a card still mid-transfer read as a card safely landed.
+    expect(cards.find((c) => c.label === 'Active jobs')?.tone).toBe('active');
   });
 });
 

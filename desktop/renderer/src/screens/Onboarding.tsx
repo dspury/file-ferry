@@ -10,11 +10,13 @@ import { useAsync } from '../hooks/useAsync.js';
 import {
   Banner,
   Chip,
-  ErrorState,
+  EmptyState,
   KeyValue,
   LoadingState,
   Panel,
   PathCell,
+  ScreenError,
+  ScreenLoading,
 } from '../components/ui.js';
 import { toolTone, formatBytes } from '../lib/doctor.js';
 
@@ -23,14 +25,24 @@ export function Onboarding(): JSX.Element {
   const volumes = useAsync(() => window.ferry.source.listVolumes());
 
   if (doctor.loading) {
-    return <LoadingState message="Running environment check…" />;
+    return (
+      <ScreenLoading
+        message="Checking the environment…"
+        hint="Looking for ffmpeg, ffprobe, and Resolve, and reading volume headroom. Read-only."
+      />
+    );
   }
   if (doctor.error !== null) {
-    return <ErrorState message={doctor.error} />;
+    return <ScreenError message={doctor.error} onRetry={doctor.reload} />;
   }
   const d = doctor.data;
   if (d === null) {
-    return <ErrorState message="No doctor data." />;
+    return (
+      <ScreenError
+        message="The sidecar answered the environment check with no data."
+        onRetry={doctor.reload}
+      />
+    );
   }
 
   const missing = d.tools.filter((t) => !t.present);
@@ -83,11 +95,22 @@ export function Onboarding(): JSX.Element {
         </div>
       </Panel>
 
-      <Panel title="Storage roots" description="Mounted volumes and their headroom" flush>
+      <Panel
+        title="Storage roots"
+        description="Mounted volumes and their headroom"
+        flush={(volumes.data?.volumes ?? []).length > 0}
+      >
         {volumes.loading ? (
           <LoadingState message="Scanning volumes…" />
         ) : volumes.error !== null ? (
           <Banner tone="warn">Unable to read volumes: {volumes.error}</Banner>
+        ) : (volumes.data?.volumes ?? []).length === 0 ? (
+          /* A table head with no rows under it reads as a component that
+             failed, not as an answer. This is the answer. */
+          <EmptyState
+            message="No volumes visible"
+            hint="ferry sees no mounted volumes at all — not even a system disk. On macOS that usually means the app has not been granted access to removable volumes yet."
+          />
         ) : (
           <div className="table-wrap">
             <table className="table">

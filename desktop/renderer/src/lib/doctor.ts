@@ -28,10 +28,19 @@ export function overallHealth(doctor: DoctorResult): Health {
   return 'ok';
 }
 
-/** Per-tool tone: missing required tools are danger, optional are attention. */
+/**
+ * Per-tool tone: missing required tools are danger, optional are attention.
+ *
+ * The name match is a case-insensitive substring because the sidecar reports
+ * the tool as the operator knows it -- "DaVinci Resolve" -- and an exact
+ * `=== 'resolve'` test therefore never fired. The result was a missing
+ * optional integration drawn in danger red directly under a banner calling
+ * the same fact merely "Incomplete": two different severities for one
+ * condition, on one screen.
+ */
 export function toolTone(name: string, present: boolean): 'ok' | 'danger' | 'attention' {
   if (present) return 'ok';
-  return name === 'resolve' ? 'attention' : 'danger';
+  return name.toLowerCase().includes('resolve') ? 'attention' : 'danger';
 }
 
 /** Short human status for a tool. */

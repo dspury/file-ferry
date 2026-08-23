@@ -221,6 +221,20 @@
      information — every one can be removed without changing what a screen
      says. --- */
   --glow-accent: 0 0 10px rgba(255, 106, 44, 0.3);
+
+  /*
+   * The "this did not happen" hatch, ruled across the empty part of a meter
+   * whose job has stopped. A struck-out remainder is what separates "got to
+   * 25%" from "25% of the way there", and it is a texture, so it survives
+   * greyscale and a forced-colours mode that drops the fill hue.
+   */
+  --fill-hatch: repeating-linear-gradient(
+    135deg,
+    rgba(239, 231, 216, 0.14) 0,
+    rgba(239, 231, 216, 0.14) 1px,
+    transparent 1px,
+    transparent 4px
+  );
   --fill-ticks: repeating-linear-gradient(
     90deg,
     var(--c-border-strong) 0 1px,
@@ -809,14 +823,53 @@ code,
   white-space: nowrap;
 }
 
-/* The leading dot is a non-colour marker: each tone also renders a glyph
-   in the chip text, so the shape survives greyscale. */
+/*
+ * The leading marker, and the chip's non-colour channel.
+ *
+ * It used to be one circle for every tone, which made it decoration: the
+ * only thing separating MISSING from VERIFIED in greyscale was reading the
+ * word. Now the silhouette differs per tone and the shapes are chosen to
+ * mean what the tone means -- a play triangle for work in flight, a bar for
+ * a run that halted, a hollow ring for something waiting on a person, a
+ * hexagon for danger. At 7px none of these is a picture, but a column of
+ * fifty rows sorts into groups by shape alone, which is the job.
+ */
 .chip__dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: currentColor;
   flex: none;
+}
+
+/* In flight: pointing forward. */
+.chip--active .chip__dot {
+  border-radius: 0;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+
+/* Caution: the standard warning triangle, upright. */
+.chip--warn .chip__dot {
+  border-radius: 0;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+/* Danger: a hexagonal plate, the one silhouette here with no round edge. */
+.chip--danger .chip__dot {
+  border-radius: 0;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+}
+
+/* Waiting on a person: hollow, so the row reads as unfinished business. */
+.chip--attention .chip__dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px currentColor;
+}
+
+/* Stopped: a bar, not a dot -- the same "halt" mark as the dashed edge. */
+.chip--cancelled .chip__dot {
+  height: 2px;
+  border-radius: 1px;
 }
 
 /*
@@ -1073,6 +1126,36 @@ code,
   border-bottom: none;
 }
 
+/*
+ * A note row: a job's own error text, spanning the table under the row it
+ * belongs to.
+ *
+ * `job.error` is where the sidecar puts the sentence that decides whether a
+ * camera card can be released -- "3 of 412 files failed checksum
+ * verification, the source card is still required" -- and Activity rendered
+ * none of it. It cannot go in the state cell: it is prose, and the cell is
+ * sized for a chip. Spanning the row gives it the width a sentence needs
+ * while keeping it attached to its job.
+ */
+.table tbody tr.row--note td {
+  padding-top: 0;
+  padding-bottom: var(--sp-3);
+}
+
+.table tbody tr.row--note:hover td {
+  background: none;
+}
+
+.table tbody tr.row--note:hover td:first-child {
+  box-shadow: none;
+}
+
+/* The row above a note is part of the same record, so the line between them
+   is dropped and the pair reads as one block. */
+.table tbody tr.row--has-note td {
+  border-bottom: none;
+}
+
 .table tbody tr td {
   transition: background var(--motion);
 }
@@ -1088,18 +1171,51 @@ code,
   box-shadow: inset 2px 0 0 var(--c-accent);
 }
 
-/* Paths are long and their meaningful end is the right-hand side, so the
-   cell clips with a tooltip rather than wrapping into a tall row. */
+/*
+ * Paths are long and their meaningful end is the right-hand side, so the
+ * cell clips with a tooltip rather than wrapping into a tall row.
+ *
+ * The clipping is done by giving the directory run away, not by reversing
+ * the text: `direction: rtl` kept the tail but handed the string to the bidi
+ * algorithm as an RTL paragraph, and the leading `/` of an absolute path --
+ * a neutral character at a paragraph boundary -- was drawn at the far end,
+ * so `/Volumes/Sable-Work/HarbourLights/` displayed as
+ * `ork/HarbourLights/`. A path is a value; it must not be reordered to fit.
+ */
 .cell-path {
+  display: inline-flex;
+  align-items: baseline;
   font-family: var(--ff-mono);
   font-size: var(--fs-sm);
   color: var(--c-text-dim);
-  max-width: 320px;
+  /* Wide enough that a two- or three-segment path fits whole, capped so one
+     pathological entry cannot force the whole table wider than the window. */
+  max-width: 460px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* The head is the only half that shrinks, and it is dimmer: the directory
+   run is context, and the leaf is the thing being named. */
+.path__head {
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  direction: rtl;
-  text-align: left;
+  color: var(--c-text-faint);
+}
+
+/* `flex-shrink: 0` is what protects the filename: flexbox takes the whole
+   overflow out of the head before it touches this. `max-width` is the
+   fallback for a path with no separator at all, where there is no head to
+   give up and the leaf has to clip like anything else. */
+.path__tail {
+  flex: 0 0 auto;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cell-num {
@@ -1155,10 +1271,22 @@ code,
   color: var(--c-text);
 }
 
+/*
+ * The phrase itself gets a plate. It is a literal the operator has to
+ * reproduce character for character, not an emphasised word in a sentence,
+ * and as bare bold mono a short lowercase phrase like `move` was easy to
+ * skim straight past on the way to the input.
+ */
 .confirm .field label strong {
+  display: inline-block;
   font-family: var(--ff-mono);
   font-weight: 600;
   color: var(--c-danger);
+  letter-spacing: var(--tr-label);
+  padding: 0 5px;
+  border: 1px solid var(--c-danger-line);
+  border-radius: var(--radius-xs);
+  background: var(--c-danger-soft);
 }
 
 .field-grid {
@@ -1269,6 +1397,8 @@ textarea:focus-visible {
   border-color: var(--c-accent);
 }
 
+/* Same split as `.cell-path`, and for the same reason: the chosen folder's
+   own name is the part that must survive the truncation. */
 .pathpick__value {
   flex: 1;
   min-width: 0;
@@ -1279,16 +1409,16 @@ textarea:focus-visible {
   font-size: var(--fs-sm);
   color: var(--c-text);
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
-  direction: rtl;
-  text-align: left;
+}
+
+.pathpick__value .path__tail {
+  color: var(--c-text);
 }
 
 .pathpick__value--empty {
   color: var(--c-text-faint);
   font-family: var(--ff-sans);
-  direction: ltr;
 }
 
 /* The trigger is the raised half of one control, so it keeps the panel
@@ -1435,11 +1565,59 @@ textarea:focus-visible {
 }
 
 /* Busy is not empty. A dashed well says "put something here", which is the
-   wrong instruction while the app is fetching something it already has. */
+   wrong instruction while the app is fetching something it already has, so
+   the well is dropped -- `ScreenLoading` puts the wait inside the card the
+   content will arrive in, which is the frame that belongs around it. */
 .empty--busy {
   border-style: none;
   background: transparent;
   padding: var(--sp-6) var(--sp-4);
+}
+
+/*
+ * The indeterminate sweep: the only thing on a waiting screen that says the
+ * app is working rather than finished and empty. A fixed track with a short
+ * travelling fill, so it reads as motion along a scale and cannot be read as
+ * a fraction -- there is no fraction here to report.
+ */
+.busy__meter {
+  display: block;
+  width: 132px;
+  height: 3px;
+  margin-bottom: var(--sp-3);
+  border-radius: var(--radius-pill);
+  background: var(--c-surface-2);
+  overflow: hidden;
+}
+
+.busy__sweep {
+  display: block;
+  width: 38%;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--c-accent);
+  animation: busy-sweep 1.15s ease-in-out infinite;
+}
+
+@keyframes busy-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(263%);
+  }
+}
+
+/*
+ * Removed rather than frozen under reduced motion. The global rule below
+ * kills the animation, which would park the fill at the left of the track --
+ * a stationary partial bar, which is the exact false claim this meter exists
+ * to avoid. The message and its live region carry the state without it.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .busy__meter {
+    display: none;
+  }
 }
 
 /* The glyph gets its own plate so it reads as an icon rather than as a
@@ -1545,9 +1723,24 @@ textarea:focus-visible {
   letter-spacing: normal;
 }
 
+/*
+ * The active stage is the only enclosed one.
+ *
+ * Before this the current stage differed from a pending one by text colour
+ * and weight plus an orange marker -- two hue signals and a weight bump,
+ * across six stages that were otherwise identical rectangles of text. Giving
+ * it a plate of its own makes "where am I in this flow" a *shape* difference
+ * you can read without resolving the labels at all, which is what "at a
+ * glance" has to mean on a rail that spans the window.
+ */
 .step--active {
   color: var(--c-text);
   font-weight: 600;
+  padding: 3px var(--sp-3) 3px var(--sp-2);
+  margin: -3px 0;
+  border: 1px solid var(--c-accent-line);
+  border-radius: var(--radius);
+  background: var(--c-accent-soft);
 }
 
 .step--active .step__index {
@@ -1555,6 +1748,47 @@ textarea:focus-visible {
   border-color: var(--c-accent);
   color: var(--c-on-accent);
   box-shadow: var(--glow-accent);
+}
+
+/* The connector belongs between the plates, not inside one. Each `li` holds
+   the rule that leads out of it, so once the active stage became an enclosed
+   box its own rule ended up drawn within the border, reading as a stray mark
+   after the label. The gap left behind still spaces the run. */
+.step--active .step__sep {
+  display: none;
+}
+
+.step--active + .step {
+  margin-left: var(--sp-2);
+}
+
+/*
+ * The point of no return.
+ *
+ * Everything up to here has read the source and planned; from here ferry
+ * writes. That is the one distinction in the rail with a consequence
+ * attached, so it gets a rule and a word rather than being left to the
+ * operator to infer from the stage names. Warning-toned, not danger: the
+ * boundary is a fact about the flow, and the destructive-action colour
+ * belongs to the confirm dialog and the move banner that actually arm it.
+ */
+.step--gate {
+  border-left: 1px solid var(--c-warn-line);
+  padding-left: var(--sp-3);
+  margin-left: var(--sp-1);
+}
+
+.step--gate.step--active {
+  border-left-color: var(--c-warn);
+}
+
+.step__gate {
+  font-family: var(--ff-mono);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: var(--tr-wide);
+  text-transform: uppercase;
+  color: var(--c-warn);
 }
 
 .step--done {
@@ -1616,12 +1850,55 @@ textarea:focus-visible {
   box-shadow: var(--glow-accent);
 }
 
-.progress--ok .progress__fill {
+/*
+ * The six meter statuses.
+ *
+ * `--complete` is the only one that draws a full bar, and it is the only one
+ * that gets the success hue, so a full green track means one thing in this
+ * app: the operation was confirmed.
+ */
+.progress--complete .progress__fill {
   background: var(--c-ok);
+  box-shadow: none;
 }
 
-.progress--danger .progress__fill {
+.progress--failed .progress__fill {
   background: var(--c-danger);
+  box-shadow: none;
+}
+
+.progress--cancelled .progress__fill {
+  background: var(--c-cancelled);
+  box-shadow: none;
+}
+
+.progress--stalled .progress__fill {
+  background: var(--c-attention);
+  box-shadow: none;
+}
+
+/*
+ * A meter that stopped strikes out the ground it never covered, layering the
+ * hatch over the barrel graduations. Without this a failed job at 25% is the
+ * same drawing as a running job at 25%, differing only in hue -- which is
+ * the reading the acceptance criteria rule out.
+ */
+.progress--failed,
+.progress--cancelled,
+.progress--stalled {
+  background-image: var(--fill-hatch), var(--fill-ticks);
+  background-size:
+    auto,
+    100% 4px;
+  background-position:
+    0 0,
+    0 100%;
+  background-repeat: repeat, repeat-x;
+}
+
+/* Nothing has started: an empty track with no fill and no claim. */
+.progress--idle {
+  opacity: 0.7;
 }
 
 .progress-cell {
@@ -1631,13 +1908,50 @@ textarea:focus-visible {
   min-width: 150px;
 }
 
+/* The figure and its qualifier stack, so the word lands directly under the
+   number it qualifies and the numbers stay in one right-aligned column. */
+.progress-cell__value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  width: 52px;
+  flex: none;
+}
+
 .progress-cell__pct {
   font-family: var(--ff-mono);
   font-size: var(--fs-sm);
   color: var(--c-text-dim);
-  width: 38px;
-  text-align: right;
-  flex: none;
+  line-height: 1.2;
+}
+
+/* The qualifier is a stamp, not a caption: at this size it is the word that
+   does the work of separating "stopped at 25%" from "25% done". */
+.progress-cell__note {
+  font-family: var(--ff-mono);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: var(--tr-label);
+  text-transform: uppercase;
+  line-height: 1.2;
+  color: var(--c-text-faint);
+}
+
+.progress--complete + .progress-cell__value .progress-cell__note {
+  color: var(--c-ok);
+}
+
+.progress--failed + .progress-cell__value .progress-cell__note {
+  color: var(--c-danger);
+}
+
+.progress--cancelled + .progress-cell__value .progress-cell__note {
+  color: var(--c-cancelled);
+}
+
+.progress--stalled + .progress-cell__value .progress-cell__note {
+  color: var(--c-attention);
 }
 
 /* ====================== key / value rows ======================== */
@@ -1811,6 +2125,18 @@ textarea:focus-visible {
 .seg__item:focus-visible {
   outline: 2px solid var(--c-accent);
   outline-offset: 2px;
+}
+
+/*
+ * A 15px checkbox is a small target for a 2px ring, and this particular
+ * checkbox is the one that arms a destructive move. Lighting the whole line
+ * makes it unmistakable which acknowledgement has the keyboard, and puts the
+ * sentence being agreed to inside the focused region rather than beside it.
+ */
+.checkline:focus-within {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
 .visually-hidden {

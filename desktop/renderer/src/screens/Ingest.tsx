@@ -47,7 +47,10 @@ const STEPS: readonly StepDef[] = [
   { id: 'destinations', label: 'Destinations' },
   { id: 'plan', label: 'Plan' },
   { id: 'ready', label: 'Review' },
-  { id: 'running', label: 'Execute' },
+  // Everything above this reads and plans; from here ferry writes. The rail
+  // draws the boundary so which side of it you are on is not something to be
+  // inferred from the stage names.
+  { id: 'running', label: 'Execute', writes: true },
   { id: 'done', label: 'Done' },
 ];
 
@@ -275,18 +278,33 @@ export function Ingest(): JSX.Element {
           )
         }
       >
+        {plan !== null && !plan.capacityOk ? (
+          <div className="card__body">
+            {/*
+              `planBlocked` disables Execute on exactly this condition, and
+              the only account of it was a three-word chip in the panel
+              header. A blocked action has to say what is blocking it and
+              what would clear it.
+            */}
+            <Banner tone="danger" label="Not enough room">
+              The destination is short by {formatBytes(plan.neededBytes)}. Execute stays disabled
+              until it fits — free space on the destination volume, or choose a different root.
+            </Banner>
+          </div>
+        ) : null}
         {plan === null ? (
           <EmptyState
             message="No plan yet"
-            hint="Scan a source and choose a destination, then build a plan to review it here."
+            hint="Scan a source above, pick a project and at least one destination, then build a plan. Nothing is written until you review it here and execute."
           />
         ) : (
           <>
             {plan.collisions.length > 0 ? (
               <div className="card__body">
                 <Banner tone="danger" label="Collisions">
-                  {plan.collisions.length} group(s) would overwrite existing files. Review before
-                  executing.
+                  {plan.collisions.length} group(s) below would land on paths that already hold a
+                  file. Check the destination rows before executing — an existing file at a planned
+                  destination is the one case where an offload can cost you footage you already had.
                 </Banner>
               </div>
             ) : null}
@@ -343,9 +361,23 @@ export function Ingest(): JSX.Element {
         </div>
         {executeError !== null ? <Banner tone="danger">{executeError}</Banner> : null}
         {executed ? (
-          <Banner tone="ok" label="Handed off">
-            The job is queued. Activity shows its progress, and the receipt when it finishes.
-          </Banner>
+          <>
+            <Banner tone="ok" label="Handed off">
+              The job is queued. Activity shows its progress, and the receipt when it finishes.
+            </Banner>
+            {/*
+              The most consequential sentence on this screen, and it was not
+              on it. "Job created" is a success message, and read on its own
+              at the end of a card pull it is the moment an operator reaches
+              for the format button. Queued is not copied, and copied is not
+              verified.
+            */}
+            <Banner tone="warn" label="Keep the card">
+              Do not format or erase the source card yet. Nothing has been verified: the receipt in
+              Activity is what confirms every file landed and matched its checksum, and that is what
+              makes the card safe to format.
+            </Banner>
+          </>
         ) : null}
       </Panel>
     </div>

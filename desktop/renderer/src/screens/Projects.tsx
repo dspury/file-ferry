@@ -6,8 +6,8 @@
  * with the Asset/Clip detail flow; this screen lists and lets you select.
  */
 import { useAsync } from '../hooks/useAsync.js';
-import { Chip, EmptyState, ErrorState, LoadingState, Panel } from '../components/ui.js';
-import { projectRow, policyLabel } from '../lib/projects.js';
+import { Chip, EmptyState, Panel, ScreenError, ScreenLoading } from '../components/ui.js';
+import { projectRow, policyHealthLabel, policyLabel } from '../lib/projects.js';
 import { navigateTo } from '../views.js';
 
 export function Projects(): JSX.Element {
@@ -18,10 +18,23 @@ export function Projects(): JSX.Element {
   const error = projects.error ?? assets.error;
 
   if (loading) {
-    return <LoadingState message="Loading projects…" />;
+    return (
+      <ScreenLoading
+        message="Reading projects and their policy…"
+        hint="Storage-policy health is computed from what is already recorded; nothing is scanned."
+      />
+    );
   }
   if (error !== null) {
-    return <ErrorState message={error} />;
+    return (
+      <ScreenError
+        message={error}
+        onRetry={() => {
+          projects.reload();
+          assets.reload();
+        }}
+      />
+    );
   }
 
   const projectList = projects.data?.projects ?? [];
@@ -84,7 +97,12 @@ export function Projects(): JSX.Element {
                       </button>
                     </td>
                     <td>
-                      <Chip tone={row.health}>{row.health}</Chip>
+                      {/*
+                        The label names the finding, not the severity: "no
+                        backup root" tells an operator what to fix, where
+                        "danger" only told them to worry.
+                      */}
+                      <Chip tone={row.health}>{policyHealthLabel(row.health)}</Chip>
                     </td>
                     <td className="muted">{policyLabel(p.storagePolicy)}</td>
                     <td className="muted">{p.createdAt.slice(0, 10)}</td>

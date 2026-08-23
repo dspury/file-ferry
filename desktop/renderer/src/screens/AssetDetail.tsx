@@ -12,19 +12,22 @@
 import { useAsync } from '../hooks/useAsync.js';
 import { useRoute } from '../hooks/useRoute.js';
 import {
+  Banner,
   Chip,
   EmptyState,
-  ErrorState,
   KeyValue,
-  LoadingState,
   Panel,
   PathCell,
   Progress,
+  ScreenError,
+  ScreenLoading,
   type Tone,
 } from '../components/ui.js';
 import {
   assetFileName,
   assetOverview,
+  lifecycleTally,
+  lifecycleTone,
   proxyReadiness,
   replicaHealth,
   searchAssets,
@@ -63,14 +66,20 @@ function AssetBrowser({ projectId }: { projectId: string | null }): JSX.Element 
   const [query, setQuery] = useState('');
 
   if (assets.loading) {
-    return <LoadingState message="Loading media…" />;
+    return (
+      <ScreenLoading
+        message="Reading the media library…"
+        hint="Listing recorded assets. No file on disk is opened or checksummed by this."
+      />
+    );
   }
   if (assets.error !== null) {
-    return <ErrorState message={assets.error} />;
+    return <ScreenError message={assets.error} onRetry={assets.reload} />;
   }
 
   const all = assets.data?.assets ?? [];
   const rows = sortAssets(searchAssets(all, query));
+  const tally = lifecycleTally(all);
   const projectList = projects.data?.projects ?? [];
   const activeProject = projectList.find((p) => p.id === projectId) ?? null;
 
@@ -112,6 +121,38 @@ function AssetBrowser({ projectId }: { projectId: string | null }): JSX.Element 
         }
         flush={rows.length > 0}
       >
+        {/*
+          A library of two hundred rows hides three MISSING chips somewhere
+          in the scroll. Naming the counts above the table is what makes a
+          replica ferry can no longer find findable without reading every
+          row, and it is derived from the same lifecycle states the chips
+          draw -- no extra request, no new claim.
+        */}
+        {tally.missing + tally.needsReview + tally.unverified === 0 ? null : (
+          <div className="card__body">
+            <div className="stack">
+              {tally.missing > 0 ? (
+                <Banner tone="danger" label="Missing">
+                  {tally.missing} asset{tally.missing === 1 ? '' : 's'} ferry can no longer find on
+                  disk. Search <code>missing</code> to list them, and do not format or erase the
+                  source they came from.
+                </Banner>
+              ) : null}
+              {tally.needsReview > 0 ? (
+                <Banner tone="warn" label="Needs review">
+                  {tally.needsReview} asset{tally.needsReview === 1 ? '' : 's'} could not be
+                  classified automatically. Search <code>needs_review</code> to work through them.
+                </Banner>
+              ) : null}
+              {tally.unverified > 0 ? (
+                <Banner tone="warn" label="Unverified">
+                  {tally.unverified} asset{tally.unverified === 1 ? '' : 's'} copied but not yet
+                  checksum-verified. Until they are, the source is the only confirmed copy.
+                </Banner>
+              ) : null}
+            </div>
+          </div>
+        )}
         {rows.length === 0 ? (
           <EmptyState
             message={all.length === 0 ? 'No media yet' : 'No media matches'}
@@ -168,7 +209,7 @@ function AssetBrowser({ projectId }: { projectId: string | null }): JSX.Element 
                       {asset.observedSize === null ? '—' : formatBytes(asset.observedSize)}
                     </td>
                     <td>
-                      <Chip>{asset.lifecycleState}</Chip>
+                      <Chip tone={lifecycleTone(asset.lifecycleState)}>{asset.lifecycleState}</Chip>
                     </td>
                   </tr>
                 ))}
@@ -201,7 +242,7 @@ function AssetView({
   );
 
   if (asset.loading) {
-    return <LoadingState message="Loading asset…" />;
+    return <ScreenLoading message="Reading this asset's record…" />;
   }
   if (asset.error !== null) {
     return (
@@ -210,7 +251,14 @@ function AssetView({
           <div className="grow" />
           <div className="page__intro-actions">{back}</div>
         </div>
-        <ErrorState message={asset.error} />
+        <Banner tone="danger" label="Cannot load">
+          {asset.error}
+        </Banner>
+        <div className="row">
+          <button type="button" className="btn btn--primary" onClick={asset.reload}>
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
@@ -221,7 +269,7 @@ function AssetView({
         <Panel actions={back}>
           <EmptyState
             message="Asset not found"
-            hint="It may have been removed since this link was made."
+            hint="It may have been removed from the library since this link was made. The media itself is untouched by that."
           />
         </Panel>
       </div>
@@ -243,7 +291,7 @@ function AssetView({
           <PathCell path={a.sourceRelativePath} />
         </div>
         <div className="page__intro-actions">
-          <Chip>{a.lifecycleState}</Chip>
+          <Chip tone={lifecycleTone(a.lifecycleState)}>{a.lifecycleState}</Chip>
           {back}
         </div>
       </div>
@@ -287,7 +335,7 @@ function AssetView({
         {overview.derivatives.length === 0 ? (
           <EmptyState
             message="No derivatives"
-            hint="Proxies are generated after an offload verifies."
+            hint="Proxies are generated after an offload verifies — an asset with no verified replica has nothing to transcode from yet."
           />
         ) : (
           <div className="table-wrap">
@@ -310,7 +358,15 @@ function AssetView({
                       <Progress
                         percent={Math.round(d.readiness * 100)}
                         label={`${d.kind} readiness`}
-                        tone={d.status === 'ready' ? 'ok' : 'neutral'}
+                        status={
+                          d.status === 'ready'
+                            ? 'complete'
+                            : d.status === 'failed'
+                              ? 'failed'
+                              : d.readiness > 0
+                                ? 'running'
+                                : 'idle'
+                        }
                       />
                     </td>
                   </tr>
@@ -326,7 +382,10 @@ function AssetView({
         description="Spanned or multi-file recordings this asset belongs to"
       >
         {overview.clips.length === 0 ? (
-          <EmptyState message="Not part of any clip group" />
+          <EmptyState
+            message="Not part of any clip group"
+            hint="Spanned recordings and their sidecars are grouped when a source is detected; a single self-contained file belongs to no group, which is normal."
+          />
         ) : (
           <ul className="plain-list">
             {overview.clips.map((c) => (
@@ -369,6 +428,10 @@ function ReplicaTable({ overview }: { overview: AssetOverview }): JSX.Element {
               </td>
               <td>
                 <Chip tone={replicaTone(replicaHealth(r))}>{replicaHealth(r)}</Chip>
+                {/* A verified copy on an unmounted drive is still verified,
+                    and still not something you can open right now. Saying
+                    only "verified" left that half of the fact unsaid. */}
+                {r.availability === 'online' ? null : <div className="muted">{r.availability}</div>}
               </td>
               <td className="muted">
                 {r.verified ? 'verified' : <span className="faint">—</span>}

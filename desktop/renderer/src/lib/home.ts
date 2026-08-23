@@ -87,12 +87,22 @@ export function summarizeHome(opts: {
 export interface StatusCard {
   readonly label: string;
   readonly count: number;
-  readonly tone: 'ok' | 'warn' | 'danger' | 'attention' | 'neutral';
+  readonly tone: 'active' | 'ok' | 'warn' | 'danger' | 'attention' | 'neutral';
 }
 
+/**
+ * The dashboard tiles.
+ *
+ * Active work is `active`, not `ok`. Running is not succeeded: green here
+ * reported "1 active job" in the same colour the app uses for a verified
+ * copy, so a card still mid-transfer read as a card safely landed -- and it
+ * left the accent variant of the tile, which is what CinePrompt reserves for
+ * live work, unused. The remaining tones are all "something is wrong to
+ * degree N", which is the axis warn/danger/attention already covers.
+ */
 export function homeCards(s: HomeSummary): StatusCard[] {
   return [
-    { label: 'Active jobs', count: s.activeJobs, tone: 'ok' },
+    { label: 'Active jobs', count: s.activeJobs, tone: 'active' },
     { label: 'Needs attention', count: s.attentionJobs, tone: 'attention' },
     { label: 'Failed', count: s.failedJobs, tone: 'danger' },
     { label: 'Unsafe cards', count: s.unsafeCards, tone: 'danger' },

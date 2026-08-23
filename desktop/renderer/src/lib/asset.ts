@@ -71,6 +71,69 @@ export function assetPath(asset: AssetSummary): string {
 }
 
 /**
+ * The tone for an asset's lifecycle state.
+ *
+ * These are the states the epic requires stay explicit, and until now every
+ * one of them rendered as the same neutral grey plate -- `missing` included,
+ * which is the single most consequential thing this screen can tell an
+ * operator and read as unremarkable.
+ *
+ * `copied` is deliberately a warning rather than a success: bytes are on
+ * disk but no checksum has confirmed them, so the source card is still the
+ * only trustworthy copy. That distinction between `copied` and `verified` is
+ * the whole reason the app exists, and drawing them in one colour would
+ * erase it.
+ */
+export type LifecycleTone = 'neutral' | 'ok' | 'warn' | 'danger' | 'attention';
+
+export function lifecycleTone(state: string): LifecycleTone {
+  switch (state) {
+    case 'verified':
+      return 'ok';
+    case 'copied':
+      return 'warn';
+    case 'needs_review':
+      return 'attention';
+    case 'missing':
+    case 'quarantined':
+      return 'danger';
+    // `discovered` is seen on a source but not yet acted on: nothing has
+    // happened and nothing is wrong. It is the state
+    // `application/assets.py` writes on adoption, and the default any state
+    // this build has not been taught falls back to.
+    default:
+      return 'neutral';
+  }
+}
+
+/** How many assets sit in each state that needs a human. */
+export interface LifecycleTally {
+  readonly missing: number;
+  readonly needsReview: number;
+  readonly unverified: number;
+}
+
+/**
+ * Count the states worth saying out loud above the table.
+ *
+ * A library of two hundred rows hides three MISSING chips somewhere in the
+ * scroll. The tally is what makes them findable without reading every row,
+ * and it is derived from the same `lifecycleState` the chips draw -- no new
+ * data, no new request.
+ */
+export function lifecycleTally(assets: readonly AssetSummary[]): LifecycleTally {
+  let missing = 0;
+  let needsReview = 0;
+  let unverified = 0;
+  for (const asset of assets) {
+    if (asset.lifecycleState === 'missing') missing += 1;
+    else if (asset.lifecycleState === 'needs_review') needsReview += 1;
+    else if (asset.lifecycleState === 'copied') unverified += 1;
+  }
+  return { missing, needsReview, unverified };
+}
+
+/**
  * The part of a source path an operator actually scans for.
  *
  * Camera cards bury the file several directories deep

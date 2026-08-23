@@ -25,7 +25,12 @@ from pathlib import Path
 
 from file_ferry.persistence.connection import transaction
 from file_ferry.persistence.repositories import jobs as job_repo
-from file_ferry.service.protocol import CreateJobParams, JobDetail, JobTransitionParams
+from file_ferry.service.protocol import (
+    CreateJobParams,
+    JobDetail,
+    JobSnapshot,
+    JobTransitionParams,
+)
 
 # Terminal states cannot transition out of.
 _TERMINAL = {"succeeded", "failed", "cancelled"}
@@ -129,6 +134,37 @@ class JobService:
         return self._to_detail(updated)
 
     # ---- step / item helpers (consumed by later packages) ------------
+
+    def snapshot(self, job_id: str) -> JobSnapshot:
+        """The live state of one job, including its per-step progress.
+
+        This is what a ``job.updated`` subscriber receives. It reads the
+        ``job_steps`` rows rather than only the job row so ``completedSteps``
+        is a real count -- the desktop's progress bar divides it by
+        ``totalSteps``, and with only the job row it could never show
+        anything between 0 and 100%.
+        """
+        with transaction(self._db_path) as conn:
+            row = job_repo.get_job(conn, job_id)
+            if row is None:
+                raise JobNotFoundError(job_id)
+            steps = job_repo.get_steps(conn, job_id)
+        completed = [step.step for step in steps if step.state == "succeeded"]
+        running = next((step.step for step in steps if step.state == "running"), None)
+        return JobSnapshot(
+            id=row.id,
+            # The DB column is free-form text while the wire type is a closed
+            # literal set; ``JobSnapshot`` validates it, so an unknown state
+            # fails loudly here instead of reaching the renderer.
+            state=row.state,  # type: ignore[arg-type]
+            currentStep=running or row.current_step or "",
+            completedSteps=completed,
+            # A job whose steps were enumerated after creation knows its real
+            # total; fall back to the declared one when none were recorded.
+            totalSteps=row.total_steps or len(steps),
+            startedAt=row.started_at or row.updated_at,
+            updatedAt=row.updated_at,
+        )
 
     def add_step(self, job_id: str, step: str) -> None:
         with transaction(self._db_path) as conn:

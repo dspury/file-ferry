@@ -69,3 +69,41 @@ export function clipsForAsset(clips: readonly LogicalClip[], assetId: string): L
 export function assetPath(asset: AssetSummary): string {
   return asset.sourceRelativePath;
 }
+
+/**
+ * The part of a source path an operator actually scans for.
+ *
+ * Camera cards bury the file several directories deep
+ * (`PRIVATE/M4ROOT/CLIP/C0012.MP4`), so a list keyed on the full relative
+ * path is a column of near-identical prefixes. The name goes in the primary
+ * column and the full path stays available beside it.
+ */
+export function assetFileName(relativePath: string): string {
+  const segments = relativePath.split('/').filter((part) => part !== '');
+  return segments[segments.length - 1] ?? relativePath;
+}
+
+/** Case-insensitive search over the path, media kind, and lifecycle state. */
+export function searchAssets(assets: readonly AssetSummary[], query: string): AssetSummary[] {
+  const q = query.trim().toLowerCase();
+  if (q.length === 0) return [...assets];
+  return assets.filter(
+    (a) =>
+      a.sourceRelativePath.toLowerCase().includes(q) ||
+      (a.mediaKind ?? '').toLowerCase().includes(q) ||
+      a.lifecycleState.toLowerCase().includes(q),
+  );
+}
+
+/**
+ * Newest first, ties broken by path so the order is stable.
+ *
+ * Without the tiebreak, two assets adopted in the same second could swap
+ * places between renders and the row under the cursor would move.
+ */
+export function sortAssets(assets: readonly AssetSummary[]): AssetSummary[] {
+  return [...assets].sort((a, b) => {
+    if (a.firstSeenAt !== b.firstSeenAt) return a.firstSeenAt < b.firstSeenAt ? 1 : -1;
+    return a.sourceRelativePath.localeCompare(b.sourceRelativePath);
+  });
+}

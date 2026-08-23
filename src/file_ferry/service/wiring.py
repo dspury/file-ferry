@@ -94,6 +94,10 @@ def wire_server(server: SidecarServer, service: ApplicationService) -> None:
     ``service`` must already be bootstrapped (``service.bootstrap()``
     called) so that the domain services exist.
     """
+    # The service is built before the server, so the event transport is
+    # attached here -- this is what turns `job.updated` from a declared
+    # event into one that can actually reach the desktop.
+    service.set_event_sink(server.send_event)
     handlers = _build_handlers(service)
     for method, handler in handlers.items():
 
@@ -352,7 +356,7 @@ def _build_handlers(service: ApplicationService) -> dict[str, Handler]:
         job_id = params.get("jobId")
         if not isinstance(job_id, str) or not job_id:
             rpc_error("invalid_params", "missing jobId")
-        return service.job_snapshot(job_id)
+        return service.job_subscribe(job_id)
 
     def job_unsubscribe(params: dict[str, Any]) -> dict[str, Any]:
         job_id = params.get("jobId")

@@ -69,14 +69,16 @@ export function Projects(): JSX.Element {
                   <tr key={p.id}>
                     <td>
                       {/*
-                        A link, not a button: this navigates to another view
-                        rather than performing an action, and styling it as a
-                        bordered button made every row look like a form.
+                        Ghost-styled, not a bordered button: this navigates
+                        rather than performing an action, and a box around
+                        every name made the list look like a form. It carries
+                        the project into Media as a filter, so the link lands
+                        on that project's assets instead of all of them.
                       */}
                       <button
                         type="button"
                         className="btn btn--ghost btn--sm"
-                        onClick={() => navigateTo('asset')}
+                        onClick={() => navigateTo('asset', { project: p.id })}
                       >
                         {p.name}
                       </button>

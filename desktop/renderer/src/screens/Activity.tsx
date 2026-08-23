@@ -8,6 +8,7 @@
  */
 import { useState } from 'react';
 import { useAsync } from '../hooks/useAsync.js';
+import { useJobStream } from '../hooks/useJobStream.js';
 import {
   Banner,
   Chip,
@@ -21,7 +22,8 @@ import {
 } from '../components/ui.js';
 import {
   jobMatchesFilter,
-  jobProgress,
+  liveProgress,
+  mergeJobSnapshot,
   progressPercent,
   canCancel,
   canResume,
@@ -29,7 +31,7 @@ import {
   searchJobs,
   type JobFilter,
 } from '../lib/activity.js';
-import type { JobDetail } from '../../../shared/ipc-methods.js';
+import type { JobDetail, JobSnapshot } from '../../../shared/ipc-methods.js';
 
 const FILTERS: readonly JobFilter[] = ['all', 'active', 'attention', 'failed', 'finished'];
 
@@ -40,7 +42,16 @@ export function Activity(): JSX.Element {
   const [actionError, setActionError] = useState<string | null>(null);
   const [exportContent, setExportContent] = useState<string | null>(null);
 
-  const list = jobs.data?.jobs ?? [];
+  const raw = jobs.data?.jobs ?? [];
+
+  // A job that appears only in an event (created on the Offload screen, or
+  // by a recovery sweep) cannot be rendered from its snapshot alone, so the
+  // stream asks for a fresh list instead. `reload` is already stable.
+  const stream = useJobStream(raw, jobs.reload);
+
+  // Filtering and searching run on the *live* rows, so a job that finishes
+  // while you are watching leaves the "active" filter on its own.
+  const list = raw.map((job) => mergeJobSnapshot(job, stream.snapshots.get(job.id) ?? null));
   const filtered = searchJobs(list, query).filter((j) => jobMatchesFilter(j, filter));
 
   const act = async <T,>(fn: () => Promise<T>) => {
@@ -86,6 +97,9 @@ export function Activity(): JSX.Element {
         }
         actions={
           <>
+            {stream.subscribed > 0 ? (
+              <Chip tone="ok">Live · {stream.subscribed} watched</Chip>
+            ) : null}
             {/*
               A search input needs no visible label here: it sits in a
               toolbar with a placeholder and an aria-label, and a "Search"
@@ -149,6 +163,7 @@ export function Activity(): JSX.Element {
                   <ActivityRow
                     key={j.id}
                     job={j}
+                    snapshot={stream.snapshots.get(j.id) ?? null}
                     onCancel={() => act(() => window.ferry.job.cancel(j.id))}
                     onResume={() => act(() => window.ferry.job.resume(j.id))}
                     onRetry={() => act(() => window.ferry.job.retry(j.id))}
@@ -180,12 +195,14 @@ export function Activity(): JSX.Element {
 
 function ActivityRow({
   job,
+  snapshot,
   onCancel,
   onResume,
   onRetry,
   onReceipt,
 }: {
   job: JobDetail;
+  snapshot: JobSnapshot | null;
   onCancel: () => void;
   onResume: () => void;
   onRetry: () => void;
@@ -196,10 +213,15 @@ function ActivityRow({
       <td>{job.command}</td>
       <td>
         <Chip tone={stateTone(job.state)}>{job.state}</Chip>
+        {/* The step is the only thing that says *what* the job is doing;
+            without it a long verify pass looks identical to a stall. */}
+        {job.currentStep === null || job.currentStep === '' ? null : (
+          <div className="muted">{job.currentStep}</div>
+        )}
       </td>
       <td>
         <Progress
-          percent={progressPercent(jobProgress(job))}
+          percent={progressPercent(liveProgress(job, snapshot))}
           label={`Progress for ${job.command}`}
           tone={progressTone(job.state)}
         />

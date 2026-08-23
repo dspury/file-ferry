@@ -1,11 +1,16 @@
 /**
- * Asset / Clip detail screen.
+ * Media screen.
  *
- * Metadata, source provenance, logical grouping, every replica,
- * verification/proxy state, and related clips (plan §8.2). Uses the first
- * asset as a safe default until a project-detail selection passes one in.
+ * Two routes share one screen: `#/asset` lists the library (optionally
+ * filtered to one project via `?project=`), and `#/asset?id=…` is the
+ * detail for a single asset — metadata, source provenance, every replica,
+ * verification/proxy state, and clip grouping (plan §8.2).
+ *
+ * The selection lives in the hash rather than in component state so it
+ * survives a reload and so Projects can link straight to a project's media.
  */
 import { useAsync } from '../hooks/useAsync.js';
+import { useRoute } from '../hooks/useRoute.js';
 import {
   Chip,
   EmptyState,
@@ -17,54 +22,209 @@ import {
   Progress,
   type Tone,
 } from '../components/ui.js';
-import { assetOverview, replicaHealth, proxyReadiness } from '../lib/asset.js';
+import {
+  assetFileName,
+  assetOverview,
+  proxyReadiness,
+  replicaHealth,
+  searchAssets,
+  sortAssets,
+} from '../lib/asset.js';
 import { navigateTo } from '../views.js';
+import { useState } from 'react';
 import type { ReplicaSummary } from '../../../shared/ipc-methods.js';
 import type { AssetOverview } from '../lib/asset.js';
 
 export function AssetDetail(): JSX.Element {
-  // TODO(7c): replace the default with real navigation from Projects. The
-  // first asset is shown as a safe default so the screen is navigable.
-  const assets = useAsync(() => window.ferry.asset.list());
-  const assetId = assets.data?.assets[0]?.id;
+  const route = useRoute('asset');
+  const assetId = route.params.get('id') ?? null;
+  const projectId = route.params.get('project') ?? null;
 
-  const asset = useAsync(() => window.ferry.asset.get(assetId ?? ''), [assetId]);
-  const replicas = useAsync(() => window.ferry.replica.list(assetId ?? ''), [assetId]);
-  const derivatives = useAsync(() => window.ferry.derivatives.list(assetId ?? ''), [assetId]);
-  const clips = useAsync(() => window.ferry.clips.list(assetId ? Number(assetId) : 0), [assetId]);
+  // Split rather than branching inside one component: each half owns a
+  // different set of requests, and a conditional early return above hooks
+  // would be a rules-of-hooks violation.
+  return assetId === null ? (
+    <AssetBrowser projectId={projectId} />
+  ) : (
+    <AssetView assetId={assetId} projectId={projectId} />
+  );
+}
+
+function AssetBrowser({ projectId }: { projectId: string | null }): JSX.Element {
+  // Spread into each destination so the project the operator arrived with
+  // survives the trip into a detail view and back.
+  const filter = projectId === null ? {} : { project: projectId };
+  const projects = useAsync(() => window.ferry.project.list());
+  const assets = useAsync(
+    () => window.ferry.asset.list(projectId === null ? {} : { projectId }),
+    [projectId],
+  );
+  const [query, setQuery] = useState('');
 
   if (assets.loading) {
     return <LoadingState message="Loading media…" />;
   }
-  // An empty library is not an error — it is the normal state before the
-  // first offload, and it should say what to do about it.
-  if (assetId === undefined) {
+  if (assets.error !== null) {
+    return <ErrorState message={assets.error} />;
+  }
+
+  const all = assets.data?.assets ?? [];
+  const rows = sortAssets(searchAssets(all, query));
+  const projectList = projects.data?.projects ?? [];
+  const activeProject = projectList.find((p) => p.id === projectId) ?? null;
+
+  return (
+    <div className="page">
+      <Panel
+        title="Media"
+        description={
+          activeProject === null
+            ? `${all.length} asset${all.length === 1 ? '' : 's'} across all projects`
+            : `${all.length} asset${all.length === 1 ? '' : 's'} in ${activeProject.name}`
+        }
+        actions={
+          <>
+            <select
+              className="toolbar__select"
+              aria-label="Filter media by project"
+              value={projectId ?? ''}
+              onChange={(e) =>
+                navigateTo('asset', e.target.value === '' ? {} : { project: e.target.value })
+              }
+            >
+              <option value="">All projects</option>
+              {projectList.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            <input
+              type="search"
+              className="toolbar__search"
+              aria-label="Search media"
+              placeholder="Search path, kind, state…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </>
+        }
+        flush={rows.length > 0}
+      >
+        {rows.length === 0 ? (
+          <EmptyState
+            message={all.length === 0 ? 'No media yet' : 'No media matches'}
+            hint={
+              all.length === 0
+                ? 'Assets appear here once an offload or an organize run has adopted them.'
+                : 'Try a different search, or widen the project filter.'
+            }
+            action={
+              all.length === 0 ? (
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={() => navigateTo('ingest')}
+                >
+                  Go to Offload
+                </button>
+              ) : (
+                <button type="button" className="btn" onClick={() => setQuery('')}>
+                  Clear search
+                </button>
+              )
+            }
+          />
+        ) : (
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>File</th>
+                  <th>Path</th>
+                  <th>Kind</th>
+                  <th className="cell-num">Size</th>
+                  <th>State</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((asset) => (
+                  <tr key={asset.id}>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn btn--ghost btn--sm"
+                        onClick={() => navigateTo('asset', { ...filter, id: asset.id })}
+                      >
+                        {assetFileName(asset.sourceRelativePath)}
+                      </button>
+                    </td>
+                    <td>
+                      <PathCell path={asset.sourceRelativePath} />
+                    </td>
+                    <td className="muted">{asset.mediaKind ?? '—'}</td>
+                    <td className="cell-num muted">
+                      {asset.observedSize === null ? '—' : formatBytes(asset.observedSize)}
+                    </td>
+                    <td>
+                      <Chip>{asset.lifecycleState}</Chip>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Panel>
+    </div>
+  );
+}
+
+function AssetView({
+  assetId,
+  projectId,
+}: {
+  assetId: string;
+  projectId: string | null;
+}): JSX.Element {
+  const asset = useAsync(() => window.ferry.asset.get(assetId), [assetId]);
+  const replicas = useAsync(() => window.ferry.replica.list(assetId), [assetId]);
+  const derivatives = useAsync(() => window.ferry.derivatives.list(assetId), [assetId]);
+  const clips = useAsync(() => window.ferry.clips.list(Number(assetId)), [assetId]);
+
+  const filter = projectId === null ? {} : { project: projectId };
+  const back = (
+    <button type="button" className="btn btn--sm" onClick={() => navigateTo('asset', filter)}>
+      ← All media
+    </button>
+  );
+
+  if (asset.loading) {
+    return <LoadingState message="Loading asset…" />;
+  }
+  if (asset.error !== null) {
     return (
       <div className="page">
-        <Panel>
+        <div className="page__intro">
+          <div className="grow" />
+          <div className="page__intro-actions">{back}</div>
+        </div>
+        <ErrorState message={asset.error} />
+      </div>
+    );
+  }
+  const a = asset.data;
+  if (a === null) {
+    return (
+      <div className="page">
+        <Panel actions={back}>
           <EmptyState
-            message="No media yet"
-            hint="Assets appear here once an offload or an organize run has adopted them."
-            action={
-              <button
-                type="button"
-                className="btn btn--primary"
-                onClick={() => navigateTo('ingest')}
-              >
-                Go to Offload
-              </button>
-            }
+            message="Asset not found"
+            hint="It may have been removed since this link was made."
           />
         </Panel>
       </div>
     );
-  }
-  if (asset.error !== null) {
-    return <ErrorState message={asset.error} />;
-  }
-  const a = asset.data;
-  if (a === null) {
-    return <ErrorState message="No asset data." />;
   }
 
   const overview = assetOverview({
@@ -78,9 +238,13 @@ export function AssetDetail(): JSX.Element {
     <div className="page">
       <div className="page__intro">
         <div className="grow">
+          <div className="page__title">{assetFileName(a.sourceRelativePath)}</div>
           <PathCell path={a.sourceRelativePath} />
         </div>
-        <Chip>{a.lifecycleState}</Chip>
+        <div className="page__intro-actions">
+          <Chip>{a.lifecycleState}</Chip>
+          {back}
+        </div>
       </div>
 
       <Panel title="Metadata">
@@ -90,13 +254,16 @@ export function AssetDetail(): JSX.Element {
             {
               label: 'Size',
               value:
-                a.observedSize != null ? (
-                  formatBytes(a.observedSize)
-                ) : (
+                a.observedSize === null ? (
                   <span className="faint">—</span>
+                ) : (
+                  formatBytes(a.observedSize)
                 ),
             },
-            { label: 'Source id', value: a.sourceId ?? <span className="faint">—</span> },
+            {
+              label: 'Source id',
+              value: a.sourceId === null ? <span className="faint">—</span> : String(a.sourceId),
+            },
             { label: 'First seen', value: a.firstSeenAt },
           ]}
         />
@@ -225,6 +392,7 @@ function proxyTone(r: ReturnType<typeof proxyReadiness>): Tone {
 }
 
 function formatBytes(n: number): string {
+  if (n >= 1e12) return `${(n / 1e12).toFixed(1)} TB`;
   if (n >= 1e9) return `${(n / 1e9).toFixed(1)} GB`;
   if (n >= 1e6) return `${(n / 1e6).toFixed(1)} MB`;
   return `${n} B`;

@@ -4,8 +4,9 @@
  * only consumes the `window.ferry` API exposed by the preload.
  */
 import { useEffect, useMemo, useState } from 'react';
+import { useRoute } from './hooks/useRoute.js';
 import type { FerryAPI } from '../../shared/preload-api.js';
-import { activeViewId, flattenViews, navigateTo, type NavGroup, type ViewDef } from './views.js';
+import { flattenViews, navigateTo, type NavGroup, type ViewDef } from './views.js';
 import { viewIndex, moveIndex, keyToAction } from './lib/nav.js';
 import {
   IconActivity,
@@ -94,7 +95,7 @@ const NAV_GROUPS: readonly NavGroup[] = [
       {
         id: 'asset',
         label: 'Media',
-        description: 'Metadata, replicas, proxy state, and clip grouping',
+        description: 'Browse the library, then inspect replicas, proxies, and clips',
         icon: IconMedia,
         component: AssetDetail,
       },
@@ -133,14 +134,8 @@ interface ShellStatus {
 const CONNECTING: ShellStatus = { tone: 'neutral', text: 'Connecting…' };
 
 export function App(): JSX.Element {
-  const [viewId, setViewId] = useState<string>(() => activeViewId('home'));
+  const viewId = useRoute('home').viewId;
   const [status, setStatus] = useState<ShellStatus>(CONNECTING);
-
-  useEffect(() => {
-    const onHashChange = () => setViewId(activeViewId('home'));
-    window.addEventListener('hashchange', onHashChange);
-    return () => window.removeEventListener('hashchange', onHashChange);
-  }, []);
 
   useEffect(() => {
     let cancelled = false;

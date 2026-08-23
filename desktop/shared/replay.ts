@@ -10,6 +10,7 @@
 
 import type { JobSnapshot, JobEvent } from './ipc-methods.js';
 import type { EventFrame } from './ipc-schema.js';
+import { PROTOCOL_VERSION } from './version.js';
 
 /**
  * Bounded store of the latest job snapshots keyed by job id.
@@ -35,6 +36,25 @@ export function isJobUpdatedParams(params: EventFrame['params']): params is JobE
   const snapshot = params.snapshot;
   if (typeof snapshot !== 'object' || snapshot === null) return false;
   return 'id' in snapshot && typeof snapshot.id === 'string' && snapshot.id.length > 0;
+}
+
+/**
+ * Build the `job.updated` frame for a snapshot.
+ *
+ * The reconnect replay used to post a bare `{ jobId, snapshot }` object on
+ * the same channel the live forward puts a full `EventFrame` on, so a
+ * renderer listener typed against `EventFrame` saw two different shapes and
+ * `frame.params` was undefined for every replayed job. Both paths go
+ * through this now, so there is one shape to handle.
+ */
+export function jobUpdatedFrame(snapshot: JobSnapshot): EventFrame<JobEvent> {
+  return {
+    jsonrpc: '2.0',
+    v: PROTOCOL_VERSION,
+    kind: 'event',
+    method: 'job.updated',
+    params: { jobId: snapshot.id, snapshot },
+  };
 }
 
 export class JobSnapshotStore {

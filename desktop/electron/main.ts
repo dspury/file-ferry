@@ -12,7 +12,12 @@ import { resolveSidecarCommand } from './sidecar-command.js';
 import { showPicker } from './dialogs.js';
 import { ensureLogDir, appendLog, countLogFiles, openDiagnosticFolder } from './diagnostics.js';
 import { applyContentSecurityPolicy, baseWindowOptions } from './security.js';
-import { JobSnapshotStore, replayPayload, isJobUpdatedParams } from '../shared/replay.js';
+import {
+  JobSnapshotStore,
+  replayPayload,
+  isJobUpdatedParams,
+  jobUpdatedFrame,
+} from '../shared/replay.js';
 import { formatDiagnosticSummary } from '../shared/diagnostics.js';
 import { PROTOCOL_VERSION } from '../shared/version.js';
 import { getReleaseInfo, releaseSummary } from '../shared/release.js';
@@ -58,10 +63,7 @@ async function createMainWindow(supervisor: SidecarSupervisor): Promise<BrowserW
   window.webContents.on('did-finish-load', () => {
     const payload = replayPayload(snapshotStore);
     for (const snapshot of payload) {
-      window.webContents.send(`sidecar:event:job.updated`, {
-        jobId: snapshot.id,
-        snapshot,
-      });
+      window.webContents.send('sidecar:event:job.updated', jobUpdatedFrame(snapshot));
     }
   });
 

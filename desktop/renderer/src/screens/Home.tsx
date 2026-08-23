@@ -101,7 +101,19 @@ export function Home(): JSX.Element {
         flush={volumesList.length > 0}
       >
         {volumesList.length === 0 ? (
+          /*
+            Compact, because the other well on this screen holds "Start an
+            offload" -- the only thing a first-run Dashboard can actually
+            do -- and two full wells push it off the fold at the app's own
+            1280x800 default. This panel reports a condition and offers a
+            diagnostic; that one offers the next move, so that one keeps
+            the ceremony. The hint keeps both sentences: the second names
+            the symptom -- mounted but not listed -- which is the case the
+            button beside it answers, and the compact well wraps rather
+            than truncating, so saying it costs a line and not a fact.
+          */
           <EmptyState
+            density="compact"
             message="No volumes detected"
             hint="Connect a card reader or an external drive and it will appear here. If one is already mounted, Environment shows what ferry can and cannot see."
             action={

@@ -1586,6 +1586,36 @@ textarea:focus-visible {
   background: var(--c-bg);
 }
 
+/*
+ * The demoted density, for every well on a screen except the one holding
+ * the action an operator would take next.
+ *
+ * Dashboard on a first run is *only* empty states, and two full wells put
+ * "Start an offload" -- the single actionable thing on the screen -- 12px
+ * below the fold at 1280x800, which is the app's own default window. The
+ * #86 pass bought what padding could buy; the rest has to come from the
+ * ceremony itself. Compact drops the framed glyph, steps the title to the
+ * body size and the hint one below it, and tightens the rhythm to the
+ * small step. Nothing is truncated and nothing is hidden: a long hint
+ * still wraps, so demoting a well never costs a fact.
+ */
+.empty--compact {
+  padding: var(--sp-4);
+  gap: var(--sp-1);
+}
+
+.empty--compact .empty__title {
+  font-size: var(--fs-md);
+}
+
+.empty--compact .empty__hint {
+  font-size: var(--fs-sm);
+}
+
+.empty--compact .empty__actions {
+  margin-top: var(--sp-2);
+}
+
 /* Busy is not empty. A dashed well says "put something here", which is the
    wrong instruction while the app is fetching something it already has, so
    the well is dropped -- `ScreenLoading` puts the wait inside the card the
@@ -1661,6 +1691,11 @@ textarea:focus-visible {
   font-size: var(--fs-lg);
   font-weight: 600;
   color: var(--c-text);
+  /* The well spaces its children with `gap`, and `.empty__hint` already
+     resets. Leaving the paragraph's own 1em margins in gave the title
+     23px of air where everything else in the well got 8, which is 30px
+     per well that nobody chose -- and Dashboard renders two of them. */
+  margin: 0;
 }
 
 .empty__hint {

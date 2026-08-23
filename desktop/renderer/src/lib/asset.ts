@@ -150,6 +150,89 @@ export function lifecycleTally(assets: readonly AssetSummary[]): LifecycleTally 
 }
 
 /**
+ * The single message the whole tally collapses into.
+ *
+ * `terms` are `lifecycleState` values, not prose: `searchAssets` matches the
+ * query against the path, the media kind and the lifecycle state, so the word
+ * an operator types to list a group is the state the row is in. That is why
+ * the unverified group is searched as `copied` and not as "unverified" -- the
+ * screen's own word for it matches no row.
+ */
+export interface TallyNotice {
+  /** Danger the moment anything is missing; a warning otherwise. */
+  readonly tone: 'danger' | 'warn';
+  readonly label: string;
+  /** One phrase per non-zero group, in worst-first order. */
+  readonly counts: readonly string[];
+  /** The searchable state word for each counted group, same order. */
+  readonly terms: readonly string[];
+  /**
+   * The instructions here that are about hardware rather than about the
+   * table -- worst first, empty when no counted group implies one.
+   *
+   * These are the sentences that must survive the collapse whatever else
+   * does: each one is the reason an operator should not release a card, and
+   * each is tied to a different group, so a library that is both missing
+   * assets and holding unverified copies gets both.
+   */
+  readonly safety: readonly string[];
+}
+
+const PLURAL = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * Collapse the lifecycle tally into one banner's worth of facts.
+ *
+ * Rendered one banner per non-clean tally, this block reached 193px -- 24% of
+ * the fold at 1280x800 -- above a screen whose whole point is the table. Three
+ * banners is also three severities to rank by eye when the ranking is already
+ * known: missing outranks everything, so the block takes missing's severity
+ * and states every count inside it.
+ *
+ * Nothing is dropped in the collapse. Every count, every search term and both
+ * hardware instructions survive; what goes is the repetition of the frame
+ * around them. Returns `null` for a clean library, which is what keeps the
+ * block off the screen entirely rather than announcing that nothing is wrong.
+ */
+export function tallyNotice(tally: LifecycleTally): TallyNotice | null {
+  const counts: string[] = [];
+  const terms: string[] = [];
+  // Worst first, so the count that decides the severity is also the count
+  // read first.
+  if (tally.missing > 0) {
+    counts.push(`${PLURAL(tally.missing, 'asset', 'assets')} ferry can no longer find on disk`);
+    terms.push('missing');
+  }
+  if (tally.needsReview > 0) {
+    // "automatically" is load-bearing: a person still can, which is what
+    // makes `needs_review` a queue to work through rather than a dead end.
+    counts.push(
+      `${PLURAL(tally.needsReview, 'asset', 'assets')} could not be classified automatically`,
+    );
+    terms.push('needs_review');
+  }
+  if (tally.unverified > 0) {
+    counts.push(`${PLURAL(tally.unverified, 'asset', 'assets')} copied but not yet verified`);
+    terms.push('copied');
+  }
+  if (counts.length === 0) return null;
+  const safety: string[] = [];
+  if (tally.missing > 0) {
+    safety.push('Do not format or erase the source a missing asset came from.');
+  }
+  if (tally.unverified > 0) {
+    safety.push('Until a copy is verified, the source is the only confirmed copy.');
+  }
+  return {
+    tone: tally.missing > 0 ? 'danger' : 'warn',
+    label: 'Needs attention',
+    counts,
+    terms,
+    safety,
+  };
+}
+
+/**
  * The part of a source path an operator actually scans for.
  *
  * Camera cards bury the file several directories deep

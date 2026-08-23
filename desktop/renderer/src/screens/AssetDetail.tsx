@@ -33,6 +33,7 @@ import {
   replicaHealth,
   searchAssets,
   sortAssets,
+  tallyNotice,
 } from '../lib/asset.js';
 import { formatBytes } from '../lib/format.js';
 import { navigateTo } from '../views.js';
@@ -80,7 +81,7 @@ function AssetBrowser({ projectId }: { projectId: string | null }): JSX.Element 
 
   const all = assets.data?.assets ?? [];
   const rows = sortAssets(searchAssets(all, query));
-  const tally = lifecycleTally(all);
+  const notice = tallyNotice(lifecycleTally(all));
   const projectList = projects.data?.projects ?? [];
   const activeProject = projectList.find((p) => p.id === projectId) ?? null;
 
@@ -128,30 +129,27 @@ function AssetBrowser({ projectId }: { projectId: string | null }): JSX.Element 
           replica ferry can no longer find findable without reading every
           row, and it is derived from the same lifecycle states the chips
           draw -- no extra request, no new claim.
+
+          One banner, not one per tally. Three stacked banners ran 193px --
+          24% of the fold at 1280x800 -- above a screen that exists to show
+          the table, and asked the operator to rank three severities that
+          are already ranked: missing outranks the rest, so the block wears
+          missing's severity and carries all three counts inside it.
+          `tallyNotice` keeps every count, every search term and the
+          do-not-format instruction; only the repeated frame is gone.
         */}
-        {tally.missing + tally.needsReview + tally.unverified === 0 ? null : (
+        {notice === null ? null : (
           <div className="card__body">
-            <div className="stack">
-              {tally.missing > 0 ? (
-                <Banner tone="danger" label="Missing">
-                  {tally.missing} asset{tally.missing === 1 ? '' : 's'} ferry can no longer find on
-                  disk. Search <code>missing</code> to list them, and do not format or erase the
-                  source they came from.
-                </Banner>
-              ) : null}
-              {tally.needsReview > 0 ? (
-                <Banner tone="warn" label="Needs review">
-                  {tally.needsReview} asset{tally.needsReview === 1 ? '' : 's'} could not be
-                  classified automatically. Search <code>needs_review</code> to work through them.
-                </Banner>
-              ) : null}
-              {tally.unverified > 0 ? (
-                <Banner tone="warn" label="Unverified">
-                  {tally.unverified} asset{tally.unverified === 1 ? '' : 's'} copied but not yet
-                  checksum-verified. Until they are, the source is the only confirmed copy.
-                </Banner>
-              ) : null}
-            </div>
+            <Banner tone={notice.tone} label={notice.label}>
+              {notice.counts.join(' · ')}. Search{' '}
+              {notice.terms.map((term, i) => (
+                <span key={term}>
+                  {i === 0 ? '' : i === notice.terms.length - 1 ? ' or ' : ', '}
+                  <code>{term}</code>
+                </span>
+              ))}{' '}
+              to list them.{notice.safety.length === 0 ? '' : ` ${notice.safety.join(' ')}`}
+            </Banner>
           </div>
         )}
         {rows.length === 0 ? (
@@ -334,7 +332,12 @@ function AssetView({
         flush={overview.derivatives.length > 0}
       >
         {overview.derivatives.length === 0 ? (
+          /* Compact: this screen can render three empty wells at once and
+             the Replicas one is the consequential one -- an asset with no
+             recorded copy is the condition an operator has to act on.
+             Proxies and clip groups being empty is normal. */
           <EmptyState
+            density="compact"
             message="No derivatives"
             hint="Proxies are generated after an offload verifies — an asset with no verified replica has nothing to transcode from yet."
           />
@@ -384,6 +387,7 @@ function AssetView({
       >
         {overview.clips.length === 0 ? (
           <EmptyState
+            density="compact"
             message="Not part of any clip group"
             hint="Spanned recordings and their sidecars are grouped when a source is detected; a single self-contained file belongs to no group, which is normal."
           />

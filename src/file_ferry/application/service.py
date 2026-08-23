@@ -29,6 +29,7 @@ from file_ferry.application.manifest import ManifestService
 from file_ferry.application.offload import OffloadRunner
 from file_ferry.application.organize import OrganizeService
 from file_ferry.application.plan import IntakePlanner
+from file_ferry.application.policies import StoragePolicy
 from file_ferry.application.profiles import ProfileService
 from file_ferry.application.projects import ProjectService
 from file_ferry.application.proxy_runner import ProxyRunner
@@ -582,6 +583,8 @@ class ApplicationService:
             self._replica_service(),
             self._asset_service(),
             self._job_service(),
+            receipt_writer=self._write_job_receipt,
+            policy_resolver=self._policy_for_project,
         )
         self._scheduler_service().register_runner("offload", offload)
         proxy = ProxyRunner(
@@ -589,8 +592,39 @@ class ApplicationService:
             self._derivative_service(),
             self._intake_service(),
             self._job_service(),
+            receipt_writer=self._write_job_receipt,
         )
         self._scheduler_service().register_runner("proxy", proxy)
+
+    def _write_job_receipt(self, receipt: OperationReceipt) -> None:
+        """Persist a runner's receipt, superseding a previous attempt's.
+
+        The runners hold services, not a database connection, so this is
+        the seam that gives them one. It is also where the supersede rule
+        lives, because only something holding the connection can see what
+        it is about to replace: :meth:`JobScheduler.resume` re-runs one job
+        id, and a receipt keyed by that id would otherwise collide with the
+        abandoned attempt's under ``UNIQUE(operation_id, kind)``.
+        """
+        store = self._receipts
+        with transaction(self._db_path) as conn:
+            prior = store.prior_hash(conn, receipt.operation_id, receipt.kind)
+            if prior is not None:
+                # The superseded attempt's substance is not recoverable from
+                # the row that replaces it, so its hash is carried forward.
+                # A receipt that silently forgot an earlier attempt existed
+                # would be a worse record than none.
+                receipt = receipt.model_copy(
+                    update={"warnings": [*receipt.warnings, f"supersedes receipt {prior}"]}
+                )
+            store.write(conn, receipt, replace=True)
+
+    def _policy_for_project(self, project_id: str) -> StoragePolicy | None:
+        """The storage policy a receipt is judged against, or None."""
+        try:
+            return self._project_service().get(project_id).storage_policy
+        except KeyError:
+            return None
 
     # ---- derivatives / manifest --------------------------------------
 

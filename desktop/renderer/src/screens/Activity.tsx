@@ -29,6 +29,7 @@ import {
   canCancel,
   canResume,
   canRetry,
+  canShowReceipt,
   searchJobs,
   type JobFilter,
 } from '../lib/activity.js';
@@ -248,7 +249,7 @@ function ActivityRow({
               Retry
             </button>
           ) : null}
-          {job.state === 'succeeded' ? (
+          {canShowReceipt(job) ? (
             <button type="button" className="btn btn--sm" onClick={onReceipt}>
               Receipt
             </button>

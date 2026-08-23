@@ -22,6 +22,7 @@ import {
 } from '../components/ui.js';
 import {
   ingestStage,
+  ingestPrimary,
   planReviewable,
   planBlocked,
   sourceReady,
@@ -185,11 +186,42 @@ export function Ingest(): JSX.Element {
   };
 
   const stage = ingestStage({ source, plan, executing, done: executed });
+  const primary = ingestPrimary(stage);
   const projectList = projects.data?.projects ?? [];
   const hidden = plan === null ? 0 : Math.max(0, plan.entries.length - PLAN_PREVIEW_ROWS);
 
   return (
     <div className="page">
+      {/*
+        The outcome goes at the top of the page, above the rail, for the same
+        reason it does on Organize: it was at the bottom of the panel that
+        produced it, 1152px and 1198px down a 1260px page, so the two
+        sentences an operator most needs after pressing Execute were below
+        the fold at both 1280x800 and 1440x900 while the rail said DONE.
+
+        The second of them is the one that matters: `DONE` at the top of a
+        screen at the end of a card pull is the moment somebody reaches for
+        the format button, and "keep the card" is the sentence that stops
+        them. It now sits above the stage that says DONE rather than half a
+        page below it. The rail keeps that word because there is nothing
+        partial to report here -- `executed` is set only by a sidecar-
+        confirmed job creation, and any failure leaves it false and banners
+        the error -- and because what the stage means, handed off rather than
+        finished, is precisely what these two banners now spell out first.
+      */}
+      {executed ? (
+        <div className="stack">
+          <Banner tone="ok" label="Handed off">
+            The job is queued. Activity shows its progress, and the receipt when it finishes.
+          </Banner>
+          <Banner tone="warn" label="Keep the card">
+            Do not format or erase the source card yet. Nothing has been verified: the receipt in
+            Activity is what confirms every file landed and matched its checksum, and that is what
+            makes the card safe to format.
+          </Banner>
+        </div>
+      ) : null}
+
       <Steps label="Offload progress" steps={STEPS} activeId={stage} />
 
       <Panel
@@ -200,9 +232,16 @@ export function Ingest(): JSX.Element {
           <PathPicker value={sourcePath} onPick={pickSource} buttonLabel="Browse…" />
         </Field>
         <div className="row">
+          {/*
+            Filled accent only while the scan is what comes next. Afterwards
+            it is a real but secondary action -- the card has been swapped,
+            or a file was added -- so it keeps the outline variant and stays
+            enabled. Reading a source never modifies it, so there is nothing
+            to protect the operator from by disabling it.
+          */}
           <button
             type="button"
-            className="btn btn--primary"
+            className={primary === 'scan' ? 'btn btn--primary' : 'btn'}
             onClick={inspect}
             disabled={!sourcePath || inspecting}
           >
@@ -253,7 +292,7 @@ export function Ingest(): JSX.Element {
         <div className="form-actions">
           <button
             type="button"
-            className="btn btn--primary"
+            className={primary === 'plan' ? 'btn btn--primary' : 'btn'}
             onClick={buildPlan}
             disabled={!source || !projectId || (!workingRoot && !backupRoot) || building}
           >
@@ -347,38 +386,28 @@ export function Ingest(): JSX.Element {
         <div className="row">
           <button
             type="button"
-            className="btn btn--primary"
+            className={primary === 'execute' ? 'btn btn--primary' : 'btn'}
             onClick={execute}
             disabled={!planReviewable(plan) || planBlocked(plan) || executed || executing}
           >
             {executing ? 'Creating job…' : executed ? 'Offload job created' : 'Create offload job'}
           </button>
+          {/*
+            Once the job exists this is the next action, and the accent moves
+            to it: watching the transfer is what turns a queued job into a
+            receipt, and the receipt is what makes the card safe to format.
+          */}
           {executed ? (
-            <button type="button" className="btn" onClick={() => navigateTo('activity')}>
+            <button
+              type="button"
+              className={primary === 'watch' ? 'btn btn--primary' : 'btn'}
+              onClick={() => navigateTo('activity')}
+            >
               Watch in Activity
             </button>
           ) : null}
         </div>
         {executeError !== null ? <Banner tone="danger">{executeError}</Banner> : null}
-        {executed ? (
-          <>
-            <Banner tone="ok" label="Handed off">
-              The job is queued. Activity shows its progress, and the receipt when it finishes.
-            </Banner>
-            {/*
-              The most consequential sentence on this screen, and it was not
-              on it. "Job created" is a success message, and read on its own
-              at the end of a card pull it is the moment an operator reaches
-              for the format button. Queued is not copied, and copied is not
-              verified.
-            */}
-            <Banner tone="warn" label="Keep the card">
-              Do not format or erase the source card yet. Nothing has been verified: the receipt in
-              Activity is what confirms every file landed and matched its checksum, and that is what
-              makes the card safe to format.
-            </Banner>
-          </>
-        ) : null}
       </Panel>
     </div>
   );

@@ -1,9 +1,15 @@
 /**
  * Dashboard screen.
  *
- * Active jobs, connected sources, unsafe cards, missing/unverified
- * replicas, failed work, and proxy readiness (plan §8.2). Aggregates the
- * pure logic in lib/home.ts; the screen is a thin renderer.
+ * Work in flight, work waiting on a person, work that failed, and the
+ * volumes ferry can currently see. Aggregates the pure logic in
+ * lib/home.ts; the screen is a thin renderer.
+ *
+ * The unsafe-card, unverified-replica and proxy-pending tiles are gone. They
+ * were hard-coded to `0` -- see `lib/home.ts` for why they cannot be
+ * computed here -- and a permanent `0` under UNSAFE CARDS is a claim, not a
+ * blank. The safety statements an operator acts on live where the facts do:
+ * Offload's "keep the card" banner, and Media's lifecycle tally.
  */
 import { useAsync } from '../hooks/useAsync.js';
 import {
@@ -34,16 +40,15 @@ const RECENT_JOB_LIMIT = 6;
 export function Home(): JSX.Element {
   const jobs = useAsync(() => window.ferry.job.list());
   const volumes = useAsync(() => window.ferry.source.listVolumes());
-  const assets = useAsync(() => window.ferry.asset.list());
 
-  const loading = jobs.loading || volumes.loading || assets.loading;
-  const error = jobs.error ?? volumes.error ?? assets.error;
+  const loading = jobs.loading || volumes.loading;
+  const error = jobs.error ?? volumes.error;
 
   if (loading) {
     return (
       <ScreenLoading
-        message="Reading jobs, volumes, and media…"
-        hint="Nothing is being written. This is three read-only queries against the sidecar."
+        message="Reading jobs and volumes…"
+        hint="Nothing is being written. This is two read-only queries against the sidecar."
       />
     );
   }
@@ -54,24 +59,26 @@ export function Home(): JSX.Element {
         onRetry={() => {
           jobs.reload();
           volumes.reload();
-          assets.reload();
         }}
       />
     );
   }
 
   const jobList = jobs.data?.jobs ?? [];
-  const assetList = assets.data?.assets ?? [];
   const volumesList = volumes.data?.volumes ?? [];
 
+  /*
+   * Every field here is derived from the job list this screen already has.
+   * The third query this screen used to make -- `asset.list` -- went into a
+   * `HomeSummary.assets` field that no tile ever read, so it was work done
+   * and thrown away, and a failing `asset.list` blanked the whole Dashboard
+   * behind CANNOT LOAD over data none of it showed. Media is the screen that
+   * reports on the library.
+   */
   const summary: HomeSummary = {
     activeJobs: jobList.filter(isJobActive).length,
     attentionJobs: jobList.filter(isJobAttention).length,
     failedJobs: jobList.filter(isJobFailed).length,
-    unsafeCards: 0,
-    unverifiedReplicas: 0,
-    assets: assetList.length,
-    proxyPending: 0,
   };
 
   const cards = homeCards(summary);

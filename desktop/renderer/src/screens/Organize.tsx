@@ -27,6 +27,8 @@ import {
   moveRequiresConfirm,
   outcomeSummary,
   outcomeTone,
+  applyStageMark,
+  organizePrimary,
   profileLabel,
   collisionCount,
 } from '../lib/organize.js';
@@ -164,12 +166,55 @@ export function Organize(): JSX.Element {
     executing: applying,
     done: outcome !== null,
   });
+  /*
+   * The last stage is named after what the apply returned, not after having
+   * reached it: `DONE` only on a clean run, `INCOMPLETE` when some entries
+   * failed, `FAILED` when none landed. Overriding the label here rather than
+   * inside `Steps` keeps the rail a dumb renderer of whatever sequence it is
+   * handed.
+   */
+  const outcomeMark = applyStageMark(outcome);
+  const steps = STEPS.map((step) =>
+    step.id === 'done' ? { ...step, label: outcomeMark.label } : step,
+  );
+  const primary = organizePrimary(stage);
 
   const hidden = preview === null ? 0 : Math.max(0, preview.entries.length - PREVIEW_ROWS);
 
   return (
     <div className="page">
-      <Steps label="Organize progress" steps={STEPS} activeId={stage} />
+      {/*
+        The result goes at the top of the page, above the rail.
+
+        It used to live at the bottom of the panel that produced it, which on
+        this screen is 1053px down a 1141px page -- below the fold at both
+        1280x800 and 1440x900. An operator who did not scroll saw a stage
+        rail and a green NO COLLISIONS chip after a write that had partially
+        failed. The banners were already saying exactly the right thing; the
+        only thing wrong with them was where they were.
+      */}
+      {outcome !== null ? (
+        <div className="stack">
+          <Banner tone={outcomeTone(outcome)} label="Result">
+            {outcome.ok.toLocaleString()} of {outcome.total.toLocaleString()} entries written
+            {outcome.failed > 0 ? `, ${outcome.failed.toLocaleString()} failed` : ''}.
+          </Banner>
+          {outcome.failed > 0 ? (
+            <Banner tone="warn" label="Incomplete">
+              {mode === 'move'
+                ? 'The sources behind the failed entries have not been removed. Check them before deleting anything by hand.'
+                : 'The sources behind the failed entries are untouched. Nothing was lost; re-run once the cause is cleared.'}
+            </Banner>
+          ) : null}
+        </div>
+      ) : null}
+
+      <Steps
+        label="Organize progress"
+        steps={steps}
+        activeId={stage}
+        activeTone={outcomeMark.tone}
+      />
 
       <Panel
         title="Source & destination"
@@ -244,9 +289,15 @@ export function Organize(): JSX.Element {
         ) : null}
 
         <div className="form-actions">
+          {/*
+            Filled accent only while previewing is the next thing to do.
+            Once a preview exists this is a legitimate but secondary action --
+            re-previewing after changing the profile or the mode -- and it
+            stays enabled, because a preview never touches the filesystem.
+          */}
           <button
             type="button"
-            className="btn btn--primary"
+            className={primary === 'preview' ? 'btn btn--primary' : 'btn'}
             onClick={buildPreview}
             disabled={!sourcePath || !destRoot || previewing}
           >
@@ -333,9 +384,25 @@ export function Organize(): JSX.Element {
 
       <Panel title="Apply" description="The first step that writes to disk.">
         <div className="row">
+          {/*
+            Move keeps the danger outline it has always had -- a destructive
+            action is not the accent -- so in move mode this row carries no
+            filled primary at all, which is the intended reading.
+
+            Spent, the button wears the outcome's own word rather than
+            `Done`: it is the control the operator was looking at when the
+            apply returned, and it was reporting a clean finish on a run that
+            lost a file, the same claim the rail was making.
+          */}
           <button
             type="button"
-            className={mode === 'move' ? 'btn btn--danger' : 'btn btn--primary'}
+            className={
+              mode === 'move'
+                ? 'btn btn--danger'
+                : primary === 'apply' && outcome === null
+                  ? 'btn btn--primary'
+                  : 'btn'
+            }
             onClick={() => (mode === 'move' ? setConfirmOpen(true) : apply())}
             disabled={
               !previewApplyable(preview) ||
@@ -344,25 +411,10 @@ export function Organize(): JSX.Element {
               outcome !== null
             }
           >
-            {applying ? 'Applying…' : outcome !== null ? 'Done' : `Apply (${mode})`}
+            {applying ? 'Applying…' : outcome !== null ? outcomeMark.label : `Apply (${mode})`}
           </button>
         </div>
         {applyError !== null ? <Banner tone="danger">{applyError}</Banner> : null}
-        {outcome !== null ? (
-          <>
-            <Banner tone={outcomeTone(outcome)} label="Result">
-              {outcome.ok.toLocaleString()} of {outcome.total.toLocaleString()} entries written
-              {outcome.failed > 0 ? `, ${outcome.failed.toLocaleString()} failed` : ''}.
-            </Banner>
-            {outcome.failed > 0 ? (
-              <Banner tone="warn" label="Incomplete">
-                {mode === 'move'
-                  ? 'The sources behind the failed entries have not been removed. Check them before deleting anything by hand.'
-                  : 'The sources behind the failed entries are untouched. Nothing was lost; re-run once the cause is cleared.'}
-              </Banner>
-            ) : null}
-          </>
-        ) : null}
       </Panel>
 
       {confirmOpen ? (

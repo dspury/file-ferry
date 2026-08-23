@@ -49,7 +49,7 @@ const NAV_GROUPS: readonly NavGroup[] = [
       {
         id: 'home',
         label: 'Dashboard',
-        description: 'Jobs, connected sources, and library health at a glance',
+        description: 'Jobs and connected sources at a glance',
         icon: IconDashboard,
         component: Home,
       },

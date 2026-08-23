@@ -1810,6 +1810,45 @@ textarea:focus-visible {
   box-shadow: var(--glow-accent);
 }
 
+/*
+ * A current stage that is reporting an outcome rather than a position.
+ *
+ * The terminal stage of an apply is reached whatever the apply returned, so
+ * in the accent it stamped DONE over a run that lost a file. These two
+ * variants put the stage in the severity its own result banner is in. They
+ * take the `-soft` plate and the semantic hue for the marker rather than
+ * filling it the way the accent does: a filled marker is the "this is live,
+ * you are here" treatment, and a finished-with-problems stage is neither.
+ * The glow goes with it for the same reason.
+ *
+ * Hue is never the signal on its own — the label changes with the tone (DONE
+ * -> INCOMPLETE -> FAILED), which is what survives greyscale and a
+ * forced-colours mode.
+ */
+.step--active-warn {
+  border-color: var(--c-warn-line);
+  background: var(--c-warn-soft);
+}
+
+.step--active-warn .step__index {
+  background: var(--c-warn-soft);
+  border-color: var(--c-warn);
+  color: var(--c-warn);
+  box-shadow: none;
+}
+
+.step--active-danger {
+  border-color: var(--c-danger-line);
+  background: var(--c-danger-soft);
+}
+
+.step--active-danger .step__index {
+  background: var(--c-danger-soft);
+  border-color: var(--c-danger);
+  color: var(--c-danger);
+  box-shadow: none;
+}
+
 /* The connector belongs between the plates, not inside one. Each `li` holds
    the rule that leads out of it, so once the active stage became an enclosed
    box its own rule ended up drawn within the border, reading as a stray mark

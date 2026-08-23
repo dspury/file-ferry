@@ -61,5 +61,42 @@ export function ingestStage(opts: {
   return 'source';
 }
 
+/**
+ * Which of the screen's actions is the *next* one.
+ *
+ * Every stage's action stayed a filled accent primary once it had been used,
+ * so the plan stage showed `Scan source` and `Build plan` as two solid accent
+ * slabs at once, under an accent-filled active stage marker. The reskin
+ * reserves that fill for "this is the thing to press", and three of them is
+ * none of them.
+ *
+ * The answer is derived from the rail's own stage rather than from a second
+ * notion of "current", so the lit button and the lit stage cannot disagree:
+ * exactly one action is the primary at any stage, every other action keeps
+ * its outline variant, and none of them is disabled by this -- re-scanning a
+ * source or rebuilding a plan is legitimate and costs nothing but a read.
+ *
+ * `destinations` is a source that inspected to zero entries: the plan is
+ * still what comes next there, and `Build plan` is the button that says so.
+ */
+export type IngestAction = 'scan' | 'plan' | 'execute' | 'watch';
+
+export function ingestPrimary(stage: IngestStage['stage']): IngestAction {
+  switch (stage) {
+    case 'source':
+      return 'scan';
+    case 'destinations':
+    case 'plan':
+      return 'plan';
+    case 'ready':
+    case 'running':
+      return 'execute';
+    case 'done':
+      // Nothing further happens on this screen once the job exists; the
+      // verification an operator is waiting on happens in Activity.
+      return 'watch';
+  }
+}
+
 // Re-exported so existing callers keep importing it from here.
 export { formatBytes };

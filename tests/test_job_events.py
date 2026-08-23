@@ -43,9 +43,7 @@ def service(tmp_path: Path) -> ApplicationService:
 def _project(service: ApplicationService, tmp_path: Path) -> str:
     working = tmp_path / "working"
     working.mkdir(exist_ok=True)
-    return service.create_project(
-        CreateProjectParams(name="events", workingRoot=str(working))
-    )
+    return service.create_project(CreateProjectParams(name="events", workingRoot=str(working)))
 
 
 def _job(service: ApplicationService, tmp_path: Path, *, total_steps: int = 3) -> str:

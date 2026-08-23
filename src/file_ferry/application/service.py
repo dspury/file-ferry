@@ -15,6 +15,7 @@ execution) lands in subsequent packages per ADR-0005.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
 from file_ferry.application.assets import AssetService
@@ -179,6 +180,13 @@ class ApplicationService:
         )
         self._config_path = Path(config_path) if config_path is not None else None
         self._bootstrapped = False
+        # Set by ``wire_server`` to the sidecar server's ``send_event``. It
+        # stays None for in-process users (the CLI, tests), which simply do
+        # not get events.
+        self._event_sink: Callable[[str, dict[str, object]], None] | None = None
+        # Only jobs a client has asked for are published, so an idle window
+        # does not pay for every job in the database.
+        self._job_subscriptions: set[str] = set()
         self._projects: ProjectService | None = None
         self._sources: SourceService | None = None
         self._profiles: ProfileService | None = None
@@ -231,6 +239,10 @@ class ApplicationService:
         self._audit = AuditService(self._db_path)
         self._planner = IntakePlanner(self._db_path)
         self._scheduler = JobScheduler(self._db_path, self._jobs)
+        # The scheduler has always published every transition to its
+        # listeners and nothing ever subscribed, so `job.updated` was a
+        # declared event that could not fire. This is the missing edge.
+        self._scheduler.subscribe(lambda job: self._publish_job_updated(job.id))
         self._receipts = ReceiptStore(self._app_data_dir)
         self._reconcile = ReconcileService(self._db_path)
         self._organize = OrganizeService()
@@ -286,6 +298,11 @@ class ApplicationService:
         self._volume_adapter = None
         self._volume_observer = None
         self._bootstrapped = False
+        # Drop the transport and the watch list together: publishing into a
+        # torn-down server, or replaying a previous session's subscriptions
+        # after a re-bootstrap, are both wrong.
+        self._event_sink = None
+        self._job_subscriptions.clear()
 
     # ---- introspection ------------------------------------------------
 
@@ -439,7 +456,12 @@ class ApplicationService:
         return self._job_service().get(job_id)
 
     def job_transition(self, params: JobTransitionParams) -> JobDetail:
-        return self._job_service().transition(params)
+        # A transition driven straight from IPC does not go through the
+        # scheduler, so it would otherwise be the one state change that
+        # subscribers never hear about.
+        job = self._job_service().transition(params)
+        self._publish_job_updated(job.id)
+        return job
 
     def job_cancel(self, params: CancelJobParams) -> None:
         """Request cooperative cancellation of a running job."""
@@ -778,22 +800,57 @@ class ApplicationService:
             dbPath=str(db_path),
         )
 
+    def set_event_sink(self, sink: Callable[[str, dict[str, object]], None] | None) -> None:
+        """Install the transport that asynchronous events are written to.
+
+        ``wire_server`` passes the sidecar server's ``send_event``. Kept as a
+        setter rather than a constructor argument because the service is
+        built before the server it will emit through.
+        """
+        self._event_sink = sink
+
+    def job_subscribe(self, job_id: str) -> JobSnapshot:
+        """Start publishing ``job.updated`` for a job, and return its state now.
+
+        Returning the current snapshot closes the race between subscribing
+        and the first event: a job that changes between the two is still
+        reflected, because the caller already holds where it started.
+        """
+        snapshot = self._job_service().snapshot(job_id)
+        self._job_subscriptions.add(job_id)
+        return snapshot
+
     def job_snapshot(self, job_id: str) -> JobSnapshot:
-        """Return a snapshot of the named job. The foundation cut returns
-        a placeholder."""
-        return JobSnapshot(
-            id=job_id,
-            state="planned",
-            currentStep="",
-            completedSteps=[],
-            totalSteps=0,
-            startedAt="1970-01-01T00:00:00Z",
-            updatedAt="1970-01-01T00:00:00Z",
-        )
+        """Return the current state of the named job."""
+        return self._job_service().snapshot(job_id)
 
     def job_unsubscribe(self, job_id: str) -> None:
-        """Idempotent unsubscribe for the named job. No-op in the foundation cut."""
-        return None
+        """Stop publishing for the named job. Idempotent."""
+        self._job_subscriptions.discard(job_id)
+
+    def _publish_job_updated(self, job_id: str) -> None:
+        """Emit ``job.updated`` for a subscribed job.
+
+        Never raises: an event is a courtesy to the UI, and a broken pipe or
+        a job deleted mid-flight must not fail the operation that triggered
+        it. A terminal job also drops its own subscription -- it can never
+        emit again, so holding it would leak one entry per completed job.
+        """
+        if self._event_sink is None or job_id not in self._job_subscriptions:
+            return
+        try:
+            snapshot = self._job_service().snapshot(job_id)
+        except Exception:
+            return
+        if snapshot.state in {"succeeded", "failed", "cancelled"}:
+            self._job_subscriptions.discard(job_id)
+        try:
+            self._event_sink(
+                "job.updated",
+                {"jobId": job_id, "snapshot": snapshot.model_dump(by_alias=True)},
+            )
+        except Exception:
+            return
 
 
 def _locate_binary(configured: str | None, name: str) -> str | None:

@@ -39,14 +39,45 @@ export function flattenViews(groups: readonly NavGroup[]): readonly ViewDef[] {
   return groups.flatMap((g) => g.views);
 }
 
-/** Read the active view id from the current location hash. */
-export function activeViewId(defaultId: string): string {
-  const hash = window.location.hash;
-  const match = hash.match(/^#\/([a-z-]+)/);
-  return match ? (match[1] ?? defaultId) : defaultId;
+/**
+ * A parsed location hash: which view, plus that view's own parameters.
+ *
+ * The hash is the whole navigation state, so anything a screen needs to
+ * restore itself belongs in it — a selected asset survives a reload, and a
+ * link from Projects can hand Media a filter. The form is
+ * `#/<view>?<key>=<value>`: a query string rather than positional segments,
+ * so a parameter is named at the call site and two of them cannot be
+ * transposed.
+ */
+export interface Route {
+  readonly viewId: string;
+  readonly params: ReadonlyMap<string, string>;
 }
 
-/** Set the active view in the hash. */
-export function navigateTo(viewId: string): void {
-  window.location.hash = `/${viewId}`;
+const HASH_PATTERN = /^#\/([a-z-]+)(?:\?(.*))?$/;
+
+/** Parse a location hash. Anything unrecognised falls back to `defaultId`. */
+export function parseRoute(hash: string, defaultId: string): Route {
+  const match = HASH_PATTERN.exec(hash);
+  if (match === null) {
+    return { viewId: defaultId, params: new Map() };
+  }
+  const params = new Map<string, string>();
+  for (const [key, value] of new URLSearchParams(match[2] ?? '')) {
+    // A repeated key keeps its first value: a hand-edited or truncated hash
+    // should resolve to something, not to the last thing that was appended.
+    if (!params.has(key)) params.set(key, value);
+  }
+  return { viewId: match[1] ?? defaultId, params };
+}
+
+/** Build the hash for a view and its parameters. */
+export function routeHash(viewId: string, params: Readonly<Record<string, string>> = {}): string {
+  const query = new URLSearchParams(params).toString();
+  return query === '' ? `#/${viewId}` : `#/${viewId}?${query}`;
+}
+
+/** Set the active view, and optionally its parameters, in the hash. */
+export function navigateTo(viewId: string, params?: Readonly<Record<string, string>>): void {
+  window.location.hash = routeHash(viewId, params ?? {}).slice(1);
 }

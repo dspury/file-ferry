@@ -266,8 +266,18 @@ function ActivityRow({
         </td>
         <td className="cell-actions">
           <div className="row">
+            {/*
+              Cancel is not destructive: stopping a job leaves the source card
+              untouched and the partial copy on disk, and nothing about it is
+              irreversible. It was drawn in danger red, which put up to four
+              red outlines on one busy table and spent the one hue this app
+              reserves for "your originals are at risk" -- the same hue the
+              MISSING replica chip and the NOT ENOUGH ROOM banner need to own.
+              `btn--danger` is now exactly the two genuinely destructive
+              controls: Apply (move) and the typed move confirmation.
+            */}
             {canCancel(job) ? (
-              <button type="button" className="btn btn--danger btn--sm" onClick={onCancel}>
+              <button type="button" className="btn btn--sm" onClick={onCancel}>
                 Cancel
               </button>
             ) : null}

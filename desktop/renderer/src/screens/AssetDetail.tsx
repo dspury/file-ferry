@@ -26,6 +26,7 @@ import {
 import {
   assetFileName,
   assetOverview,
+  availabilityNote,
   lifecycleTally,
   lifecycleTone,
   proxyReadiness,
@@ -431,7 +432,9 @@ function ReplicaTable({ overview }: { overview: AssetOverview }): JSX.Element {
                 {/* A verified copy on an unmounted drive is still verified,
                     and still not something you can open right now. Saying
                     only "verified" left that half of the fact unsaid. */}
-                {r.availability === 'online' ? null : <div className="muted">{r.availability}</div>}
+                {availabilityNote(r) === null ? null : (
+                  <div className="muted">{availabilityNote(r)}</div>
+                )}
               </td>
               <td className="muted">
                 {r.verified ? 'verified' : <span className="faint">—</span>}

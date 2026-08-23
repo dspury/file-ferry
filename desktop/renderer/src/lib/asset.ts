@@ -19,6 +19,22 @@ export function replicaHealth(r: ReplicaSummary): ReplicaHealth {
   return 'unverified';
 }
 
+/**
+ * The availability note that goes under a replica's state chip, or null when
+ * there is nothing left to add.
+ *
+ * A verified copy on an unmounted drive is still verified and still not
+ * something you can open right now, which is the case this line exists for.
+ * When availability *is* the state -- a missing replica -- the chip already
+ * says "missing", and repeating it in lower case underneath read as a second,
+ * weaker claim about the same fact.
+ */
+export function availabilityNote(r: ReplicaSummary): string | null {
+  if (r.availability === 'online') return null;
+  if (r.availability === replicaHealth(r)) return null;
+  return r.availability;
+}
+
 export interface AssetOverview {
   readonly replicas: readonly ReplicaSummary[];
   readonly verifiedCount: number;

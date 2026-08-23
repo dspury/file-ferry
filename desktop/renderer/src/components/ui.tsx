@@ -227,6 +227,7 @@ const BANNER_ICON = {
   ok: IconCheck,
   warn: IconAlert,
   danger: IconAlert,
+  attention: IconAlert,
   info: IconInfo,
 } satisfies Record<BannerTone, (props: { size?: number }) => JSX.Element>;
 
@@ -234,10 +235,17 @@ const BANNER_LABEL = {
   ok: 'Done',
   warn: 'Warning',
   danger: 'Error',
+  attention: 'Needs review',
   info: 'Note',
 } satisfies Record<BannerTone, string>;
 
-export type BannerTone = 'ok' | 'warn' | 'danger' | 'info';
+/*
+ * `attention` is the same tier the chips call attention: a condition a person
+ * has to decide about rather than a failure or a warning about a failure. It
+ * is here so a screen that has already derived that severity can say it in
+ * one hue instead of two.
+ */
+export type BannerTone = 'ok' | 'warn' | 'danger' | 'attention' | 'info';
 
 /**
  * An inline message with room to be read.

@@ -18,7 +18,7 @@ import {
   ScreenError,
   ScreenLoading,
 } from '../components/ui.js';
-import { toolTone, formatBytes } from '../lib/doctor.js';
+import { toolTone, healthBanner, overallHealth, formatBytes } from '../lib/doctor.js';
 
 export function Onboarding(): JSX.Element {
   const doctor = useAsync(() => window.ferry.app.doctor());
@@ -46,20 +46,23 @@ export function Onboarding(): JSX.Element {
   }
 
   const missing = d.tools.filter((t) => !t.present);
+  const verdict = healthBanner(overallHealth(d));
 
   return (
     <div className="page">
       {/*
         Lead with the verdict. The tables below are the evidence, but the
         one thing an operator needs on arriving here is whether anything is
-        wrong, and `toolTone` already knows which absences actually matter.
+        wrong — and the banner takes its severity from `overallHealth`, the
+        same derivation `toolTone` uses for the chips, so the headline and the
+        row it summarises can no longer disagree about how bad it is.
       */}
       {missing.length === 0 ? (
-        <Banner tone="ok" label="Ready">
+        <Banner tone={verdict.tone} label={verdict.label}>
           Every required tool was found.
         </Banner>
       ) : (
-        <Banner tone="warn" label="Incomplete">
+        <Banner tone={verdict.tone} label={verdict.label}>
           {missing.length} tool{missing.length === 1 ? '' : 's'} not found:{' '}
           {missing.map((t) => t.name).join(', ')}. Set an explicit path under Settings → Tool paths,
           or install it on your PATH.

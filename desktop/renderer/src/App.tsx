@@ -3,7 +3,7 @@
  * the URL hash. It does not import filesystem, database, or node APIs; it
  * only consumes the `window.ferry` API exposed by the preload.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRoute } from './hooks/useRoute.js';
 import type { FerryAPI } from '../../shared/preload-api.js';
 import { flattenViews, navigateTo, type NavGroup, type ViewDef } from './views.js';
@@ -164,6 +164,9 @@ export function App(): JSX.Element {
     };
   }, []);
 
+  const navRef = useRef<HTMLElement>(null);
+  const followFocus = useRef(false);
+
   const active = useMemo(() => VIEWS.find((v) => v.id === viewId) ?? VIEWS[0]!, [viewId]);
   const ActiveScreen = active.component;
   const viewIds = VIEWS.map((v) => v.id);
@@ -178,13 +181,34 @@ export function App(): JSX.Element {
   const onNavKeyDown = (e: React.KeyboardEvent) => {
     const action = keyToAction(e.key, e.ctrlKey, e.altKey);
     if (action === 'next') {
+      followFocus.current = true;
       navigateTo(VIEWS[moveIndex(activeIndex, 1, VIEWS.length)]!.id);
       e.preventDefault();
     } else if (action === 'prev') {
+      followFocus.current = true;
       navigateTo(VIEWS[moveIndex(activeIndex, -1, VIEWS.length)]!.id);
       e.preventDefault();
     }
+    // `activate` is deliberately unhandled: Enter and Space already press a
+    // <button>, and claiming them here would only re-implement that.
   };
+
+  /*
+   * Focus has to follow an arrow key, or the ring stays on the item the
+   * operator left. ArrowDown from Dashboard moved the route to Activity and
+   * left the visible focus on Dashboard: the one indicator saying "you are
+   * here" pointed at the wrong row, and a screen reader was told nothing at
+   * all, because nothing it was watching had changed.
+   *
+   * Gated on the flag rather than run on every route change: a click already
+   * focuses the button it pressed, and a link inside a screen ("View all in
+   * Activity") must be allowed to leave focus in the content it came from.
+   */
+  useEffect(() => {
+    if (!followFocus.current) return;
+    followFocus.current = false;
+    navRef.current?.querySelector<HTMLButtonElement>('.nav__item--active')?.focus();
+  }, [viewId]);
 
   const body = NAV_GROUPS.filter((g) => g.footer !== true);
   const footer = NAV_GROUPS.filter((g) => g.footer === true);
@@ -194,7 +218,7 @@ export function App(): JSX.Element {
       <a href="#content" className="skip-link">
         Skip to content
       </a>
-      <nav className="nav" aria-label="Primary" onKeyDown={onNavKeyDown}>
+      <nav className="nav" aria-label="Primary" ref={navRef} onKeyDown={onNavKeyDown}>
         <div className="nav__brand">
           <span className="nav__mark" aria-hidden="true">
             <IconFerry size={17} />

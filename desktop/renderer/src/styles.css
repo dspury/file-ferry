@@ -1533,6 +1533,20 @@ textarea:focus-visible {
   color: var(--c-ok);
 }
 
+/*
+ * Attention is the "a person has to decide something" tier, and it exists on
+ * the banner for the same reason it exists on the chip: the Environment
+ * screen was drawing one fact in two hues, a warn-yellow banner over an
+ * attention-purple chip, because the banner had no tone that matched what
+ * `overallHealth` had already decided.
+ */
+.banner--attention {
+  border-color: var(--c-attention-line);
+  border-left-color: var(--c-attention);
+  background: var(--c-attention-soft);
+  color: var(--c-attention);
+}
+
 .banner--info {
   border-color: var(--c-border-strong);
   border-left-color: var(--c-border-indicator);
@@ -1557,7 +1571,15 @@ textarea:focus-visible {
   align-items: center;
   text-align: center;
   gap: var(--sp-2);
-  padding: var(--sp-7) var(--sp-5);
+  /*
+   * Vertical padding is the smaller step because a page can hold two of
+   * these: Dashboard, on a first run, is *nothing but* empty states, and at
+   * `--sp-7` its two wells ran 297px and 278px and pushed "Start an offload"
+   * -- the only thing on that screen an operator can act on -- off the bottom
+   * of a 900px window. It was above the fold before the reskin; this is what
+   * puts it back.
+   */
+  padding: var(--sp-5);
   color: var(--c-text-dim);
   border: 1px dashed var(--c-border-strong);
   border-radius: var(--radius);
@@ -1642,7 +1664,10 @@ textarea:focus-visible {
 }
 
 .empty__hint {
-  max-width: 44ch;
+  /* A wider measure than the 44ch a paragraph wants, because these hints run
+     two to three lines and every line costs 19px of a screen that has two
+     wells on it. Still inside the 45-75ch band that stays readable. */
+  max-width: 58ch;
   margin: 0;
   color: var(--c-text-dim);
 }

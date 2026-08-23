@@ -6,41 +6,159 @@
  * bad light. Every value below comes from a token — screens should not
  * hand-roll colours, spacing, or type sizes.
  *
+ * The palette is derived from CinePrompt's "rental house" system so the two
+ * apps read as siblings: warm matte camera-body blacks, bone-white spec
+ * text, restrained borders, and a focus-ring orange for everything
+ * interactive. The token *names* are file-ferry's own — they are consumed
+ * throughout this sheet and by every screen — so only their values moved.
+ *
  * Safety-critical states (plan §8.2) get explicit, high-contrast
  * semantics: success/unsafe/attention are never communicated by colour
  * alone — each carries a label and an icon/text marker as well.
  */
 
 :root {
-  /* --- surfaces, back to front --- */
-  --c-rail: #0b0d11;
-  --c-bg: #101319;
-  --c-surface: #171b22;
-  --c-surface-2: #1e232c;
-  --c-surface-3: #262c37;
+  /* --- surfaces, back to front.
+     CinePrompt's coal / panel / plate / plate-hover family, plus a darker
+     rail behind them for the nav. The relative lightness steps of the old
+     cool-grey palette are preserved in order and roughly in size, so every
+     depth relationship this sheet already relied on still reads. --- */
+  --c-rail: #0d0a08;
+  --c-bg: #14100e; /* coal */
+  --c-surface: #1b1714; /* panel */
+  --c-surface-2: #231e1a; /* plate */
+  --c-surface-3: #2b2420; /* plate-hover */
 
-  /* --- lines --- */
-  --c-border: #262c36;
-  --c-border-strong: #38404e;
+  /* --- lines.
+     Three tiers, and the third one exists for an accessibility reason
+     rather than an aesthetic one.
 
-  /* --- text --- */
-  --c-text: #e8eaef;
-  --c-text-dim: #98a1af;
-  --c-text-faint: #6a7382;
+     `--c-border` and `--c-border-strong` are CinePrompt's `line` and `tick`.
+     They are *delineation*: the edge of a card, the rule between table
+     rows, the hairline under a group of fields. At 1.10-1.80:1 against the
+     surfaces they sit on they are deliberately almost subliminal, which is
+     what makes the sheet feel restrained, and WCAG 1.4.11 does not ask
+     anything of them — a rule that merely groups content is decoration.
+
+     `--c-border-indicator` is for the borders that are load-bearing: the
+     edge that tells you *this is a control you can type in or press*
+     (button, input, select, textarea, path picker, segmented control) and
+     the ring on a pending stage marker. Those are exactly the cases 1.4.11
+     covers, so they need 3:1. #7a6c5c is the minimum lift on the same warm
+     ramp as `--c-border-strong` that clears it against every surface a
+     control actually rests on: `--c-bg` 3.72, `--c-surface` 3.50,
+     `--c-surface-2` 3.24, `--c-rail` 3.88. Against `--c-surface-3` it is
+     2.9995 — just under — but no indicator edge ever renders there: every
+     `--c-surface-3` background (`.btn:hover`, `.seg__item--active`,
+     `.pathpick .btn:hover`) is a hover state whose border is already
+     `--c-accent`. Keep that true if you add a `--c-surface-3` control. Going
+     lighter would only make the UI noisier for margin the spec does not
+     ask for; blanket-applying it to the decorative tiers would wreck the
+     restraint the palette is built on. --- */
+  --c-border: #322b25; /* line */
+  --c-border-strong: #443b32; /* tick */
+  --c-border-indicator: #7a6c5c;
+
+  /* --- text.
+     bone / tape straight from CinePrompt. The faintest tier is deliberately
+     lifted well above CinePrompt's `--dim` (#6e6659, only 3.4:1 on coal),
+     because in this app it is not decoration: it carries the stat-tile
+     labels, every table column header, the nav group headings, and the
+     plan/review/execute/verify stage labels. None of those are WCAG "large
+     text" (that needs 24px, or 18.66px bold), so all of them need the full
+     4.5:1 — which this value clears on `--c-bg` (5.21:1), `--c-surface`
+     (4.91:1) and `--c-surface-2` (4.55:1), the three surfaces that host it.
+     It is the *minimum* lift that does so: going lighter would only erode
+     the gap to `--c-text-dim` for margin the spec does not ask for. That
+     gap is 1.25x in luminance, which is tight, but the three tiers are also
+     separated by weight (600 vs 400), casing, and tracking — lightness is
+     not carrying the hierarchy alone. --- */
+  --c-text: #efe7d8; /* bone */
+  --c-text-dim: #9e9384; /* tape */
+  --c-text-faint: #8f8576;
 
   /* --- accent + semantics.
-     Each semantic colour has a `-soft` fill so a chip or banner can be
-     tinted without the text losing contrast against it. --- */
-  --c-accent: #4c8dff;
-  --c-accent-soft: rgba(76, 141, 255, 0.14);
-  --c-ok: #3fc48d;
-  --c-ok-soft: rgba(63, 196, 141, 0.13);
-  --c-warn: #e3a83c;
-  --c-warn-soft: rgba(227, 168, 60, 0.13);
-  --c-danger: #f2665f;
-  --c-danger-soft: rgba(242, 102, 95, 0.13);
-  --c-attention: #b98cf5;
-  --c-attention-soft: rgba(185, 140, 245, 0.13);
+     Three of these are warm, and two of them are safety-critical, so they
+     are separated on purpose rather than by luck. Measured against the
+     interaction accent: warning sits +28.3° of hue at 1.63x its relative
+     luminance, danger sits -23.7° of hue at 0.76x its relative luminance.
+     So danger is cooler *and* darker than the accent, warning is yellower
+     *and* brighter than both, and the three stay apart in greyscale as well
+     as in hue. Danger stops short of the rose end of that range on purpose:
+     a wider hue gap was available, but past about 350° the colour reads as
+     pink and a "Format card" button that does not read as red is its own
+     safety problem. Colour is only ever the second signal regardless —
+     every state also carries a word.
+
+     Each semantic colour has a `-soft` fill and a `-line` border. The fill
+     is an opaque, hue-tinted plate sitting just above `--c-bg` rather than
+     a translucent wash over whatever is behind it. That is CinePrompt's
+     recessed-chip idiom, and it is what lets the foreground stay a deep
+     crimson while still clearing 4.5:1 against its own fill on every
+     surface a chip, banner, or button can land on.
+
+     The `-line` alphas differ per hue on purpose. They are tuned for equal
+     *visual weight*, not equal opacity: each one lands between 3.1:1 and
+     3.6:1 against every surface a chip or banner sits on, so no state's
+     hairline is louder or fainter than the others. --- */
+  --c-accent: #ff6a2c; /* focus-ring orange */
+  --c-accent-hover: #ff7d47;
+  --c-accent-soft: #1e140d;
+  --c-accent-line: rgba(255, 106, 44, 0.65);
+  /* Foreground for anything filled with the accent. Warm near-black, not
+     the cool near-black the old blue accent used. */
+  --c-on-accent: #1a0d05;
+
+  --c-ok: #35a96c; /* fuji green */
+  --c-ok-soft: #0c1911;
+  --c-ok-line: rgba(53, 169, 108, 0.65);
+
+  --c-warn: #e7b923; /* pushed toward kodak yellow, away from the accent */
+  --c-warn-soft: #1b160a;
+  --c-warn-line: rgba(231, 185, 35, 0.5);
+
+  --c-danger: #f0495a; /* pushed cooler and deeper, away from the accent */
+  --c-danger-soft: #241013;
+  --c-danger-line: rgba(240, 73, 90, 0.78);
+
+  /* "Needs review" stays off the warm axis entirely: a dusty orchid is the
+     one hue no colour-vision deficiency can collapse into orange, amber, or
+     crimson. */
+  --c-attention: #c391e0;
+  --c-attention-soft: #1a1322;
+  --c-attention-line: rgba(195, 145, 224, 0.6);
+
+  /* Cancelled work was stopped by an operator, not by a failure, so it must
+     not borrow danger's red — and it must not read as plain neutral either.
+     A near-colourless cool grey is the only tone in this palette that says
+     "inert" without claiming a severity. */
+  --c-cancelled: #8d94a0;
+  --c-cancelled-soft: #141519;
+  --c-cancelled-line: rgba(141, 148, 160, 0.65);
+
+  /* The plate under a chip that is carrying no signal at all. */
+  --c-neutral-soft: #191512;
+
+  --c-scrim: rgba(10, 7, 5, 0.66);
+
+  /* --- operational states.
+     The six states a file-ferry operation can be in, named the way the UI
+     names them rather than by hue. This is the layer screens and shared
+     primitives should reach for; the raw semantics above are the palette
+     it is built from. Every state has a foreground and a fill, and every
+     state is also spelled out in words wherever it is rendered. --- */
+  --state-neutral: var(--c-text-dim);
+  --state-neutral-soft: var(--c-neutral-soft);
+  --state-active: var(--c-accent);
+  --state-active-soft: var(--c-accent-soft);
+  --state-success: var(--c-ok);
+  --state-success-soft: var(--c-ok-soft);
+  --state-warning: var(--c-warn);
+  --state-warning-soft: var(--c-warn-soft);
+  --state-failure: var(--c-danger);
+  --state-failure-soft: var(--c-danger-soft);
+  --state-cancelled: var(--c-cancelled);
+  --state-cancelled-soft: var(--c-cancelled-soft);
 
   /* --- spacing scale --- */
   --sp-1: 4px;
@@ -52,7 +170,11 @@
   --sp-7: 32px;
   --sp-8: 44px;
 
-  /* --- type scale --- */
+  /* --- type scale.
+     `--fs-2xs` is CinePrompt's 9-10px engraved-label tier; nothing in this
+     sheet needs it yet, but it exists so the shared primitives do not
+     hand-roll it. --- */
+  --fs-2xs: 10px;
   --fs-xs: 11px;
   --fs-sm: 12px;
   --fs-md: 13px;
@@ -60,18 +182,73 @@
   --fs-xl: 19px;
   --fs-2xl: 26px;
 
-  --ff-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Inter, system-ui, sans-serif;
-  --ff-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  /* --- tracking. CinePrompt letterspaces uppercase labels hard; `--tr-wide`
+     is the mono-eyebrow step, and `--tr-wordmark` is the widest step, used
+     only where a word is being treated as a mark rather than as text. --- */
+  --tr-label: 0.07em;
+  --tr-wide: 0.14em;
+  --tr-wordmark: 0.22em;
 
-  /* --- shape --- */
-  --radius-sm: 5px;
-  --radius: 8px;
-  --radius-lg: 12px;
+  /* --- families.
+     Both faces are bundled with the app (imported in renderer/src/main.tsx)
+     rather than fetched: the packaged renderer runs offline behind
+     `font-src 'self'`, so a CDN link would simply fail. The rest of each
+     stack is the graceful degradation if a face ever fails to load. --- */
+  --ff-sans:
+    'Archivo Variable', Archivo, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Inter,
+    system-ui, sans-serif;
+  --ff-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* --- shape.
+     Tightened onto CinePrompt's radii: 3px for engraved plates (chips,
+     stage markers, gauges), 4px for small controls, 6px for buttons and
+     panels, 10px for the one dialog. Softer corners than this read as a
+     web admin template; this app should read as a piece of equipment. --- */
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius: 6px;
+  --radius-lg: 10px;
+  --radius-pill: 999px;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 14px 40px rgba(0, 0, 0, 0.55);
+
+  /* --- atmosphere.
+     Three decorative tokens, deliberately few. `--glow-accent` is the
+     filament glow CinePrompt puts behind a lit accent element;
+     `--fill-ticks` is its lens-barrel tick rule, reused here as the scale
+     behind a progress gauge; `--scrim-blur` softens what is behind a modal
+     so the dialog reads as the only live surface. None of them carry
+     information — every one can be removed without changing what a screen
+     says. --- */
+  --glow-accent: 0 0 10px rgba(255, 106, 44, 0.3);
+
+  /*
+   * The "this did not happen" hatch, ruled across the empty part of a meter
+   * whose job has stopped. A struck-out remainder is what separates "got to
+   * 25%" from "25% of the way there", and it is a texture, so it survives
+   * greyscale and a forced-colours mode that drops the fill hue.
+   */
+  --fill-hatch: repeating-linear-gradient(
+    135deg,
+    rgba(239, 231, 216, 0.14) 0,
+    rgba(239, 231, 216, 0.14) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+  --fill-ticks: repeating-linear-gradient(
+    90deg,
+    var(--c-border-strong) 0 1px,
+    transparent 1px 14px
+  );
+  --scrim-blur: 3px;
+
+  /* --- motion. One duration, for colour/background transitions on
+     interactive elements. Anything longer feels laggy on a control an
+     operator is clicking through under time pressure. --- */
+  --motion: 140ms;
 
   --nav-w: 236px;
-  --header-h: 56px;
+  --header-h: 64px;
   --control-h: 32px;
 }
 
@@ -113,6 +290,61 @@ code,
   font-size: 0.92em;
 }
 
+::selection {
+  background: var(--c-accent-soft);
+  color: var(--c-text);
+}
+
+/*
+ * Scrollbars in the app's own palette. A default light-grey macOS
+ * scrollbar track is the one surface in the window that does not belong to
+ * this design system, and on a dark UI it reads as a scratch.
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--c-border-strong) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--c-border-strong);
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--c-bg);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--c-border-indicator);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/*
+ * The engraved label tier: mono, uppercase, hard-tracked, faint. CinePrompt
+ * uses it for anything that names a value rather than being one, and this
+ * sheet applies it to the nav group headings, the header kicker, table
+ * column heads, stat-tile labels, field labels, and key/value keys. It is
+ * exposed as a class as well so a screen that needs one more of them does
+ * not hand-roll the five declarations.
+ */
+.eyebrow {
+  font-family: var(--ff-mono);
+  font-size: var(--fs-2xs);
+  font-weight: 500;
+  letter-spacing: var(--tr-wide);
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+}
+
 /* ============================ layout ============================ */
 
 .app {
@@ -129,10 +361,12 @@ code,
   grid-row: 1 / span 2;
   background: var(--c-rail);
   border-right: 1px solid var(--c-border);
-  padding: var(--sp-4) var(--sp-3) var(--sp-3);
+  /* No right padding: an active item's plate runs to the rail's edge, the
+     way a selected channel runs to the edge of a mixer strip. */
+  padding: var(--sp-5) 0 var(--sp-3);
   display: flex;
   flex-direction: column;
-  gap: var(--sp-5);
+  gap: var(--sp-6);
   overflow-y: auto;
 }
 
@@ -140,33 +374,46 @@ code,
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  padding: 0 var(--sp-2);
+  padding: 0 var(--sp-4) var(--sp-2);
 }
 
+/*
+ * The mark is a bordered plate with an accent glyph rather than a solid
+ * orange tile. Orange is this system's *interaction* colour — a permanently
+ * lit 28px block of it in the corner competes with every button on screen
+ * for the eye, and on a screen full of nothing to do it was the loudest
+ * thing in the window.
+ */
 .nav__mark {
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   flex: none;
   border-radius: var(--radius-sm);
-  background: var(--c-accent);
-  color: var(--c-rail);
+  border: 1px solid var(--c-accent-line);
+  background: var(--c-accent-soft);
+  color: var(--c-accent);
   display: grid;
   place-items: center;
 }
 
 .nav__wordmark {
-  font-size: var(--fs-lg);
-  font-weight: 650;
-  letter-spacing: -0.01em;
-  line-height: 1.15;
+  display: block;
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: var(--tr-wordmark);
+  line-height: 1.2;
 }
 
 .nav__tagline {
   display: block;
-  font-size: var(--fs-xs);
+  margin-top: 4px;
+  font-family: var(--ff-mono);
+  font-size: var(--fs-2xs);
   font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: var(--tr-label);
   color: var(--c-text-faint);
-  letter-spacing: 0.02em;
 }
 
 .nav__group {
@@ -179,12 +426,13 @@ code,
    grouping is carried by the role="group" + aria-label on the container,
    so this is aria-hidden in the markup. */
 .nav__group-label {
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  letter-spacing: 0.07em;
+  font-family: var(--ff-mono);
+  font-size: var(--fs-2xs);
+  font-weight: 500;
+  letter-spacing: var(--tr-wide);
   text-transform: uppercase;
   color: var(--c-text-faint);
-  padding: 0 var(--sp-2) var(--sp-2);
+  padding: 0 var(--sp-4) var(--sp-2);
 }
 
 .nav__item {
@@ -196,13 +444,19 @@ code,
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  padding: 0 var(--sp-2);
-  height: 34px;
-  border-radius: var(--radius-sm);
+  /* The extra left padding is the gutter the active/hover rail lives in, so
+     the label does not shift by 2px when the rail appears. */
+  padding: 0 var(--sp-3) 0 calc(var(--sp-4) - 2px);
+  height: 36px;
   cursor: pointer;
   font-size: var(--fs-md);
   font-family: inherit;
   width: 100%;
+  border-left: 2px solid transparent;
+  transition:
+    background var(--motion),
+    color var(--motion),
+    border-color var(--motion);
 }
 
 .nav__item svg {
@@ -213,12 +467,21 @@ code,
 .nav__item:hover {
   background: var(--c-surface-2);
   color: var(--c-text);
+  border-left-color: var(--c-border-indicator);
 }
 
+/*
+ * The active view is marked three ways: an accent rail on the rail's own
+ * edge, a plate that fades out toward the right, and heavier type. The
+ * gradient is CinePrompt's "mounted on the rig" treatment — the tint sits
+ * where the eye enters the row and releases before the label ends, so it
+ * never washes out the text it is behind.
+ */
 .nav__item--active {
-  background: var(--c-accent-soft);
+  background: linear-gradient(90deg, var(--c-accent-soft), var(--c-surface) 55%);
+  border-left-color: var(--c-accent);
   color: var(--c-text);
-  font-weight: 550;
+  font-weight: 600;
 }
 
 .nav__item--active svg {
@@ -235,7 +498,7 @@ code,
   flex-direction: column;
   gap: var(--sp-2);
   border-top: 1px solid var(--c-border);
-  padding-top: var(--sp-3);
+  padding-top: var(--sp-4);
 }
 
 /* ============================ header ============================ */
@@ -251,10 +514,33 @@ code,
   gap: var(--sp-4);
 }
 
+/*
+ * The title block. The kicker names the rail group the current view lives
+ * in, so the header states the whole location — TRANSFER / Offload — the
+ * way a slate states scene and take. It is `aria-hidden`: the nav already
+ * announces the grouping, and the h1 already names the screen.
+ */
+.header__lede {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.header__kicker {
+  font-family: var(--ff-mono);
+  font-size: var(--fs-2xs);
+  font-weight: 500;
+  letter-spacing: var(--tr-wide);
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+}
+
 .header__title {
   font-size: var(--fs-xl);
-  font-weight: 600;
+  font-weight: 650;
   letter-spacing: -0.015em;
+  line-height: 1.1;
 }
 
 .header__subtitle {
@@ -262,7 +548,10 @@ code,
   font-size: var(--fs-md);
   border-left: 1px solid var(--c-border-strong);
   padding-left: var(--sp-4);
-  margin-left: var(--sp-1);
+  margin: 0;
+  /* Aligned to the title rather than to the two-line block, so the divider
+     reads as a continuation of the headline. */
+  align-self: center;
 }
 
 .header__actions {
@@ -272,14 +561,23 @@ code,
   gap: var(--sp-2);
 }
 
-/* ---- connection indicator ---- */
+/* ---- connection indicator ----
+   A recessed readout plate, not loose grey text: this is the one piece of
+   hardware status on screen, and it should look like it is engraved on the
+   chassis rather than typed into the page. */
 .status {
   display: inline-flex;
   align-items: center;
   gap: var(--sp-2);
-  font-size: var(--fs-sm);
+  font-family: var(--ff-mono);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--tr-label);
+  text-transform: uppercase;
   color: var(--c-text-dim);
-  padding: var(--sp-1) var(--sp-2);
+  padding: var(--sp-1) var(--sp-3);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-xs);
+  background: var(--c-surface);
 }
 
 .status__dot {
@@ -359,15 +657,26 @@ code,
   min-height: 44px;
 }
 
+/*
+ * Panel heads are set as tracked uppercase rather than sentence case. It is
+ * CinePrompt's `.panel-head h2`, and it does real work here: on a screen
+ * that is three or four stacked cards of forms and tables, the head is the
+ * only thing that has to be findable from across the room, and casing plus
+ * tracking separate it from the sentence of description directly beneath
+ * far better than two points of size would.
+ */
 .card__title {
-  font-size: var(--fs-md);
-  font-weight: 600;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: var(--tr-wide);
+  color: var(--c-text);
 }
 
 .card__desc {
   color: var(--c-text-dim);
   font-size: var(--fs-sm);
-  margin: 2px 0 0;
+  margin: 4px 0 0;
 }
 
 .card__actions {
@@ -415,6 +724,9 @@ code,
   border-left: 3px solid var(--c-border-strong);
 }
 
+.stat--active {
+  border-left-color: var(--c-accent);
+}
 .stat--ok {
   border-left-color: var(--c-ok);
 }
@@ -424,6 +736,9 @@ code,
 .stat--danger {
   border-left-color: var(--c-danger);
 }
+.stat--cancelled {
+  border-left-color: var(--c-cancelled);
+}
 .stat--attention {
   border-left-color: var(--c-attention);
 }
@@ -431,21 +746,30 @@ code,
 .stat__label {
   /* Two lines are reserved so a tile whose label wraps ("Unverified
      replicas") keeps its number on the same baseline as its neighbours. */
-  min-height: calc(2 * 1.5 * var(--fs-xs));
+  min-height: calc(2 * 1.45 * var(--fs-xs));
+  line-height: 1.45;
+  font-family: var(--ff-mono);
   font-size: var(--fs-xs);
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-weight: 500;
+  letter-spacing: var(--tr-wide);
   text-transform: uppercase;
   color: var(--c-text-faint);
 }
 
+/* A counted quantity is spec data, so it is set in mono like every other
+   number in the app — and mono digits are all one width, which is what
+   keeps a row of tiles from jittering as counts change. */
 .stat__value {
+  font-family: var(--ff-mono);
   font-size: var(--fs-2xl);
   font-weight: 600;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
 }
 
+.stat--active .stat__value {
+  color: var(--c-accent);
+}
 .stat--ok .stat__value {
   color: var(--c-ok);
 }
@@ -454,6 +778,9 @@ code,
 }
 .stat--danger .stat__value {
   color: var(--c-danger);
+}
+.stat--cancelled .stat__value {
+  color: var(--c-cancelled);
 }
 .stat--attention .stat__value {
   color: var(--c-attention);
@@ -466,78 +793,167 @@ code,
 
 /* ========================== chips =============================== */
 
+/*
+ * A chip is an engraved state plate: mono, uppercase, hard corners, sitting
+ * in a recess. `verified` / `needs_review` / `safe to format` are values a
+ * machine produced, and setting them in mono says so — it also stops a
+ * state pill from being mistaken for a button, which the old sans-serif
+ * rounded pill did at a glance.
+ *
+ * The border stays on the decorative tier for the neutral chip. A chip is
+ * not an interactive control and its state is spelled out in its own text,
+ * so 1.4.11 does not apply to its outline; the tone variants below carry a
+ * hue border only because a coloured plate needs an edge to survive on any
+ * surface.
+ */
 .chip {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 1px var(--sp-2);
-  border-radius: var(--radius-sm);
-  font-size: var(--fs-sm);
-  font-weight: 550;
+  padding: 2px var(--sp-2);
+  border-radius: var(--radius-xs);
+  font-family: var(--ff-mono);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  letter-spacing: var(--tr-label);
+  text-transform: uppercase;
   border: 1px solid var(--c-border-strong);
-  background: var(--c-surface-2);
+  background: var(--c-neutral-soft);
   color: var(--c-text-dim);
   white-space: nowrap;
 }
 
-/* The leading dot is a non-colour marker: each tone also renders a glyph
-   in the chip text, so the shape survives greyscale. */
+/*
+ * The leading marker, and the chip's non-colour channel.
+ *
+ * It used to be one circle for every tone, which made it decoration: the
+ * only thing separating MISSING from VERIFIED in greyscale was reading the
+ * word. Now the silhouette differs per tone and the shapes are chosen to
+ * mean what the tone means -- a play triangle for work in flight, a bar for
+ * a run that halted, a hollow ring for something waiting on a person, a
+ * hexagon for danger. At 7px none of these is a picture, but a column of
+ * fifty rows sorts into groups by shape alone, which is the job.
+ */
 .chip__dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: currentColor;
   flex: none;
 }
 
+/* In flight: pointing forward. */
+.chip--active .chip__dot {
+  border-radius: 0;
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+
+/* Caution: the standard warning triangle, upright. */
+.chip--warn .chip__dot {
+  border-radius: 0;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+/* Danger: a hexagonal plate, the one silhouette here with no round edge. */
+.chip--danger .chip__dot {
+  border-radius: 0;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+}
+
+/* Waiting on a person: hollow, so the row reads as unfinished business. */
+.chip--attention .chip__dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px currentColor;
+}
+
+/* Stopped: a bar, not a dot -- the same "halt" mark as the dashed edge. */
+.chip--cancelled .chip__dot {
+  height: 2px;
+  border-radius: 1px;
+}
+
+/*
+ * The six operational states. A tone chip is a recessed hue-tinted plate
+ * with a hue border, so its outline survives on any surface -- the old
+ * transparent border left the chip's shape to the fill alone. The tone is
+ * still never the only signal: the chip always spells the state out, and
+ * `.chip__dot` gives it a non-colour marker.
+ */
+.chip--active {
+  color: var(--c-accent);
+  border-color: var(--c-accent-line);
+  background: var(--c-accent-soft);
+}
+
 .chip--ok {
   color: var(--c-ok);
-  border-color: transparent;
+  border-color: var(--c-ok-line);
   background: var(--c-ok-soft);
 }
 
 .chip--warn {
   color: var(--c-warn);
-  border-color: transparent;
+  border-color: var(--c-warn-line);
   background: var(--c-warn-soft);
 }
 
 .chip--danger {
   color: var(--c-danger);
-  border-color: transparent;
+  border-color: var(--c-danger-line);
   background: var(--c-danger-soft);
+}
+
+/* Cancelled is inert, not severe: the dashed edge says "this run stopped"
+   without borrowing danger's weight. */
+.chip--cancelled {
+  color: var(--c-cancelled);
+  border-color: var(--c-cancelled-line);
+  border-style: dashed;
+  background: var(--c-cancelled-soft);
 }
 
 .chip--attention {
   color: var(--c-attention);
-  border-color: transparent;
+  border-color: var(--c-attention-line);
   background: var(--c-attention-soft);
 }
 
 /* ========================= buttons ============================== */
 
+/*
+ * The button edge is on `--c-border-indicator`, not the decorative tier: it
+ * is the only thing that says "this rectangle is pressable" before you
+ * hover it, which is the case WCAG 1.4.11 is written for. Hover then moves
+ * the edge to the accent — CinePrompt's whole interaction language is "the
+ * orange line follows your cursor", and it means hover is legible without
+ * a fill change loud enough to be mistaken for a selected state.
+ */
 .btn {
   appearance: none;
-  border: 1px solid var(--c-border-strong);
+  border: 1px solid var(--c-border-indicator);
   background: var(--c-surface-2);
   color: var(--c-text);
   height: var(--control-h);
-  padding: 0 var(--sp-3);
-  border-radius: var(--radius-sm);
+  padding: 0 var(--sp-4);
+  border-radius: var(--radius);
   cursor: pointer;
   font-size: var(--fs-md);
   font-family: inherit;
-  font-weight: 500;
+  font-weight: 550;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--sp-2);
   white-space: nowrap;
+  transition:
+    background var(--motion),
+    border-color var(--motion),
+    color var(--motion);
 }
 
 .btn:hover:not(:disabled) {
   background: var(--c-surface-3);
-  border-color: var(--c-text-faint);
+  border-color: var(--c-accent);
 }
 
 .btn:active:not(:disabled) {
@@ -547,13 +963,14 @@ code,
 .btn--primary {
   background: var(--c-accent);
   border-color: var(--c-accent);
-  color: #08101f;
-  font-weight: 600;
+  color: var(--c-on-accent);
+  font-weight: 700;
 }
 
 .btn--primary:hover:not(:disabled) {
-  background: #629bff;
-  border-color: #629bff;
+  background: var(--c-accent-hover);
+  border-color: var(--c-accent-hover);
+  box-shadow: var(--glow-accent);
 }
 
 .btn--danger {
@@ -567,6 +984,13 @@ code,
   border-color: var(--c-danger);
 }
 
+/*
+ * A quiet button carries no resting edge on purpose — it is the tertiary
+ * action in a row and an outline would give it the same weight as the
+ * primary one. It is not relying on a low-contrast border for its identity:
+ * at rest it is a bare text affordance, and on hover it grows the full
+ * indicator-grade edge below.
+ */
 .btn--ghost {
   background: transparent;
   border-color: transparent;
@@ -576,17 +1000,17 @@ code,
 .btn--ghost:hover:not(:disabled) {
   background: var(--c-surface-2);
   color: var(--c-text);
-  border-color: transparent;
+  border-color: var(--c-border-indicator);
 }
 
 .btn--sm {
   height: 26px;
-  padding: 0 var(--sp-2);
+  padding: 0 var(--sp-3);
   font-size: var(--fs-sm);
 }
 
 .btn:disabled {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
@@ -599,11 +1023,19 @@ code,
 
 /* ===================== segmented control ======================== */
 
+/*
+ * A mode switch on a camera body: mono uppercase legends in a recessed
+ * housing, with the engaged position lit from below. The selected option is
+ * distinguished four ways — plate, weight, text colour, and the accent
+ * underscore — so no single channel is carrying it, and `aria-checked` on
+ * the radio carries it for assistive tech. The housing edge is on the
+ * indicator tier because the group is an interactive control.
+ */
 .seg {
   display: inline-flex;
-  background: var(--c-surface-2);
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-sm);
+  background: var(--c-bg);
+  border: 1px solid var(--c-border-indicator);
+  border-radius: var(--radius);
   padding: 2px;
   gap: 2px;
 }
@@ -614,13 +1046,18 @@ code,
   background: transparent;
   color: var(--c-text-dim);
   font: inherit;
-  font-size: var(--fs-sm);
-  font-weight: 550;
+  font-family: var(--ff-mono);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  letter-spacing: var(--tr-label);
+  text-transform: uppercase;
   height: 26px;
   padding: 0 var(--sp-3);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
-  text-transform: capitalize;
+  transition:
+    background var(--motion),
+    color var(--motion);
 }
 
 .seg__item:hover {
@@ -630,7 +1067,8 @@ code,
 .seg__item--active {
   background: var(--c-surface-3);
   color: var(--c-text);
-  box-shadow: var(--shadow);
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--c-accent);
 }
 
 /* ========================== tables ============================== */
@@ -652,22 +1090,32 @@ code,
   font-size: var(--fs-md);
 }
 
+/*
+ * The column band is a recessed plate with engraved legends, set apart from
+ * the rows by a heavier rule. On the long tables — Media runs to hundreds
+ * of rows — this is what keeps the headers findable after a scroll, and it
+ * gives the sticky header something to be sticky *as*.
+ */
 .table th {
   text-align: left;
   color: var(--c-text-faint);
-  font-weight: 600;
+  font-family: var(--ff-mono);
+  font-weight: 500;
   font-size: var(--fs-xs);
-  letter-spacing: 0.06em;
+  letter-spacing: var(--tr-wide);
   text-transform: uppercase;
   padding: var(--sp-2) var(--sp-4);
-  background: var(--c-surface);
-  border-bottom: 1px solid var(--c-border);
+  background: var(--c-surface-2);
+  border-bottom: 1px solid var(--c-border-strong);
   position: sticky;
   top: 0;
   z-index: 1;
   white-space: nowrap;
 }
 
+/* Row padding stays at the tight step. Media and Activity are read as
+   lists of many rows at once, and the extra 8px a comfortable step would
+   add costs two visible rows per screen for no gain in legibility. */
 .table td {
   padding: var(--sp-2) var(--sp-4);
   border-bottom: 1px solid var(--c-border);
@@ -678,22 +1126,96 @@ code,
   border-bottom: none;
 }
 
+/*
+ * A note row: a job's own error text, spanning the table under the row it
+ * belongs to.
+ *
+ * `job.error` is where the sidecar puts the sentence that decides whether a
+ * camera card can be released -- "3 of 412 files failed checksum
+ * verification, the source card is still required" -- and Activity rendered
+ * none of it. It cannot go in the state cell: it is prose, and the cell is
+ * sized for a chip. Spanning the row gives it the width a sentence needs
+ * while keeping it attached to its job.
+ */
+.table tbody tr.row--note td {
+  padding-top: 0;
+  padding-bottom: var(--sp-3);
+}
+
+.table tbody tr.row--note:hover td {
+  background: none;
+}
+
+.table tbody tr.row--note:hover td:first-child {
+  box-shadow: none;
+}
+
+/* The row above a note is part of the same record, so the line between them
+   is dropped and the pair reads as one block. */
+.table tbody tr.row--has-note td {
+  border-bottom: none;
+}
+
+.table tbody tr td {
+  transition: background var(--motion);
+}
+
 .table tbody tr:hover td {
   background: var(--c-surface-2);
 }
 
-/* Paths are long and their meaningful end is the right-hand side, so the
-   cell clips with a tooltip rather than wrapping into a tall row. */
+/* The hovered row gets an accent tick in the left margin, so a row being
+   pointed at in a table of a hundred near-identical filenames is findable
+   without moving the eye back to the cursor. */
+.table tbody tr:hover td:first-child {
+  box-shadow: inset 2px 0 0 var(--c-accent);
+}
+
+/*
+ * Paths are long and their meaningful end is the right-hand side, so the
+ * cell clips with a tooltip rather than wrapping into a tall row.
+ *
+ * The clipping is done by giving the directory run away, not by reversing
+ * the text: `direction: rtl` kept the tail but handed the string to the bidi
+ * algorithm as an RTL paragraph, and the leading `/` of an absolute path --
+ * a neutral character at a paragraph boundary -- was drawn at the far end,
+ * so `/Volumes/Sable-Work/HarbourLights/` displayed as
+ * `ork/HarbourLights/`. A path is a value; it must not be reordered to fit.
+ */
 .cell-path {
+  display: inline-flex;
+  align-items: baseline;
   font-family: var(--ff-mono);
   font-size: var(--fs-sm);
   color: var(--c-text-dim);
-  max-width: 320px;
+  /* Wide enough that a two- or three-segment path fits whole, capped so one
+     pathological entry cannot force the whole table wider than the window. */
+  max-width: 460px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* The head is the only half that shrinks, and it is dimmer: the directory
+   run is context, and the leaf is the thing being named. */
+.path__head {
+  flex: 0 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  direction: rtl;
-  text-align: left;
+  color: var(--c-text-faint);
+}
+
+/* `flex-shrink: 0` is what protects the filename: flexbox takes the whole
+   overflow out of the head before it touches this. `max-width` is the
+   fallback for a path with no separator at all, where there is no head to
+   give up and the leaf has to clip like anything else. */
+.path__tail {
+  flex: 0 0 auto;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cell-num {
@@ -725,9 +1247,46 @@ code,
 }
 
 .field label {
-  font-size: var(--fs-sm);
-  font-weight: 550;
-  color: var(--c-text-dim);
+  font-family: var(--ff-mono);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  letter-spacing: var(--tr-wide);
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+}
+
+/*
+ * The confirm dialog's "field" is not a labelled setting — it is a sentence
+ * of instruction with the phrase to type inside it ("Type FORMAT-CARD to
+ * confirm"). Engraving that is wrong twice over: uppercasing destroys the
+ * casing of the phrase itself, and this is the one moment in the app where
+ * the operator has to read prose carefully rather than scan a legend.
+ */
+.confirm .field label {
+  font-family: var(--ff-sans);
+  font-size: var(--fs-md);
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--c-text);
+}
+
+/*
+ * The phrase itself gets a plate. It is a literal the operator has to
+ * reproduce character for character, not an emphasised word in a sentence,
+ * and as bare bold mono a short lowercase phrase like `move` was easy to
+ * skim straight past on the way to the input.
+ */
+.confirm .field label strong {
+  display: inline-block;
+  font-family: var(--ff-mono);
+  font-weight: 600;
+  color: var(--c-danger);
+  letter-spacing: var(--tr-label);
+  padding: 0 5px;
+  border: 1px solid var(--c-danger-line);
+  border-radius: var(--radius-xs);
+  background: var(--c-danger-soft);
 }
 
 .field-grid {
@@ -747,11 +1306,18 @@ code,
   margin-top: var(--sp-3);
 }
 
+/*
+ * Fields are wells: recessed to the page black inside a panel that sits
+ * above it, which is CinePrompt's input treatment and reads as somewhere
+ * you put something rather than another raised plate. The edge is on the
+ * indicator tier — an empty text field's outline is the only thing that
+ * says a field is there at all (1.4.11).
+ */
 input,
 select,
 textarea {
-  background: var(--c-surface-2);
-  border: 1px solid var(--c-border-strong);
+  background: var(--c-bg);
+  border: 1px solid var(--c-border-indicator);
   color: var(--c-text);
   border-radius: var(--radius-sm);
   padding: 0 var(--sp-3);
@@ -759,6 +1325,25 @@ textarea {
   font-size: var(--fs-md);
   font-family: inherit;
   width: 100%;
+  transition: border-color var(--motion);
+}
+
+/*
+ * Typed values are set in mono; chosen ones are not.
+ *
+ * Every free-text field in this app holds something a machine will consume
+ * literally — a filesystem path, a `{project}/{shootDate}` template, a
+ * proxy height, a search string matched against filenames, or the phrase
+ * that arms a destructive action. Mono is the honest face for all of those,
+ * it makes a stray space in a path visible, and it stops a text field from
+ * looking unlike the `.pathpick` sitting directly above it in the same
+ * form. A `<select>`, by contrast, can be showing a project someone named
+ * ("Harbour Lights — Ep 04"), so it keeps the sans face.
+ */
+input,
+textarea {
+  font-family: var(--ff-mono);
+  font-size: var(--fs-sm);
 }
 
 textarea {
@@ -778,8 +1363,9 @@ input::placeholder {
 }
 
 input:hover:not(:disabled),
-select:hover:not(:disabled) {
-  border-color: var(--c-text-faint);
+select:hover:not(:disabled),
+textarea:hover:not(:disabled) {
+  border-color: var(--c-accent);
 }
 
 /*
@@ -800,12 +1386,19 @@ textarea:focus-visible {
 .pathpick {
   display: flex;
   align-items: stretch;
-  border: 1px solid var(--c-border-strong);
+  border: 1px solid var(--c-border-indicator);
   border-radius: var(--radius-sm);
-  background: var(--c-surface-2);
+  background: var(--c-bg);
   overflow: hidden;
+  transition: border-color var(--motion);
 }
 
+.pathpick:hover {
+  border-color: var(--c-accent);
+}
+
+/* Same split as `.cell-path`, and for the same reason: the chosen folder's
+   own name is the part that must survive the truncation. */
 .pathpick__value {
   flex: 1;
   min-width: 0;
@@ -816,23 +1409,30 @@ textarea:focus-visible {
   font-size: var(--fs-sm);
   color: var(--c-text);
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
-  direction: rtl;
-  text-align: left;
+}
+
+.pathpick__value .path__tail {
+  color: var(--c-text);
 }
 
 .pathpick__value--empty {
   color: var(--c-text-faint);
   font-family: var(--ff-sans);
-  direction: ltr;
 }
 
+/* The trigger is the raised half of one control, so it keeps the panel
+   plate and gives up its own outline to the divider. */
 .pathpick .btn {
   border: none;
-  border-left: 1px solid var(--c-border-strong);
+  border-left: 1px solid var(--c-border-indicator);
   border-radius: 0;
+  background: var(--c-surface-2);
+}
+
+.pathpick .btn:hover:not(:disabled) {
   background: var(--c-surface-3);
+  border-color: var(--c-accent);
 }
 
 .pathpick:focus-within {
@@ -850,11 +1450,22 @@ textarea:focus-visible {
   margin-top: var(--sp-4);
 }
 
+/*
+ * A toggle line is prose with a box in front of it, so it keeps the sans
+ * face and sentence casing that `.field label` gives up — engraving a
+ * sentence like "Also write a second verified copy" would make it unreadable
+ * for the sake of consistency with labels it is not one of.
+ */
 .checkline {
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
+  gap: var(--sp-3);
+  font-family: var(--ff-sans);
   font-size: var(--fs-md);
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--c-text);
   cursor: pointer;
   padding: var(--sp-2) 0;
 }
@@ -873,6 +1484,10 @@ textarea:focus-visible {
   padding: var(--sp-3) var(--sp-4);
   border-radius: var(--radius);
   border: 1px solid var(--c-border);
+  /* The severity rule. A 3px edge on the reading side is CinePrompt's
+     pull-quote idiom, and it is what makes a banner findable as a block on
+     a screen that is already full of bordered cards. */
+  border-left: 3px solid var(--c-border-strong);
   background: var(--c-surface);
   font-size: var(--fs-md);
 }
@@ -887,65 +1502,178 @@ textarea:focus-visible {
   word-break: break-word;
 }
 
+/* The severity word is stamped, not italicised: mono uppercase reads as a
+   label on the message rather than as the first word of it. */
 .banner__label {
+  font-family: var(--ff-mono);
+  font-size: var(--fs-sm);
   font-weight: 600;
+  letter-spacing: var(--tr-label);
+  text-transform: uppercase;
 }
 
 .banner--danger {
-  border-color: rgba(242, 102, 95, 0.45);
+  border-color: var(--c-danger-line);
+  border-left-color: var(--c-danger);
   background: var(--c-danger-soft);
   color: var(--c-danger);
 }
 
 .banner--warn {
-  border-color: rgba(227, 168, 60, 0.45);
+  border-color: var(--c-warn-line);
+  border-left-color: var(--c-warn);
   background: var(--c-warn-soft);
   color: var(--c-warn);
 }
 
 .banner--ok {
-  border-color: rgba(63, 196, 141, 0.45);
+  border-color: var(--c-ok-line);
+  border-left-color: var(--c-ok);
   background: var(--c-ok-soft);
   color: var(--c-ok);
 }
 
+/*
+ * Attention is the "a person has to decide something" tier, and it exists on
+ * the banner for the same reason it exists on the chip: the Environment
+ * screen was drawing one fact in two hues, a warn-yellow banner over an
+ * attention-purple chip, because the banner had no tone that matched what
+ * `overallHealth` had already decided.
+ */
+.banner--attention {
+  border-color: var(--c-attention-line);
+  border-left-color: var(--c-attention);
+  background: var(--c-attention-soft);
+  color: var(--c-attention);
+}
+
 .banner--info {
   border-color: var(--c-border-strong);
+  border-left-color: var(--c-border-indicator);
   background: var(--c-surface-2);
   color: var(--c-text-dim);
 }
 
 /* ======================== empty states ========================== */
 
+/*
+ * A dashed well, CinePrompt's drop-target idiom. It makes an empty region
+ * read as a place something goes rather than as a card that failed to
+ * load — which is what a bare centred sentence in a large blank panel looks
+ * like, and Offload and Organize both open with two of them.
+ *
+ * #88 owns what these say per screen; this is only the container they get
+ * to say it in.
+ */
 .empty {
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
   gap: var(--sp-2);
-  padding: var(--sp-7) var(--sp-4);
+  /*
+   * Vertical padding is the smaller step because a page can hold two of
+   * these: Dashboard, on a first run, is *nothing but* empty states, and at
+   * `--sp-7` its two wells ran 297px and 278px and pushed "Start an offload"
+   * -- the only thing on that screen an operator can act on -- off the bottom
+   * of a 900px window. It was above the fold before the reskin; this is what
+   * puts it back.
+   */
+  padding: var(--sp-5);
   color: var(--c-text-dim);
+  border: 1px dashed var(--c-border-strong);
+  border-radius: var(--radius);
+  background: var(--c-bg);
 }
 
-.empty__icon {
+/* Busy is not empty. A dashed well says "put something here", which is the
+   wrong instruction while the app is fetching something it already has, so
+   the well is dropped -- `ScreenLoading` puts the wait inside the card the
+   content will arrive in, which is the frame that belongs around it. */
+.empty--busy {
+  border-style: none;
+  background: transparent;
+  padding: var(--sp-6) var(--sp-4);
+}
+
+/*
+ * The indeterminate sweep: the only thing on a waiting screen that says the
+ * app is working rather than finished and empty. A fixed track with a short
+ * travelling fill, so it reads as motion along a scale and cannot be read as
+ * a fraction -- there is no fraction here to report.
+ */
+.busy__meter {
+  display: block;
+  width: 132px;
+  height: 3px;
+  margin-bottom: var(--sp-3);
+  border-radius: var(--radius-pill);
+  background: var(--c-surface-2);
+  overflow: hidden;
+}
+
+.busy__sweep {
+  display: block;
+  width: 38%;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: var(--c-accent);
+  animation: busy-sweep 1.15s ease-in-out infinite;
+}
+
+@keyframes busy-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(263%);
+  }
+}
+
+/*
+ * Removed rather than frozen under reduced motion. The global rule below
+ * kills the animation, which would park the fill at the left of the track --
+ * a stationary partial bar, which is the exact false claim this meter exists
+ * to avoid. The message and its live region carry the state without it.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .busy__meter {
+    display: none;
+  }
+}
+
+/* The glyph gets its own plate so it reads as an icon rather than as a
+   stray line drawing floating in the middle of a panel. */
+.empty__frame {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  margin-bottom: var(--sp-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  background: var(--c-surface);
   color: var(--c-text-faint);
-  margin-bottom: var(--sp-1);
 }
 
 .empty__title {
   font-size: var(--fs-lg);
-  font-weight: 550;
+  font-weight: 600;
   color: var(--c-text);
 }
 
 .empty__hint {
-  max-width: 44ch;
+  /* A wider measure than the 44ch a paragraph wants, because these hints run
+     two to three lines and every line costs 19px of a screen that has two
+     wells on it. Still inside the 45-75ch band that stays readable. */
+  max-width: 58ch;
   margin: 0;
   color: var(--c-text-dim);
 }
 
 .empty__actions {
-  margin-top: var(--sp-2);
+  margin-top: var(--sp-3);
 }
 
 /* ===================== step / stage rail ======================== */
@@ -970,32 +1698,122 @@ textarea:focus-visible {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  font-size: var(--fs-md);
+  font-family: var(--ff-mono);
+  font-size: var(--fs-sm);
+  letter-spacing: var(--tr-label);
+  text-transform: uppercase;
   color: var(--c-text-faint);
   white-space: nowrap;
 }
 
+/*
+ * The stage marker, and the sheet's one real WCAG 1.4.11 problem.
+ *
+ * It used to be a transparent circle whose only edge was `--c-border-strong`
+ * at 1.63:1 on `--c-surface`. That edge was doing two jobs at once: it was
+ * the marker's *shape* and, for a pending stage, the marker's *state* —
+ * "pending" was a ring, "done" was a green ring, "active" was an orange
+ * disc. A 1.63:1 outline is not a state indicator anyone can rely on.
+ *
+ * It is fixed on both axes rather than one:
+ *
+ *  - the resting edge moves to `--c-border-indicator`, which is 3.50:1 on
+ *    `--c-surface` (the rail's own fill) and 3.24:1 on `--c-surface-2` (the
+ *    plate inside it), so the marker clears 3:1 in both directions;
+ *  - the marker no longer relies on its edge to say which state it is in.
+ *    A pending stage shows its number; a completed one shows a check glyph
+ *    and carries a visually-hidden "(completed)"; the active one is a lit
+ *    plate and is the only `aria-current="step"`. That is a text difference
+ *    and a fill difference on top of the hue, so the state survives
+ *    greyscale, and it survives a user stylesheet that strips borders
+ *    entirely.
+ *
+ * Squared off rather than circular, because it is a frame counter, not a
+ * bullet — and because `--radius-xs` is the same corner the chips use, so
+ * the two engraved plates in the system match.
+ */
 .step__index {
   width: 20px;
   height: 20px;
   flex: none;
-  border-radius: 50%;
-  border: 1px solid var(--c-border-strong);
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--c-border-indicator);
+  background: var(--c-surface-2);
+  color: var(--c-text-dim);
   display: grid;
   place-items: center;
+  font-family: var(--ff-mono);
   font-size: var(--fs-xs);
   font-weight: 600;
+  letter-spacing: normal;
 }
 
+/*
+ * The active stage is the only enclosed one.
+ *
+ * Before this the current stage differed from a pending one by text colour
+ * and weight plus an orange marker -- two hue signals and a weight bump,
+ * across six stages that were otherwise identical rectangles of text. Giving
+ * it a plate of its own makes "where am I in this flow" a *shape* difference
+ * you can read without resolving the labels at all, which is what "at a
+ * glance" has to mean on a rail that spans the window.
+ */
 .step--active {
   color: var(--c-text);
-  font-weight: 550;
+  font-weight: 600;
+  padding: 3px var(--sp-3) 3px var(--sp-2);
+  margin: -3px 0;
+  border: 1px solid var(--c-accent-line);
+  border-radius: var(--radius);
+  background: var(--c-accent-soft);
 }
 
 .step--active .step__index {
   background: var(--c-accent);
   border-color: var(--c-accent);
-  color: #08101f;
+  color: var(--c-on-accent);
+  box-shadow: var(--glow-accent);
+}
+
+/* The connector belongs between the plates, not inside one. Each `li` holds
+   the rule that leads out of it, so once the active stage became an enclosed
+   box its own rule ended up drawn within the border, reading as a stray mark
+   after the label. The gap left behind still spaces the run. */
+.step--active .step__sep {
+  display: none;
+}
+
+.step--active + .step {
+  margin-left: var(--sp-2);
+}
+
+/*
+ * The point of no return.
+ *
+ * Everything up to here has read the source and planned; from here ferry
+ * writes. That is the one distinction in the rail with a consequence
+ * attached, so it gets a rule and a word rather than being left to the
+ * operator to infer from the stage names. Warning-toned, not danger: the
+ * boundary is a fact about the flow, and the destructive-action colour
+ * belongs to the confirm dialog and the move banner that actually arm it.
+ */
+.step--gate {
+  border-left: 1px solid var(--c-warn-line);
+  padding-left: var(--sp-3);
+  margin-left: var(--sp-1);
+}
+
+.step--gate.step--active {
+  border-left-color: var(--c-warn);
+}
+
+.step__gate {
+  font-family: var(--ff-mono);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: var(--tr-wide);
+  text-transform: uppercase;
+  color: var(--c-warn);
 }
 
 .step--done {
@@ -1012,48 +1830,153 @@ textarea:focus-visible {
   flex: 1;
   min-width: var(--sp-4);
   height: 1px;
-  background: var(--c-border);
+  background: var(--c-border-strong);
+}
+
+/* The connector out of a finished stage is finished too, so the rail draws
+   a continuous run of progress instead of six unrelated markers. */
+.step--done .step__sep {
+  background: var(--c-ok);
 }
 
 /* ========================= progress ============================= */
 
+/*
+ * A gauge, not a loading bar. The track is a recess ruled with CinePrompt's
+ * lens-barrel ticks, which give the fill a scale to be read against — at
+ * 6px tall with no graduations, "about a third" and "about half" looked the
+ * same across a table of four jobs.
+ *
+ * The track edge is indicator-grade: for a meter, the extent of the track
+ * is what makes the fill mean anything, and `showValue` can be off, so the
+ * numeric percentage beside it is not guaranteed to be the fallback.
+ */
 .progress {
   width: 100%;
   min-width: 90px;
   max-width: 160px;
-  height: 6px;
-  background: var(--c-surface-3);
-  border-radius: 999px;
+  height: 9px;
+  background-color: var(--c-bg);
+  background-image: var(--fill-ticks);
+  /* The graduations are a scale along the bottom edge, not full-height
+     stripes: run them the whole height of a 9px bar and an empty track
+     stops reading as a track at all and starts reading as a barcode. */
+  background-size: 100% 4px;
+  background-position: 0 100%;
+  background-repeat: repeat-x;
+  border: 1px solid var(--c-border-indicator);
+  border-radius: var(--radius-xs);
   overflow: hidden;
 }
 
 .progress__fill {
   height: 100%;
   background: var(--c-accent);
-  border-radius: 999px;
+  box-shadow: var(--glow-accent);
 }
 
-.progress--ok .progress__fill {
+/*
+ * The six meter statuses.
+ *
+ * `--complete` is the only one that draws a full bar, and it is the only one
+ * that gets the success hue, so a full green track means one thing in this
+ * app: the operation was confirmed.
+ */
+.progress--complete .progress__fill {
   background: var(--c-ok);
+  box-shadow: none;
 }
 
-.progress--danger .progress__fill {
+.progress--failed .progress__fill {
   background: var(--c-danger);
+  box-shadow: none;
+}
+
+.progress--cancelled .progress__fill {
+  background: var(--c-cancelled);
+  box-shadow: none;
+}
+
+.progress--stalled .progress__fill {
+  background: var(--c-attention);
+  box-shadow: none;
+}
+
+/*
+ * A meter that stopped strikes out the ground it never covered, layering the
+ * hatch over the barrel graduations. Without this a failed job at 25% is the
+ * same drawing as a running job at 25%, differing only in hue -- which is
+ * the reading the acceptance criteria rule out.
+ */
+.progress--failed,
+.progress--cancelled,
+.progress--stalled {
+  background-image: var(--fill-hatch), var(--fill-ticks);
+  background-size:
+    auto,
+    100% 4px;
+  background-position:
+    0 0,
+    0 100%;
+  background-repeat: repeat, repeat-x;
+}
+
+/* Nothing has started: an empty track with no fill and no claim. */
+.progress--idle {
+  opacity: 0.7;
 }
 
 .progress-cell {
   display: flex;
   align-items: center;
-  gap: var(--sp-2);
+  gap: var(--sp-3);
   min-width: 150px;
 }
 
+/* The figure and its qualifier stack, so the word lands directly under the
+   number it qualifies and the numbers stay in one right-aligned column. */
+.progress-cell__value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  width: 52px;
+  flex: none;
+}
+
 .progress-cell__pct {
+  font-family: var(--ff-mono);
   font-size: var(--fs-sm);
   color: var(--c-text-dim);
-  width: 34px;
-  text-align: right;
-  flex: none;
+  line-height: 1.2;
+}
+
+/* The qualifier is a stamp, not a caption: at this size it is the word that
+   does the work of separating "stopped at 25%" from "25% done". */
+.progress-cell__note {
+  font-family: var(--ff-mono);
+  font-size: var(--fs-2xs);
+  font-weight: 600;
+  letter-spacing: var(--tr-label);
+  text-transform: uppercase;
+  line-height: 1.2;
+  color: var(--c-text-faint);
+}
+
+.progress--complete + .progress-cell__value .progress-cell__note {
+  color: var(--c-ok);
+}
+
+.progress--failed + .progress-cell__value .progress-cell__note {
+  color: var(--c-danger);
+}
+
+.progress--cancelled + .progress-cell__value .progress-cell__note {
+  color: var(--c-cancelled);
+}
+
+.progress--stalled + .progress-cell__value .progress-cell__note {
+  color: var(--c-attention);
 }
 
 /* ====================== key / value rows ======================== */
@@ -1069,8 +1992,18 @@ textarea:focus-visible {
   display: contents;
 }
 
+/* The key is a legend, the value is the reading. Engraving the key is what
+   lets the eye run straight down the value column on Environment's
+   "Data location" block without re-reading the labels. */
 .kv dt {
-  color: var(--c-text-dim);
+  font-family: var(--ff-mono);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  letter-spacing: var(--tr-wide);
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+  /* Nudged onto the value's baseline: the key is two points smaller. */
+  padding-top: 2px;
 }
 
 .kv dd {
@@ -1106,7 +2039,11 @@ textarea:focus-visible {
   position: fixed;
   inset: 0;
   z-index: 50;
-  background: rgba(4, 6, 10, 0.62);
+  background: var(--c-scrim);
+  /* `aria-modal` already promises assistive tech that the page behind is
+     inert; the blur makes the same promise to the eye, so the dialog is the
+     only surface that still looks live. */
+  backdrop-filter: blur(var(--scrim-blur));
   display: grid;
   place-items: center;
   padding: var(--sp-6);
@@ -1128,7 +2065,11 @@ textarea:focus-visible {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  font-size: var(--fs-lg);
+  font-family: var(--ff-mono);
+  font-size: var(--fs-md);
+  font-weight: 600;
+  letter-spacing: var(--tr-wide);
+  text-transform: uppercase;
   color: var(--c-danger);
 }
 
@@ -1143,9 +2084,11 @@ textarea:focus-visible {
 }
 
 /* A search box living in a card header, where it must not stretch to the
-   full width the way a form input does. */
+   full width the way a form input does. Widened with the move to the mono
+   face — "Search command, project, state" is a wider string set in Plex
+   Mono, and at 220px its placeholder was clipped mid-word. */
 .toolbar__search {
-  width: 220px;
+  width: 252px;
 }
 
 .toolbar__select {
@@ -1156,7 +2099,7 @@ textarea:focus-visible {
 /* The name of the thing a detail screen is about, above its full path. */
 .page__title {
   font-size: var(--fs-lg);
-  font-weight: 600;
+  font-weight: 650;
   letter-spacing: -0.01em;
 }
 
@@ -1188,7 +2131,7 @@ textarea:focus-visible {
   top: 0;
   z-index: 100;
   background: var(--c-accent);
-  color: #08101f;
+  color: var(--c-on-accent);
   padding: var(--sp-2) var(--sp-3);
   border-radius: 0 0 var(--radius) 0;
 }
@@ -1207,6 +2150,18 @@ textarea:focus-visible {
 .seg__item:focus-visible {
   outline: 2px solid var(--c-accent);
   outline-offset: 2px;
+}
+
+/*
+ * A 15px checkbox is a small target for a 2px ring, and this particular
+ * checkbox is the one that arms a destructive move. Lighting the whole line
+ * makes it unmistakable which acknowledgement has the keyboard, and puts the
+ * sentence being agreed to inside the focused region rather than beside it.
+ */
+.checkline:focus-within {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
 .visually-hidden {

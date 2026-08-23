@@ -9,7 +9,14 @@
  */
 import { useEffect, useState } from 'react';
 import { useAsync } from '../hooks/useAsync.js';
-import { Banner, Field, Panel, LoadingState, ErrorState } from '../components/ui.js';
+import {
+  Banner,
+  Field,
+  Panel,
+  LoadingState,
+  ScreenError,
+  ScreenLoading,
+} from '../components/ui.js';
 import { validateSettings } from '../lib/settings.js';
 import { buildReportText, canCopy, diagnosticFileName } from '../lib/diagnostics.js';
 import type { AppSettings } from '../../../shared/ipc-methods.js';
@@ -33,13 +40,15 @@ export function Settings(): JSX.Element {
   }, [loaded.data, form]);
 
   if (loaded.loading) {
-    return <LoadingState message="Loading settings…" />;
+    return <ScreenLoading message="Reading saved settings…" />;
   }
   if (loaded.error !== null) {
-    return <ErrorState message={loaded.error} />;
+    return <ScreenError message={loaded.error} onRetry={loaded.reload} />;
   }
   if (form === null) {
-    return <ErrorState message="No settings data." />;
+    return (
+      <ScreenError message="The sidecar returned no settings to edit." onRetry={loaded.reload} />
+    );
   }
 
   const set = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
@@ -181,8 +190,17 @@ export function Settings(): JSX.Element {
         >
           {saving ? 'Saving…' : 'Save settings'}
         </button>
-        {!validation.valid ? <span className="muted">{validation.errors.join('; ')}</span> : null}
       </div>
+      {/*
+        A disabled Save with the reason set in muted grey beside it put the
+        one sentence that explains the disabled button in the quietest type
+        on the screen. It is the blocker; it gets banner weight.
+      */}
+      {validation.valid ? null : (
+        <Banner tone="warn" label="Cannot save">
+          {validation.errors.join('; ')}
+        </Banner>
+      )}
       {savedMsg !== null ? <Banner tone="ok">{savedMsg}</Banner> : null}
       {saveError !== null ? <Banner tone="danger">{saveError}</Banner> : null}
 

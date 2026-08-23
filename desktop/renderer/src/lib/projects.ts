@@ -61,6 +61,25 @@ export function projectRow(
   };
 }
 
+/**
+ * What the health chip says.
+ *
+ * The chip used to render the enum verbatim -- "ok", "warn", "danger" --
+ * which names the severity but not the finding. An operator scanning a
+ * project list needs to know *what* is wrong, and "no backup root" is both
+ * the condition and the fix.
+ */
+export function policyHealthLabel(health: PolicyHealth): string {
+  switch (health) {
+    case 'ok':
+      return 'policy met';
+    case 'warn':
+      return 'unverified';
+    case 'danger':
+      return 'no backup root';
+  }
+}
+
 /** A human label for the required-replicas policy. */
 export function policyLabel(policy: StoragePolicy): string {
   const algo = policy.checksumAlgo;

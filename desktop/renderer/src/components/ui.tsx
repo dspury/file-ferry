@@ -12,14 +12,27 @@
  */
 import { cloneElement, isValidElement, useId, type ReactElement, type ReactNode } from 'react';
 import { IconAlert, IconCheck, IconInbox, IconInfo } from './icons.js';
+import { splitPathTail } from '../lib/format.js';
+import type { MeterStatus, StateTone } from '../lib/job-state.js';
 
-export type Tone = 'neutral' | 'ok' | 'warn' | 'danger' | 'attention';
+/**
+ * The six operational states an offload, proxy run, or replica can be in,
+ * plus `attention` for "a human has to look at this". `active` and
+ * `cancelled` exist so a running job and a job an operator stopped are not
+ * both forced through `neutral`; their token treatments live in styles.css.
+ *
+ * Defined in `lib/job-state.ts` so the pure mappers that produce a tone can
+ * be unit-tested without importing a module that renders JSX.
+ */
+export type Tone = StateTone;
 
 const CHIP_CLASS = {
   neutral: 'chip',
+  active: 'chip chip--active',
   ok: 'chip chip--ok',
   warn: 'chip chip--warn',
   danger: 'chip chip--danger',
+  cancelled: 'chip chip--cancelled',
   attention: 'chip chip--attention',
   // `satisfies` checks every Tone is covered without widening the values
   // back to `string`, so the exact class strings stay visible to callers.
@@ -101,7 +114,12 @@ export function EmptyState({
 }): JSX.Element {
   return (
     <div className="empty">
-      <IconInbox className="empty__icon" />
+      {/* The glyph is framed rather than floating: an empty panel is a
+          place something goes, and the plate plus the dashed well around
+          it say so before the sentence is read. */}
+      <span className="empty__frame" aria-hidden="true">
+        <IconInbox />
+      </span>
       <p className="empty__title">{message}</p>
       {hint === undefined ? null : <p className="empty__hint">{hint}</p>}
       {action === undefined ? null : <div className="empty__actions">{action}</div>}
@@ -112,23 +130,104 @@ export function EmptyState({
 /**
  * Busy state. `aria-busy` plus a polite live region means the wait is
  * announced instead of the screen just going quiet.
+ *
+ * It shares `EmptyState`'s centring but not its dashed well: "put something
+ * here" is the wrong instruction while the app is fetching something it
+ * already has.
+ *
+ * The sliding bar is the only thing on screen that says the app is still
+ * working rather than finished and empty, and it is deliberately
+ * *indeterminate* — nothing here knows how far along the request is, and a
+ * bar parked at some fraction would be a claim. Under
+ * `prefers-reduced-motion` it is removed rather than frozen, because a
+ * stationary partial bar is exactly the false claim it exists to avoid.
  */
-export function LoadingState({ message = 'Loading…' }: { message?: string }): JSX.Element {
+export function LoadingState({
+  message = 'Loading…',
+  hint,
+}: {
+  message?: string;
+  hint?: string | undefined;
+}): JSX.Element {
   return (
-    <div className="empty" aria-busy="true" aria-live="polite">
-      <p className="muted">{message}</p>
+    <div className="empty empty--busy" aria-busy="true" aria-live="polite">
+      <span className="busy__meter" aria-hidden="true">
+        <span className="busy__sweep" />
+      </span>
+      <p className="empty__title">{message}</p>
+      {hint === undefined ? null : <p className="empty__hint">{hint}</p>}
     </div>
   );
 }
 
-export function ErrorState({ message }: { message: string }): JSX.Element {
-  return <Banner tone="danger">{message}</Banner>;
+/**
+ * A whole screen that has nothing to show yet.
+ *
+ * Six of the eight screens returned a bare `LoadingState` from their page
+ * root, which put a single grey sentence at the top of an otherwise blank
+ * content area — indistinguishable from a screen that had loaded and found
+ * nothing. Framing the wait in the same card the content will arrive in
+ * keeps the page's shape stable across the transition.
+ */
+export function ScreenLoading({
+  message,
+  hint,
+}: {
+  message: string;
+  hint?: string | undefined;
+}): JSX.Element {
+  return (
+    <div className="page">
+      <Panel>
+        <LoadingState message={message} hint={hint} />
+      </Panel>
+    </div>
+  );
+}
+
+/**
+ * A screen that could not load at all.
+ *
+ * The bare banner this replaces stated the failure and stopped there,
+ * leaving an operator with a red sentence in an empty room and no way
+ * forward. A load failure is nearly always transient (the sidecar is
+ * restarting), so the retry is the point.
+ */
+export function ScreenError({
+  message,
+  hint = 'The sidecar may still be starting. Retrying costs nothing — no media is touched by a failed read.',
+  onRetry,
+}: {
+  message: string;
+  hint?: string | undefined;
+  onRetry?: (() => void) | undefined;
+}): JSX.Element {
+  return (
+    <div className="page">
+      <Panel>
+        <div className="stack">
+          <Banner tone="danger" label="Cannot load">
+            {message}
+          </Banner>
+          <p className="muted">{hint}</p>
+          {onRetry === undefined ? null : (
+            <div className="row">
+              <button type="button" className="btn btn--primary" onClick={onRetry}>
+                Retry
+              </button>
+            </div>
+          )}
+        </div>
+      </Panel>
+    </div>
+  );
 }
 
 const BANNER_ICON = {
   ok: IconCheck,
   warn: IconAlert,
   danger: IconAlert,
+  attention: IconAlert,
   info: IconInfo,
 } satisfies Record<BannerTone, (props: { size?: number }) => JSX.Element>;
 
@@ -136,10 +235,17 @@ const BANNER_LABEL = {
   ok: 'Done',
   warn: 'Warning',
   danger: 'Error',
+  attention: 'Needs review',
   info: 'Note',
 } satisfies Record<BannerTone, string>;
 
-export type BannerTone = 'ok' | 'warn' | 'danger' | 'info';
+/*
+ * `attention` is the same tier the chips call attention: a condition a person
+ * has to decide about rather than a failure or a warning about a failure. It
+ * is here so a screen that has already derived that severity can say it in
+ * one hue instead of two.
+ */
+export type BannerTone = 'ok' | 'warn' | 'danger' | 'attention' | 'info';
 
 /**
  * An inline message with room to be read.
@@ -232,6 +338,16 @@ export function SegmentedControl<T extends string>({
 export interface StepDef {
   readonly id: string;
   readonly label: string;
+  /**
+   * This stage, and every stage after it, can write to disk.
+   *
+   * The first such stage is where the flow stops being reversible, and it
+   * is the one distinction in the rail that carries real consequence — up
+   * to it, Offload and Organize have only read and planned. Marking it is
+   * what lets an operator see at a glance which side of the line they are
+   * standing on.
+   */
+  readonly writes?: boolean;
 }
 
 /**
@@ -241,6 +357,12 @@ export interface StepDef {
  * this the only cue was a row of disabled buttons. An ordered list is the
  * honest markup: `aria-current="step"` names where you are, and the
  * completed ones say so in text rather than only by colour.
+ *
+ * Three channels separate the three stage conditions, so none of them rests
+ * on hue: a pending stage shows its number on a quiet plate, a finished one
+ * shows a check and a visually-hidden "(completed)", and the active one is
+ * the only `aria-current="step"` — and the only stage drawn as an enclosed,
+ * lit plate with its label at full contrast.
  */
 export function Steps({
   label,
@@ -252,18 +374,34 @@ export function Steps({
   activeId: string;
 }): JSX.Element {
   const activeIndex = steps.findIndex((s) => s.id === activeId);
+  const gateIndex = steps.findIndex((s) => s.writes === true);
   return (
     <ol className="steps" aria-label={label}>
       {steps.map((step, index) => {
         const done = activeIndex > index;
         const active = activeIndex === index;
         const state = done ? ' step--done' : active ? ' step--active' : '';
+        // Only the first writing stage carries the marker: it is a boundary,
+        // not a property each later stage repeats.
+        const gate = index === gateIndex && gateIndex > 0;
         return (
-          <li key={step.id} className={`step${state}`} aria-current={active ? 'step' : undefined}>
+          <li
+            key={step.id}
+            className={`step${state}${gate ? ' step--gate' : ''}`}
+            aria-current={active ? 'step' : undefined}
+          >
+            {gate ? (
+              <span className="step__gate" aria-hidden="true">
+                writes
+              </span>
+            ) : null}
             <span className="step__index" aria-hidden="true">
               {done ? '✓' : index + 1}
             </span>
             {step.label}
+            {gate ? (
+              <span className="visually-hidden"> (from here on, ferry writes to disk)</span>
+            ) : null}
             {done ? <span className="visually-hidden"> (completed)</span> : null}
             {index < steps.length - 1 ? <span className="step__sep" aria-hidden="true" /> : null}
           </li>
@@ -277,8 +415,8 @@ export function Steps({
  * Folder chooser.
  *
  * The chosen path and the button that changes it read as one control. The
- * path is shown right-to-left so the tail — the part that identifies the
- * folder — survives truncation instead of the volume root.
+ * directory run is what gives way under truncation, so the folder name — the
+ * part that identifies the choice — always survives.
  */
 export function PathPicker({
   value,
@@ -305,7 +443,7 @@ export function PathPicker({
         id={valueId}
         title={value ?? undefined}
       >
-        {value ?? placeholder}
+        {value === null ? placeholder : <PathText path={value} />}
       </span>
       <button
         type="button"
@@ -325,41 +463,93 @@ export function PathPicker({
 }
 
 /**
- * Determinate progress meter.
+ * The word stamped under the number, which is what stops a fraction being
+ * read as a claim about completion. `null` where the number speaks for
+ * itself: a moving job's "62%" needs no qualifier, and an idle one shows a
+ * dash instead of a figure.
+ */
+const METER_NOTE = {
+  idle: null,
+  running: null,
+  stalled: 'held',
+  complete: 'done',
+  failed: 'stopped',
+  cancelled: 'stopped',
+} satisfies Record<MeterStatus, string | null>;
+
+/** What a screen reader is told, which must say the same thing as the plate. */
+function meterValueText(status: MeterStatus, percent: number): string {
+  switch (status) {
+    case 'idle':
+      return 'not started';
+    case 'running':
+      return `${percent}%`;
+    case 'stalled':
+      return `held at ${percent}% — waiting for you`;
+    case 'complete':
+      return 'complete';
+    case 'failed':
+      return `stopped at ${percent}% — did not complete`;
+    case 'cancelled':
+      return `cancelled at ${percent}% — did not complete`;
+  }
+}
+
+/**
+ * Progress meter.
  *
  * Carries explicit `progressbar` semantics (WCAG 4.1.2) — without them a
- * screen reader sees two nested divs and announces nothing. `aria-valuetext`
- * gives the percentage a spoken form, and the label names which job the
- * meter belongs to so a table of them stays distinguishable.
+ * screen reader sees two nested divs and announces nothing. The label names
+ * which job the meter belongs to so a table of them stays distinguishable.
+ *
+ * `status` is separate from `percent` because the number alone cannot say
+ * whether it is still climbing, and the whole point of this meter is that it
+ * must never imply completion before the operation is confirmed:
+ *
+ *  - `complete` is the only status allowed to draw a full bar, and it draws
+ *    one regardless of `percent`. A finished job holds no live snapshot, so
+ *    the counters report 0 for it — which is how a succeeded offload used to
+ *    render as an empty track next to the text "0%".
+ *  - `failed`, `cancelled` and `stalled` fill to where work stopped and rule
+ *    the remainder out with a hatch, and the plate reads "25% / STOPPED"
+ *    rather than a bare "25%". The number is where it got to, not how much
+ *    of it is done.
+ *  - `running` is the only fill that means "and climbing". At 100% it is
+ *    still visibly not the completion treatment: a different hue, and the
+ *    word beside it is a percentage rather than DONE.
  */
 export function Progress({
   percent,
   label,
-  tone = 'neutral',
+  status = 'running',
   showValue = true,
 }: {
   percent: number;
   label: string;
-  tone?: 'neutral' | 'ok' | 'danger' | undefined;
+  status?: MeterStatus | undefined;
   showValue?: boolean | undefined;
 }): JSX.Element {
-  const cls = tone === 'neutral' ? 'progress' : `progress progress--${tone}`;
+  const filled = status === 'complete' ? 100 : percent;
+  const note = METER_NOTE[status];
   return (
     <div className="progress-cell">
       <div
-        className={cls}
+        className={`progress progress--${status}`}
         role="progressbar"
-        aria-valuenow={percent}
+        aria-valuenow={filled}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuetext={`${percent}%`}
+        aria-valuetext={meterValueText(status, percent)}
         aria-label={label}
       >
-        <div className="progress__fill" style={{ width: `${percent}%` }} />
+        <div className="progress__fill" style={{ width: `${filled}%` }} />
       </div>
       {showValue ? (
-        <span className="progress-cell__pct" aria-hidden="true">
-          {percent}%
+        // aria-hidden: `aria-valuetext` above already says all of this, and
+        // says it more precisely than the two stacked words can.
+        <span className="progress-cell__value" aria-hidden="true">
+          <span className="progress-cell__pct">{status === 'idle' ? '—' : `${filled}%`}</span>
+          {note === null ? null : <span className="progress-cell__note">{note}</span>}
         </span>
       ) : null}
     </div>
@@ -388,14 +578,33 @@ export function KeyValue({ rows }: { rows: readonly KeyValueRow[] }): JSX.Elemen
 }
 
 /**
- * A path shown in running text or a table cell. Truncates from the left so
- * the filename stays visible, and keeps the full value in a tooltip.
+ * A path shown in running text or a table cell. Truncates the directory run
+ * so the filename stays visible, and keeps the full value in a tooltip.
  */
 export function PathCell({ path }: { path: string }): JSX.Element {
   return (
     <span className="cell-path" title={path}>
-      {path}
+      <PathText path={path} />
     </span>
+  );
+}
+
+/**
+ * The two halves of a truncated path.
+ *
+ * See `splitPathTail`: the previous treatment leaned on `direction: rtl` to
+ * keep the tail, and the bidi algorithm moved the leading `/` of an absolute
+ * path to the wrong end in the process. Here the head is the only part
+ * allowed to shrink (`flex-shrink` 1 against the tail's 0), so the leaf
+ * survives and every character stays where the path put it.
+ */
+function PathText({ path }: { path: string }): JSX.Element {
+  const { head, tail } = splitPathTail(path);
+  return (
+    <>
+      {head === '' ? null : <span className="path__head">{head}</span>}
+      <span className="path__tail">{tail}</span>
+    </>
   );
 }
 

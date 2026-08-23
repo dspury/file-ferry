@@ -3,7 +3,7 @@
  * the URL hash. It does not import filesystem, database, or node APIs; it
  * only consumes the `window.ferry` API exposed by the preload.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRoute } from './hooks/useRoute.js';
 import type { FerryAPI } from '../../shared/preload-api.js';
 import { flattenViews, navigateTo, type NavGroup, type ViewDef } from './views.js';
@@ -126,6 +126,18 @@ const NAV_GROUPS: readonly NavGroup[] = [
 
 const VIEWS = flattenViews(NAV_GROUPS);
 
+/**
+ * Which rail group each view sits in, for the header's kicker.
+ *
+ * Presentational only: the header states the whole location — TRANSFER /
+ * Offload — rather than just the leaf, which is what a screen title on its
+ * own leaves ambiguous once there are eight of them. The nav already
+ * announces the grouping via `role="group"`, so the kicker is aria-hidden.
+ */
+const GROUP_OF = new Map<string, string>(
+  NAV_GROUPS.flatMap((group) => group.views.map((view) => [view.id, group.label] as const)),
+);
+
 interface ShellStatus {
   readonly tone: 'ok' | 'danger' | 'neutral';
   readonly text: string;
@@ -152,6 +164,9 @@ export function App(): JSX.Element {
     };
   }, []);
 
+  const navRef = useRef<HTMLElement>(null);
+  const followFocus = useRef(false);
+
   const active = useMemo(() => VIEWS.find((v) => v.id === viewId) ?? VIEWS[0]!, [viewId]);
   const ActiveScreen = active.component;
   const viewIds = VIEWS.map((v) => v.id);
@@ -166,13 +181,34 @@ export function App(): JSX.Element {
   const onNavKeyDown = (e: React.KeyboardEvent) => {
     const action = keyToAction(e.key, e.ctrlKey, e.altKey);
     if (action === 'next') {
+      followFocus.current = true;
       navigateTo(VIEWS[moveIndex(activeIndex, 1, VIEWS.length)]!.id);
       e.preventDefault();
     } else if (action === 'prev') {
+      followFocus.current = true;
       navigateTo(VIEWS[moveIndex(activeIndex, -1, VIEWS.length)]!.id);
       e.preventDefault();
     }
+    // `activate` is deliberately unhandled: Enter and Space already press a
+    // <button>, and claiming them here would only re-implement that.
   };
+
+  /*
+   * Focus has to follow an arrow key, or the ring stays on the item the
+   * operator left. ArrowDown from Dashboard moved the route to Activity and
+   * left the visible focus on Dashboard: the one indicator saying "you are
+   * here" pointed at the wrong row, and a screen reader was told nothing at
+   * all, because nothing it was watching had changed.
+   *
+   * Gated on the flag rather than run on every route change: a click already
+   * focuses the button it pressed, and a link inside a screen ("View all in
+   * Activity") must be allowed to leave focus in the content it came from.
+   */
+  useEffect(() => {
+    if (!followFocus.current) return;
+    followFocus.current = false;
+    navRef.current?.querySelector<HTMLButtonElement>('.nav__item--active')?.focus();
+  }, [viewId]);
 
   const body = NAV_GROUPS.filter((g) => g.footer !== true);
   const footer = NAV_GROUPS.filter((g) => g.footer === true);
@@ -182,7 +218,7 @@ export function App(): JSX.Element {
       <a href="#content" className="skip-link">
         Skip to content
       </a>
-      <nav className="nav" aria-label="Primary" onKeyDown={onNavKeyDown}>
+      <nav className="nav" aria-label="Primary" ref={navRef} onKeyDown={onNavKeyDown}>
         <div className="nav__brand">
           <span className="nav__mark" aria-hidden="true">
             <IconFerry size={17} />
@@ -207,7 +243,12 @@ export function App(): JSX.Element {
       </nav>
 
       <header className="header">
-        <h1 className="header__title">{active.label}</h1>
+        <div className="header__lede">
+          <span className="header__kicker" aria-hidden="true">
+            {GROUP_OF.get(active.id) ?? ''}
+          </span>
+          <h1 className="header__title">{active.label}</h1>
+        </div>
         <p className="header__subtitle">{active.description}</p>
         <div className="header__actions">
           {/*

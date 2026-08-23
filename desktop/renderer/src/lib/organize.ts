@@ -60,6 +60,20 @@ export function outcomeSummary(outcomes: readonly OrganizeOutcome[]): OrganizeOu
   return { ok, failed, total: outcomes.length };
 }
 
+/**
+ * Banner severity for an apply outcome.
+ *
+ * A run where nothing landed is not a warning, it is a failure, and it used
+ * to be dressed the same as a run that lost one file out of four hundred.
+ * Any partial loss stays a warning: the successful writes are real and the
+ * receipt names them, so red would overstate it.
+ */
+export function outcomeTone(summary: OrganizeOutcomeSummary): 'ok' | 'warn' | 'danger' {
+  if (summary.failed === 0) return 'ok';
+  if (summary.ok === 0) return 'danger';
+  return 'warn';
+}
+
 export function profileLabel(profile: OrganizationProfile): string {
   return `${profile.name} v${profile.version}`;
 }

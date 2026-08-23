@@ -13,13 +13,20 @@ import {
   Banner,
   Chip,
   EmptyState,
-  ErrorState,
-  LoadingState,
   Panel,
   Progress,
+  ScreenError,
+  ScreenLoading,
   SegmentedControl,
-  type Tone,
 } from '../components/ui.js';
+import {
+  jobErrorTone,
+  jobIncomplete,
+  jobMeterStatus,
+  jobNoteLabel,
+  jobStateTone,
+} from '../lib/job-state.js';
+import { navigateTo } from '../views.js';
 import {
   jobMatchesFilter,
   liveProgress,
@@ -80,10 +87,15 @@ export function Activity(): JSX.Element {
   };
 
   if (jobs.loading) {
-    return <LoadingState message="Loading activity…" />;
+    return (
+      <ScreenLoading
+        message="Reading the job log…"
+        hint="Running jobs keep going while this loads — nothing here starts, stops, or changes a job."
+      />
+    );
   }
   if (jobs.error !== null) {
-    return <ErrorState message={jobs.error} />;
+    return <ScreenError message={jobs.error} onRetry={jobs.reload} />;
   }
 
   return (
@@ -100,7 +112,9 @@ export function Activity(): JSX.Element {
         actions={
           <>
             {stream.subscribed > 0 ? (
-              <Chip tone="ok">Live · {stream.subscribed} watched</Chip>
+              /* `active`, not `ok`: this reports that a subscription is
+                 open, which is work in flight, not work that succeeded. */
+              <Chip tone="active">Live · {stream.subscribed} watched</Chip>
             ) : null}
             {/*
               A search input needs no visible label here: it sits in a
@@ -135,7 +149,19 @@ export function Activity(): JSX.Element {
                 : 'Try a different filter or clear the search.'
             }
             action={
-              list.length === 0 || (filter === 'all' && query === '') ? undefined : (
+              /* Two different dead ends, two different ways out: an empty
+                 log needs somewhere to go, a filtered-out one needs the
+                 filter lifted. Neither is served by an empty state that
+                 only reports emptiness. */
+              list.length === 0 ? (
+                <button
+                  type="button"
+                  className="btn btn--primary"
+                  onClick={() => navigateTo('ingest')}
+                >
+                  Start an offload
+                </button>
+              ) : filter === 'all' && query === '' ? undefined : (
                 <button
                   type="button"
                   className="btn"
@@ -211,67 +237,77 @@ function ActivityRow({
   onReceipt: () => void;
 }): JSX.Element {
   const detail = snapshot === null ? null : progressLabel(snapshot);
+  // The sidecar's own account of what went wrong. It is the sentence that
+  // decides whether a card can be released, and it was in the data and on no
+  // screen -- Activity showed a chip and a bar and dropped the reason.
+  const note =
+    jobIncomplete(job.state) && job.error !== null && job.error !== '' ? job.error : null;
   return (
-    <tr>
-      <td>{job.command}</td>
-      <td>
-        <Chip tone={stateTone(job.state)}>{job.state}</Chip>
-        {/* The step is the only thing that says *what* the job is doing;
+    <>
+      <tr className={note === null ? undefined : 'row--has-note'}>
+        <td>{job.command}</td>
+        <td>
+          <Chip tone={jobStateTone(job.state)}>{job.state}</Chip>
+          {/* The step is the only thing that says *what* the job is doing;
             without it a long verify pass looks identical to a stall. */}
-        {job.currentStep === null || job.currentStep === '' ? null : (
-          <div className="muted">{job.currentStep}</div>
-        )}
-      </td>
-      <td>
-        <Progress
-          percent={progressPercent(liveProgress(job, snapshot))}
-          label={`Progress for ${job.command}`}
-          tone={progressTone(job.state)}
-        />
-        {/* A percentage alone does not say whether a slow job is moving or
+          {job.currentStep === null || job.currentStep === '' ? null : (
+            <div className="muted">{job.currentStep}</div>
+          )}
+        </td>
+        <td>
+          <Progress
+            percent={progressPercent(liveProgress(job, snapshot))}
+            label={`Progress for ${job.command}`}
+            status={jobMeterStatus(job.state)}
+          />
+          {/* A percentage alone does not say whether a slow job is moving or
             how much is left. The byte count does. */}
-        {detail === null ? null : <div className="muted">{detail}</div>}
-      </td>
-      <td className="cell-actions">
-        <div className="row">
-          {canCancel(job) ? (
-            <button type="button" className="btn btn--danger btn--sm" onClick={onCancel}>
-              Cancel
-            </button>
-          ) : null}
-          {canResume(job) ? (
-            <button type="button" className="btn btn--sm" onClick={onResume}>
-              Resume
-            </button>
-          ) : null}
-          {canRetry(job) ? (
-            <button type="button" className="btn btn--sm" onClick={onRetry}>
-              Retry
-            </button>
-          ) : null}
-          {canShowReceipt(job) ? (
-            <button type="button" className="btn btn--sm" onClick={onReceipt}>
-              Receipt
-            </button>
-          ) : null}
-        </div>
-      </td>
-    </tr>
+          {detail === null ? null : <div className="muted">{detail}</div>}
+        </td>
+        <td className="cell-actions">
+          <div className="row">
+            {/*
+              Cancel is not destructive: stopping a job leaves the source card
+              untouched and the partial copy on disk, and nothing about it is
+              irreversible. It was drawn in danger red, which put up to four
+              red outlines on one busy table and spent the one hue this app
+              reserves for "your originals are at risk" -- the same hue the
+              MISSING replica chip and the NOT ENOUGH ROOM banner need to own.
+              `btn--danger` is now exactly the two genuinely destructive
+              controls: Apply (move) and the typed move confirmation.
+            */}
+            {canCancel(job) ? (
+              <button type="button" className="btn btn--sm" onClick={onCancel}>
+                Cancel
+              </button>
+            ) : null}
+            {canResume(job) ? (
+              <button type="button" className="btn btn--sm" onClick={onResume}>
+                Resume
+              </button>
+            ) : null}
+            {canRetry(job) ? (
+              <button type="button" className="btn btn--sm" onClick={onRetry}>
+                Retry
+              </button>
+            ) : null}
+            {canShowReceipt(job) ? (
+              <button type="button" className="btn btn--sm" onClick={onReceipt}>
+                Receipt
+              </button>
+            ) : null}
+          </div>
+        </td>
+      </tr>
+      {note === null ? null : (
+        <tr className="row--note">
+          <td colSpan={4}>
+            <Banner tone={jobErrorTone(job.state)} label={jobNoteLabel(job.state)}>
+              {note}
+            </Banner>
+          </td>
+        </tr>
+      )}
+    </>
   );
-}
-
-function stateTone(state: JobDetail['state']): Tone {
-  if (['succeeded'].includes(state)) return 'ok';
-  if (['failed'].includes(state)) return 'danger';
-  if (['needs_attention', 'awaiting_review'].includes(state)) return 'attention';
-  if (['queued', 'running', 'verifying', 'resumable'].includes(state)) return 'neutral';
-  return 'neutral';
-}
-
-/** The bar echoes the row's outcome so a finished table can be read down
- *  the progress column alone. */
-function progressTone(state: JobDetail['state']): 'neutral' | 'ok' | 'danger' {
-  if (state === 'succeeded') return 'ok';
-  if (state === 'failed') return 'danger';
-  return 'neutral';
 }

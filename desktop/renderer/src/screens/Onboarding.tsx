@@ -10,44 +10,59 @@ import { useAsync } from '../hooks/useAsync.js';
 import {
   Banner,
   Chip,
-  ErrorState,
+  EmptyState,
   KeyValue,
   LoadingState,
   Panel,
   PathCell,
+  ScreenError,
+  ScreenLoading,
 } from '../components/ui.js';
-import { toolTone, formatBytes } from '../lib/doctor.js';
+import { toolTone, healthBanner, overallHealth, formatBytes } from '../lib/doctor.js';
 
 export function Onboarding(): JSX.Element {
   const doctor = useAsync(() => window.ferry.app.doctor());
   const volumes = useAsync(() => window.ferry.source.listVolumes());
 
   if (doctor.loading) {
-    return <LoadingState message="Running environment check…" />;
+    return (
+      <ScreenLoading
+        message="Checking the environment…"
+        hint="Looking for ffmpeg, ffprobe, and Resolve, and reading volume headroom. Read-only."
+      />
+    );
   }
   if (doctor.error !== null) {
-    return <ErrorState message={doctor.error} />;
+    return <ScreenError message={doctor.error} onRetry={doctor.reload} />;
   }
   const d = doctor.data;
   if (d === null) {
-    return <ErrorState message="No doctor data." />;
+    return (
+      <ScreenError
+        message="The sidecar answered the environment check with no data."
+        onRetry={doctor.reload}
+      />
+    );
   }
 
   const missing = d.tools.filter((t) => !t.present);
+  const verdict = healthBanner(overallHealth(d));
 
   return (
     <div className="page">
       {/*
         Lead with the verdict. The tables below are the evidence, but the
         one thing an operator needs on arriving here is whether anything is
-        wrong, and `toolTone` already knows which absences actually matter.
+        wrong — and the banner takes its severity from `overallHealth`, the
+        same derivation `toolTone` uses for the chips, so the headline and the
+        row it summarises can no longer disagree about how bad it is.
       */}
       {missing.length === 0 ? (
-        <Banner tone="ok" label="Ready">
+        <Banner tone={verdict.tone} label={verdict.label}>
           Every required tool was found.
         </Banner>
       ) : (
-        <Banner tone="warn" label="Incomplete">
+        <Banner tone={verdict.tone} label={verdict.label}>
           {missing.length} tool{missing.length === 1 ? '' : 's'} not found:{' '}
           {missing.map((t) => t.name).join(', ')}. Set an explicit path under Settings → Tool paths,
           or install it on your PATH.
@@ -83,11 +98,22 @@ export function Onboarding(): JSX.Element {
         </div>
       </Panel>
 
-      <Panel title="Storage roots" description="Mounted volumes and their headroom" flush>
+      <Panel
+        title="Storage roots"
+        description="Mounted volumes and their headroom"
+        flush={(volumes.data?.volumes ?? []).length > 0}
+      >
         {volumes.loading ? (
           <LoadingState message="Scanning volumes…" />
         ) : volumes.error !== null ? (
           <Banner tone="warn">Unable to read volumes: {volumes.error}</Banner>
+        ) : (volumes.data?.volumes ?? []).length === 0 ? (
+          /* A table head with no rows under it reads as a component that
+             failed, not as an answer. This is the answer. */
+          <EmptyState
+            message="No volumes visible"
+            hint="ferry sees no mounted volumes at all — not even a system disk. On macOS that usually means the app has not been granted access to removable volumes yet."
+          />
         ) : (
           <div className="table-wrap">
             <table className="table">

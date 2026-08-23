@@ -5,6 +5,7 @@
  * safe cancel/retry/resume, and searchable receipts (plan §8.2).
  * Job-state transitions and search are derived here.
  */
+import { formatBytes, formatCount } from './format.js';
 import type { JobDetail, ExportReceiptResult, JobSnapshot } from '../../../shared/ipc-methods.js';
 
 export type JobFilter = 'all' | 'active' | 'attention' | 'failed' | 'finished';
@@ -115,15 +116,44 @@ export function mergeJobSnapshot(job: JobDetail, snapshot: JobSnapshot | null): 
 }
 
 /**
- * Progress from a live snapshot: completed steps over total.
+ * Progress from a live snapshot, using the finest measure available.
  *
- * This is the real measure. `jobProgress` can only see whether a current
- * step exists, so it reports 0 or one step's worth for the whole run; a
- * snapshot names every completed step, so a transfer actually advances.
+ * Bytes first: a card is a handful of very large files, so a file count
+ * jumps in visible steps while bytes move continuously. Items next, for a
+ * runner that cannot report bytes (transcoding gives no usable output
+ * size). Steps last, and only as a coarse phase indicator — an offload has
+ * two of them, so on its own it would read 0%, 50%, 100% for a job that
+ * spends an hour inside the second one.
  */
 export function snapshotProgress(snapshot: JobSnapshot): number {
-  if (snapshot.totalSteps <= 0) return 0;
-  return Math.min(1, Math.max(0, snapshot.completedSteps.length / snapshot.totalSteps));
+  if (snapshot.totalBytes > 0) return clampFraction(snapshot.bytesCopied / snapshot.totalBytes);
+  if (snapshot.totalItems > 0) return clampFraction(snapshot.completedItems / snapshot.totalItems);
+  if (snapshot.totalSteps > 0) {
+    return clampFraction(snapshot.completedSteps.length / snapshot.totalSteps);
+  }
+  return 0;
+}
+
+function clampFraction(value: number): number {
+  if (Number.isNaN(value)) return 0;
+  return Math.min(1, Math.max(0, value));
+}
+
+/**
+ * The count beside the bar: what a percentage alone cannot tell you.
+ *
+ * "1.2 GB of 4.0 GB" says whether a stalled-looking job is moving at all,
+ * and how much is left — the number an operator deciding whether to wait
+ * actually needs. Returns null when the snapshot carries no counters.
+ */
+export function progressLabel(snapshot: JobSnapshot): string | null {
+  if (snapshot.totalBytes > 0) {
+    return `${formatBytes(snapshot.bytesCopied)} of ${formatBytes(snapshot.totalBytes)}`;
+  }
+  if (snapshot.totalItems > 0) {
+    return `${formatCount(snapshot.completedItems)} of ${formatCount(snapshot.totalItems)} files`;
+  }
+  return null;
 }
 
 /** Best available progress for a row: the live snapshot if there is one. */

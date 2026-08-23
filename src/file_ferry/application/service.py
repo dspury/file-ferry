@@ -446,6 +446,13 @@ class ApplicationService:
         # to this wake. Anything that creates a job -- the IPC handler,
         # the CLI, a future plan-build flow -- gets automatic dispatch.
         job = self._job_service().create(params)
+        # Announced even though nobody can be subscribed yet: a subscription
+        # is per job id, so a client watching the job list has no way to ask
+        # for a job that does not exist. Without this one unsolicited event a
+        # job created while Activity is open stays invisible until something
+        # else reloads the list -- the client uses it as "reload, then
+        # subscribe".
+        self._publish_job_updated(job.id, force=True)
         self._dispatcher_service().kick()
         return job
 
@@ -828,15 +835,21 @@ class ApplicationService:
         """Stop publishing for the named job. Idempotent."""
         self._job_subscriptions.discard(job_id)
 
-    def _publish_job_updated(self, job_id: str) -> None:
+    def _publish_job_updated(self, job_id: str, *, force: bool = False) -> None:
         """Emit ``job.updated`` for a subscribed job.
+
+        ``force`` publishes regardless of subscription, for the one case a
+        client cannot subscribe to in advance: a job that has just been
+        created.
 
         Never raises: an event is a courtesy to the UI, and a broken pipe or
         a job deleted mid-flight must not fail the operation that triggered
         it. A terminal job also drops its own subscription -- it can never
         emit again, so holding it would leak one entry per completed job.
         """
-        if self._event_sink is None or job_id not in self._job_subscriptions:
+        if self._event_sink is None:
+            return
+        if not force and job_id not in self._job_subscriptions:
             return
         try:
             snapshot = self._job_service().snapshot(job_id)

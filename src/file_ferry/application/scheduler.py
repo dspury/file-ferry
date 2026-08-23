@@ -15,6 +15,7 @@ Implements plan §6.4/§7.2 scheduling concerns:
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from pathlib import Path
 
@@ -23,6 +24,8 @@ from file_ferry.service.protocol import CreateJobParams, JobDetail
 
 Runner = Callable[[JobDetail, "JobScheduler"], str]
 VolumeResolver = Callable[[JobDetail], str]
+
+_log = logging.getLogger(__name__)
 
 _DEFAULT_VOLUME = "default"
 
@@ -103,7 +106,16 @@ class JobScheduler:
             return job  # no slot yet; stays queued
 
         try:
-            job = self._transition(job_id, "queued", "running")
+            try:
+                job = self._transition(job_id, "queued", "running")
+            except InvalidTransitionError:
+                # Another caller claimed it between the state check above and
+                # here -- the background dispatcher and the `job.dispatch` IPC
+                # method both land in this method. The transition is the real
+                # lock (it re-checks the state inside its transaction), so the
+                # loser simply reports what the winner has made of the job
+                # instead of raising at the renderer.
+                return self._jobs.get(job_id)
             return self._execute(job, runner)
         finally:
             self._limiter.release(volume)
@@ -205,6 +217,19 @@ class JobScheduler:
         return self.dispatch(created.id)
 
     # ---- events ------------------------------------------------------
+
+    def notify_progress(self, job_id: str) -> None:
+        """Publish a job's current state without changing it.
+
+        A runner calls this as it works. Without it the only events a job
+        ever produced were its state transitions, so a two-hour copy sat
+        between `running` and `verifying` with nothing to show for it.
+        Best-effort: a job that vanished mid-run must not fail the transfer.
+        """
+        try:
+            self._publish(self._jobs.get(job_id))
+        except Exception:  # pragma: no cover - progress is never load-bearing
+            _log.debug("progress notification failed for job %s", job_id, exc_info=True)
 
     def _publish(self, job: JobDetail) -> None:
         for listener in self._listeners:

@@ -491,6 +491,15 @@ export interface JobSnapshot {
   readonly totalSteps: number;
   readonly startedAt: string;
   readonly updatedAt: string;
+  /**
+   * Per-file progress. Steps say which phase a job is in and there are only
+   * a handful of them; these say how far through the work it is, which for
+   * an offload is thousands of files and terabytes.
+   */
+  readonly completedItems: number;
+  readonly totalItems: number;
+  readonly bytesCopied: number;
+  readonly totalBytes: number;
 }
 
 export interface JobEvent {

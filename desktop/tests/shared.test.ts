@@ -18,6 +18,10 @@ function snapshot(id: string, state: JobSnapshot['state']): JobSnapshot {
     totalSteps: 2,
     startedAt: '2026-08-12T17:30:00Z',
     updatedAt: '2026-08-12T17:31:00Z',
+    completedItems: 0,
+    totalItems: 0,
+    bytesCopied: 0,
+    totalBytes: 0,
   };
 }
 

@@ -31,9 +31,10 @@ import {
 import { navigateTo } from '../views.js';
 import type { IntakePlan, SourceInspectResult } from '../../../shared/ipc-methods.js';
 
-/** How many plan rows to render before deferring to a summary line. The
- *  plan can be tens of thousands of files; the review only needs a sample
- *  plus the totals, which are shown above the table. */
+/** How many plan rows to render before deferring to a summary line. A plan
+ *  row is one *write* -- a file copied to a working root and a backup is two
+ *  rows -- so the count runs to tens of thousands. The review only needs a
+ *  sample plus the totals, which are shown above the table. */
 const PLAN_PREVIEW_ROWS = 100;
 
 /*
@@ -263,7 +264,7 @@ export function Ingest(): JSX.Element {
             <>
               <Chip tone={plan.capacityOk ? 'ok' : 'danger'}>{capacityLabel(plan)}</Chip>
               <span className="muted">
-                {plan.entries.length.toLocaleString()} files · {formatBytes(plan.totalBytes)}
+                {plan.entries.length.toLocaleString()} copies · {formatBytes(plan.totalBytes)}
               </span>
             </>
           )

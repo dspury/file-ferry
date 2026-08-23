@@ -24,6 +24,7 @@ import {
   jobMatchesFilter,
   liveProgress,
   mergeJobSnapshot,
+  progressLabel,
   progressPercent,
   canCancel,
   canResume,
@@ -208,6 +209,7 @@ function ActivityRow({
   onRetry: () => void;
   onReceipt: () => void;
 }): JSX.Element {
+  const detail = snapshot === null ? null : progressLabel(snapshot);
   return (
     <tr>
       <td>{job.command}</td>
@@ -225,6 +227,9 @@ function ActivityRow({
           label={`Progress for ${job.command}`}
           tone={progressTone(job.state)}
         />
+        {/* A percentage alone does not say whether a slow job is moving or
+            how much is left. The byte count does. */}
+        {detail === null ? null : <div className="muted">{detail}</div>}
       </td>
       <td className="cell-actions">
         <div className="row">

@@ -88,6 +88,22 @@ class TestJobSnapshot:
 
 
 class TestSubscriptionFilter:
+    def test_creation_is_announced_even_though_nobody_can_be_subscribed(
+        self, service: ApplicationService, tmp_path: Path
+    ) -> None:
+        """A subscription is per job id, so a client watching the job list
+        cannot ask for a job that does not exist yet. Without this one
+        unsolicited event, a job created while the Activity screen is open
+        stays invisible until something else reloads the list.
+        """
+        seen: list[str] = []
+        service.set_event_sink(lambda _m, params: seen.append(params["jobId"]))
+        job_id = _job(service, tmp_path)
+        assert seen == [job_id]
+        # And it really is unsolicited -- no subscription was created by it,
+        # so the stream does not continue on its own.
+        assert job_id not in service._job_subscriptions
+
     def test_subscribe_returns_current_state(
         self, service: ApplicationService, tmp_path: Path
     ) -> None:
@@ -97,9 +113,9 @@ class TestSubscriptionFilter:
     def test_nothing_is_published_without_a_subscription(
         self, service: ApplicationService, tmp_path: Path
     ) -> None:
+        job_id = _job(service, tmp_path)
         seen: list[tuple[str, dict]] = []
         service.set_event_sink(lambda method, params: seen.append((method, params)))
-        job_id = _job(service, tmp_path)
         service.job_transition(
             JobTransitionParams(id=job_id, fromState="planned", toState="awaiting_review")
         )
@@ -108,9 +124,9 @@ class TestSubscriptionFilter:
     def test_transition_publishes_to_a_subscriber(
         self, service: ApplicationService, tmp_path: Path
     ) -> None:
+        job_id = _job(service, tmp_path)
         seen: list[tuple[str, dict]] = []
         service.set_event_sink(lambda method, params: seen.append((method, params)))
-        job_id = _job(service, tmp_path)
         service.job_subscribe(job_id)
         service.job_transition(
             JobTransitionParams(id=job_id, fromState="planned", toState="awaiting_review")
@@ -127,9 +143,9 @@ class TestSubscriptionFilter:
     def test_unsubscribe_stops_the_stream(
         self, service: ApplicationService, tmp_path: Path
     ) -> None:
+        job_id = _job(service, tmp_path)
         seen: list[str] = []
         service.set_event_sink(lambda method, _params: seen.append(method))
-        job_id = _job(service, tmp_path)
         service.job_subscribe(job_id)
         service.job_unsubscribe(job_id)
         service.job_transition(
@@ -145,9 +161,9 @@ class TestSubscriptionFilter:
     ) -> None:
         """A finished job can never emit again, so holding its subscription
         would leak one entry per completed job for the process lifetime."""
+        job_id = _job(service, tmp_path)
         seen: list[str] = []
         service.set_event_sink(lambda _method, params: seen.append(params["snapshot"]["state"]))
-        job_id = _job(service, tmp_path)
         service.job_subscribe(job_id)
         for src, dst in (
             ("planned", "awaiting_review"),

@@ -214,6 +214,45 @@ def insert_item(conn: sqlite3.Connection, item: JobItemRow) -> None:
     )
 
 
+@dataclass(frozen=True)
+class JobItemProgress:
+    """Aggregated per-file progress for one job."""
+
+    total: int
+    completed: int
+    failed: int
+    bytes_done: int
+    bytes_total: int
+
+
+def item_progress(conn: sqlite3.Connection, job_id: str) -> JobItemProgress:
+    """Summarise a job's items in one query.
+
+    Aggregated in SQL rather than by loading the rows: a camera card can be
+    tens of thousands of items and this is read on every progress event.
+    """
+    row = conn.execute(
+        """
+        SELECT
+            COUNT(*) AS total,
+            COALESCE(SUM(state = 'succeeded'), 0) AS completed,
+            COALESCE(SUM(state = 'failed'), 0) AS failed,
+            COALESCE(SUM(byte_progress), 0) AS bytes_done,
+            COALESCE(SUM(total_bytes), 0) AS bytes_total
+        FROM job_items
+        WHERE job_id = ?
+        """,
+        (job_id,),
+    ).fetchone()
+    return JobItemProgress(
+        total=int(row["total"]),
+        completed=int(row["completed"]),
+        failed=int(row["failed"]),
+        bytes_done=int(row["bytes_done"]),
+        bytes_total=int(row["bytes_total"]),
+    )
+
+
 def get_items(conn: sqlite3.Connection, job_id: str) -> list[JobItemRow]:
     rows = conn.execute(
         "SELECT * FROM job_items WHERE job_id = ? ORDER BY id ASC", (job_id,)

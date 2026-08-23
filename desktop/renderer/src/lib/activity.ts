@@ -64,6 +64,18 @@ export function canRetry(job: JobDetail): boolean {
   return job.state === 'failed';
 }
 
+/**
+ * A job has a receipt once it has stopped, whatever the outcome.
+ *
+ * Not only on success: the receipt for a failed or cancelled offload is
+ * the one that matters most, because it names which replicas verified
+ * before the run stopped -- which is what decides whether the card can
+ * be released. Gating this on `succeeded` hid exactly that case.
+ */
+export function canShowReceipt(job: JobDetail): boolean {
+  return FINISHED_STATES.has(job.state);
+}
+
 /** Search a job by command, project id, or state (case-insensitive). */
 export function searchJobs(jobs: readonly JobDetail[], query: string): JobDetail[] {
   const q = query.trim().toLowerCase();

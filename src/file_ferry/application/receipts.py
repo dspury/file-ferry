@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import html
 import json
+from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -27,6 +28,11 @@ from file_ferry.application.policies import StoragePolicy
 from file_ferry.service.protocol import FrozenModel
 
 RECEIPT_EXPORT_VERSION = 1
+
+# How a job runner persists a receipt. Injected into the runners, which
+# hold services rather than a database connection; the implementation
+# lives with the assembly root that owns both.
+ReceiptWriter = Callable[["OperationReceipt"], None]
 
 
 def _now_iso() -> str:
@@ -109,20 +115,54 @@ class ReceiptStore:
         self._receipts_dir = Path(app_data_dir) / "receipts"
         self._receipts_dir.mkdir(parents=True, exist_ok=True)
 
-    def write(self, conn: Any, receipt: OperationReceipt) -> Path:
-        """Persist the receipt and return the JSON file path."""
+    def write(self, conn: Any, receipt: OperationReceipt, *, replace: bool = False) -> Path:
+        """Persist the receipt and return the JSON file path.
+
+        ``replace`` supersedes any existing receipt for the same
+        ``(operation_id, kind)``. It is off by default: a project receipt
+        carries a fresh ``uuid4`` and a second one for the same id would
+        mean something had gone wrong, so the UNIQUE constraint should
+        still bite there.
+
+        Job receipts are different. They are keyed by the *job* id, and
+        :meth:`JobScheduler.resume` re-runs one job id through its runner
+        again, so a resumed offload legitimately produces a second
+        receipt. Without ``replace`` that INSERT raises IntegrityError.
+        The JSON file already overwrites -- it is named for the operation
+        id -- so the index row is the only half that needs saying so.
+
+        Superseding is not editing: the row is replaced wholesale by the
+        latest attempt's document, which is the state of the operation an
+        operator asking "what happened to this job" wants to see. The
+        caller is expected to carry forward what it knows of the prior
+        attempt (see the offload runner's warnings).
+        """
         receipt_json = receipt.model_dump_json(by_alias=True)
         digest = receipt.receipt_hash()
         file_path = self._receipts_dir / f"{receipt.operation_id}.json"
         file_path.write_text(receipt_json, encoding="utf-8")
 
+        conflict = (
+            """
+            ON CONFLICT(operation_id, kind) DO UPDATE SET
+                receipt_json = excluded.receipt_json,
+                receipt_hash = excluded.receipt_hash,
+                display_summary = excluded.display_summary,
+                receipt_path = excluded.receipt_path,
+                export_version = excluded.export_version,
+                created_at = excluded.created_at
+            """
+            if replace
+            else ""
+        )
         conn.execute(
             """
             INSERT INTO operation_receipts (
                 operation_id, kind, receipt_json, receipt_hash, display_summary,
                 receipt_path, export_version, created_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
+            """
+            + conflict,
             (
                 receipt.operation_id,
                 receipt.kind,
@@ -135,6 +175,19 @@ class ReceiptStore:
             ),
         )
         return file_path
+
+    def prior_hash(self, conn: Any, operation_id: str, kind: str) -> str | None:
+        """The hash of the receipt this one would supersede, if any.
+
+        Lets a runner record that an earlier attempt existed rather than
+        letting the replace erase it without trace.
+        """
+        row = conn.execute(
+            "SELECT receipt_hash FROM operation_receipts "
+            "WHERE operation_id = ? AND kind = ? LIMIT 1",
+            (operation_id, kind),
+        ).fetchone()
+        return None if row is None else str(row["receipt_hash"])
 
 
 # ---------------------------------------------------------------------------

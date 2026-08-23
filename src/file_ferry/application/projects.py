@@ -17,6 +17,7 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
+from file_ferry import APP_VERSION
 from file_ferry.application.policies import (
     StoragePolicy,
     default_policy,
@@ -33,7 +34,8 @@ from file_ferry.service.protocol import (
     UpdateProjectParams,
 )
 
-APP_VERSION = "0.3.0"  # mirrors pyproject.toml until vNext bumps it
+# APP_VERSION was defined here before the job runners needed it too; it now
+# lives in the package root and stays importable from this module.
 
 
 def _now_iso() -> str:

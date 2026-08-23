@@ -25,6 +25,7 @@ import {
   canCancel,
   canResume,
   canRetry,
+  canShowReceipt,
   searchJobs,
 } from '../renderer/src/lib/activity.js';
 import type { IntakePlan, JobDetail, OrganizePreview } from '../shared/ipc-methods.js';
@@ -204,6 +205,18 @@ describe('activity', () => {
     expect(canResume(job('d', 'running'))).toBe(false);
     expect(canRetry(job('e', 'failed'))).toBe(true);
     expect(canRetry(job('f', 'succeeded'))).toBe(false);
+  });
+
+  it('offers the receipt for every terminal job, not only successes', () => {
+    // The receipt for a failed or cancelled offload names which replicas
+    // verified before the run stopped -- the case an operator most needs
+    // before deciding whether the card can be formatted.
+    expect(canShowReceipt(job('a', 'succeeded'))).toBe(true);
+    expect(canShowReceipt(job('b', 'failed'))).toBe(true);
+    expect(canShowReceipt(job('c', 'cancelled'))).toBe(true);
+    // A job still in flight has not written one yet.
+    expect(canShowReceipt(job('d', 'running'))).toBe(false);
+    expect(canShowReceipt(job('e', 'needs_attention'))).toBe(false);
   });
 
   it('jobMatchesFilter', () => {

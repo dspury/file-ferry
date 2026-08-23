@@ -162,11 +162,16 @@ export function Ingest(): JSX.Element {
         destinationRoot: workingRoot ?? '',
         projectId,
       });
+      // `reviewed` is what actually starts the transfer. Creating a job
+      // leaves it `planned`, waiting at the §6.4 review gate -- and this
+      // screen *is* the review, so Execute means approved. Without it the
+      // button reported success and nothing ever copied a byte.
       await window.ferry.job.create({
         projectId,
         command: 'offload',
         sessionId: session.id,
         totalSteps: adopted.assetIds.length,
+        reviewed: true,
       });
       setExecuted(true);
     } catch (err) {

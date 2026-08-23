@@ -61,6 +61,14 @@ def _setup(tmp_path: Path):
     )
     svc.intake_adopt_source(session.id, inspected.source_id, inspected.entries, str(working))
 
+    # Park the background dispatcher before queueing. Reaching `queued` now
+    # wakes it (a job queued by transition used to sit until some unrelated
+    # event happened to kick the loop), so leaving it running would race the
+    # explicit `dispatch` these tests make -- the thread can claim the volume
+    # slot first and the test's call comes back untouched. Only the thread is
+    # stopped; `shutdown()` would tear down the whole service.
+    assert svc._dispatcher is not None
+    svc._dispatcher.stop()
     job = svc.job_create(
         CreateJobParams(projectId=pid, command="offload", sessionId=session.id, totalSteps=1)
     )

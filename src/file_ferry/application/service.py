@@ -443,9 +443,20 @@ class ApplicationService:
     # ---- job methods -------------------------------------------------
 
     def job_create(self, params: CreateJobParams) -> JobDetail:
-        # Plan §6.4: the dispatcher drains queued jobs lazily in response
-        # to this wake. Anything that creates a job -- the IPC handler,
-        # the CLI, a future plan-build flow -- gets automatic dispatch.
+        """Create a job, and queue it when the plan has already been reviewed.
+
+        A new job starts in ``planned``. The §6.4 machine holds it at
+        ``awaiting_review`` until somebody approves the plan, and only a
+        ``queued`` job is something the dispatcher will run -- so creating
+        a job is not, on its own, starting one.
+
+        That distinction was invisible for as long as nothing acted on it:
+        the Offload screen called this method and stopped, so every offload
+        anyone ever ran from the desktop sat in ``planned`` forever. The
+        screen does review the plan -- that is its Review step -- so it now
+        says so, and the gate opens here rather than through three separate
+        transition calls that could half-fail.
+        """
         job = self._job_service().create(params)
         # Announced even though nobody can be subscribed yet: a subscription
         # is per job id, so a client watching the job list has no way to ask
@@ -454,8 +465,19 @@ class ApplicationService:
         # else reloads the list -- the client uses it as "reload, then
         # subscribe".
         self._publish_job_updated(job.id, force=True)
+        if params.reviewed:
+            job = self._queue_reviewed(job.id)
         self._dispatcher_service().kick()
         return job
+
+    def _queue_reviewed(self, job_id: str) -> JobDetail:
+        """Walk a freshly created job through the review gate to ``queued``."""
+        self.job_transition(
+            JobTransitionParams(id=job_id, fromState="planned", toState="awaiting_review")
+        )
+        return self.job_transition(
+            JobTransitionParams(id=job_id, fromState="awaiting_review", toState="queued")
+        )
 
     def job_list(self, project_id: str | None = None) -> list[JobDetail]:
         return self._job_service().list(project_id)
@@ -469,6 +491,13 @@ class ApplicationService:
         # subscribers never hear about.
         job = self._job_service().transition(params)
         self._publish_job_updated(job.id)
+        if job.state == "queued":
+            # Reaching `queued` is the whole trigger condition for the
+            # background dispatcher, and this is the one path that can put a
+            # job there without waking it. `job.create` kicks, but a job is
+            # never queued at creation -- so a job queued by transition sat
+            # until some unrelated event happened to wake the loop.
+            self._dispatcher_service().kick()
         return job
 
     def job_cancel(self, params: CancelJobParams) -> None:

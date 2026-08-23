@@ -419,6 +419,11 @@ class CreateJobParams(FrozenModel):
     args_fingerprint: str | None = Field(default=None, alias="argsFingerprint")
     session_id: str | None = Field(default=None, alias="sessionId")
     total_steps: int = Field(default=0, alias="totalSteps")
+    # The operator has already reviewed the plan, so the job should pass
+    # through the §6.4 review gate instead of stopping at it. A caller that
+    # wants the gate to hold -- a scripted or scheduled job with nobody
+    # watching -- leaves this false and approves later.
+    reviewed: bool = Field(default=False)
 
 
 class JobTransitionParams(FrozenModel):

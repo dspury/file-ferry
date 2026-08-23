@@ -249,6 +249,12 @@ export interface CreateJobParams {
   readonly argsFingerprint?: string | null;
   readonly sessionId?: string | null;
   readonly totalSteps?: number;
+  /**
+   * The operator has already reviewed the plan, so the job should pass
+   * through the plan §6.4 review gate rather than stop at it. A job
+   * created without this stays `planned` and nothing will run it.
+   */
+  readonly reviewed?: boolean;
 }
 
 export interface JobTransitionParams {

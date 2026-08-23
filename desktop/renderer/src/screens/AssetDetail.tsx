@@ -30,6 +30,7 @@ import {
   searchAssets,
   sortAssets,
 } from '../lib/asset.js';
+import { formatBytes } from '../lib/format.js';
 import { navigateTo } from '../views.js';
 import { useState } from 'react';
 import type { ReplicaSummary } from '../../../shared/ipc-methods.js';
@@ -389,11 +390,4 @@ function replicaTone(h: ReturnType<typeof replicaHealth>): Tone {
 function proxyTone(r: ReturnType<typeof proxyReadiness>): Tone {
   if (r === 'ready') return 'ok';
   return r === 'pending' ? 'warn' : 'neutral';
-}
-
-function formatBytes(n: number): string {
-  if (n >= 1e12) return `${(n / 1e12).toFixed(1)} TB`;
-  if (n >= 1e9) return `${(n / 1e9).toFixed(1)} GB`;
-  if (n >= 1e6) return `${(n / 1e6).toFixed(1)} MB`;
-  return `${n} B`;
 }

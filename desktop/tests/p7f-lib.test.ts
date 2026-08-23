@@ -8,6 +8,7 @@ import { parseRoute, routeHash } from '../renderer/src/views.js';
 import {
   liveProgress,
   mergeJobSnapshot,
+  progressLabel,
   snapshotProgress,
   streamableJobIds,
 } from '../renderer/src/lib/activity.js';
@@ -42,6 +43,10 @@ function snapshot(over: Partial<JobSnapshot> = {}): JobSnapshot {
     totalSteps: 4,
     startedAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:20Z',
+    completedItems: 0,
+    totalItems: 0,
+    bytesCopied: 0,
+    totalBytes: 0,
     ...over,
   };
 }
@@ -164,16 +169,58 @@ describe('mergeJobSnapshot', () => {
 });
 
 describe('snapshotProgress', () => {
-  it('counts completed steps against the total', () => {
+  it('prefers bytes, the finest measure a transfer has', () => {
+    // Steps would say 50% and items 25%; bytes are what actually moved.
+    expect(
+      snapshotProgress(
+        snapshot({ completedItems: 1, totalItems: 4, bytesCopied: 300, totalBytes: 1000 }),
+      ),
+    ).toBe(0.3);
+  });
+
+  it('falls back to items when the runner cannot report bytes', () => {
+    // A transcode has no usable output size, so it weights each file as one.
+    expect(snapshotProgress(snapshot({ completedItems: 3, totalItems: 4 }))).toBe(0.75);
+  });
+
+  it('falls back to steps when there are no items at all', () => {
     expect(snapshotProgress(snapshot())).toBe(0.5);
   });
 
-  it('is zero when the total is unknown', () => {
+  it('is zero when nothing is measurable', () => {
     expect(snapshotProgress(snapshot({ totalSteps: 0 }))).toBe(0);
   });
 
-  it('clamps a step count that exceeds the total', () => {
+  it('clamps every measure to the unit interval', () => {
+    expect(snapshotProgress(snapshot({ bytesCopied: 900, totalBytes: 500 }))).toBe(1);
+    expect(snapshotProgress(snapshot({ completedItems: 9, totalItems: 5 }))).toBe(1);
     expect(snapshotProgress(snapshot({ completedSteps: ['a', 'b', 'c'], totalSteps: 2 }))).toBe(1);
+  });
+
+  it('does not divide by a zero byte total for an empty-file job', () => {
+    // Every entry is a zero-byte file: totalBytes is 0, so items must win
+    // rather than the fraction becoming NaN.
+    expect(snapshotProgress(snapshot({ completedItems: 2, totalItems: 4, totalBytes: 0 }))).toBe(
+      0.5,
+    );
+  });
+});
+
+describe('progressLabel', () => {
+  it('reports bytes when the runner knows them', () => {
+    expect(progressLabel(snapshot({ bytesCopied: 1.5e9, totalBytes: 4e9 }))).toBe(
+      '1.5 GB of 4.0 GB',
+    );
+  });
+
+  it('reports files when it does not, with thousands separated', () => {
+    expect(progressLabel(snapshot({ completedItems: 1200, totalItems: 3400 }))).toBe(
+      '1,200 of 3,400 files',
+    );
+  });
+
+  it('says nothing when the snapshot carries no counters', () => {
+    expect(progressLabel(snapshot())).toBeNull();
   });
 });
 

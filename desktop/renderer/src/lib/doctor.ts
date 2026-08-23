@@ -40,9 +40,6 @@ export function toolStatus(present: boolean): string {
 }
 
 /** Human-readable byte count. */
-export function formatBytes(n: number): string {
-  if (n >= 1e12) return `${(n / 1e12).toFixed(1)} TB`;
-  if (n >= 1e9) return `${(n / 1e9).toFixed(1)} GB`;
-  if (n >= 1e6) return `${(n / 1e6).toFixed(1)} MB`;
-  return `${n} B`;
-}
+
+// Re-exported so existing callers keep importing it from here.
+export { formatBytes } from './format.js';

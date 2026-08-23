@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Callable
+from contextlib import suppress
 from pathlib import Path
 
 from file_ferry.application.assets import AssetService
@@ -80,6 +81,16 @@ class ProxyRunner:
 
         output_dir = working_root / "proxies"
         output_dir.mkdir(parents=True, exist_ok=True)
+
+        # Insert every item before generating any of them. This runner used
+        # to call `update_item_progress` without ever calling `add_item`, so
+        # each update matched zero rows and a proxy job reported no progress
+        # at all -- silently, because the helpers suppressed every exception
+        # and an UPDATE that matches nothing is not an exception.
+        for asset in assets:
+            self._add_item(job.id, asset.id, asset.source_relative_path)
+        scheduler.notify_progress(job.id)
+
         for asset in assets:
             if scheduler.should_cancel(job.id):
                 return "cancelled"
@@ -93,6 +104,7 @@ class ProxyRunner:
                 return "failed"
             self._record(asset.id, str(output), "ready", 1.0)
             self._mark_item_done(job.id, asset.id)
+            scheduler.notify_progress(job.id)
         return "succeeded"
 
     # ---- helpers -----------------------------------------------------
@@ -113,15 +125,25 @@ class ProxyRunner:
             readiness=readiness,
         )
 
-    def _mark_item_done(self, job_id: str, asset_id: str) -> None:
-        from contextlib import suppress
+    def _add_item(self, job_id: str, asset_id: str, rel_path: str) -> None:
+        with suppress(Exception):
+            # ffmpeg gives no usable byte count for the output, so an item is
+            # weighted as one unit of work. Progress is therefore per file,
+            # which is the honest granularity for transcoding.
+            self._jobs.add_item(
+                job_id,
+                step="proxy",
+                asset_id=asset_id,
+                source_path=rel_path,
+                dest_path=rel_path,
+                total_bytes=1,
+            )
 
+    def _mark_item_done(self, job_id: str, asset_id: str) -> None:
         with suppress(Exception):
             self._jobs.update_item_progress(job_id, asset_id, byte_progress=1, state="succeeded")
 
     def _mark_item_failed(self, job_id: str, asset_id: str) -> None:
-        from contextlib import suppress
-
         with suppress(Exception):
             self._jobs.update_item_progress(
                 job_id, asset_id, state="failed", error="proxy generation failed"

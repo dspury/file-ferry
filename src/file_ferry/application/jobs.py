@@ -149,6 +149,7 @@ class JobService:
             if row is None:
                 raise JobNotFoundError(job_id)
             steps = job_repo.get_steps(conn, job_id)
+            items = job_repo.item_progress(conn, job_id)
         completed = [step.step for step in steps if step.state == "succeeded"]
         running = next((step.step for step in steps if step.state == "running"), None)
         return JobSnapshot(
@@ -159,11 +160,17 @@ class JobService:
             state=row.state,  # type: ignore[arg-type]
             currentStep=running or row.current_step or "",
             completedSteps=completed,
-            # A job whose steps were enumerated after creation knows its real
-            # total; fall back to the declared one when none were recorded.
-            totalSteps=row.total_steps or len(steps),
+            # `totalSteps` counts *steps*, so it stays commensurable with
+            # `completedSteps`. The job row's `total_steps` is a file count
+            # set at creation, which is why it is only the fallback for a job
+            # that recorded no steps at all.
+            totalSteps=len(steps) or row.total_steps,
             startedAt=row.started_at or row.updated_at,
             updatedAt=row.updated_at,
+            completedItems=items.completed,
+            totalItems=items.total,
+            bytesCopied=items.bytes_done,
+            totalBytes=items.bytes_total,
         )
 
     def add_step(self, job_id: str, step: str) -> None:

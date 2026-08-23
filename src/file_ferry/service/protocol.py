@@ -808,6 +808,15 @@ class JobSnapshot(FrozenModel):
     total_steps: int = Field(alias="totalSteps")
     started_at: str = Field(alias="startedAt")
     updated_at: str = Field(alias="updatedAt")
+    # Per-file progress. Steps describe *which phase* a job is in and there
+    # are only a handful of them; these describe how far through the work it
+    # is, which for an offload is thousands of files and terabytes. A UI that
+    # divided completed steps by a file count -- which is what `totalSteps`
+    # on the job row holds -- could never show anything meaningful.
+    completed_items: int = Field(default=0, alias="completedItems")
+    total_items: int = Field(default=0, alias="totalItems")
+    bytes_copied: int = Field(default=0, alias="bytesCopied")
+    total_bytes: int = Field(default=0, alias="totalBytes")
 
 
 class JobEvent(FrozenModel):

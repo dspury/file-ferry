@@ -238,3 +238,27 @@ def test_retry_requires_failed(db: Path) -> None:
     jid = _queued_job(jobs)
     with pytest.raises(InvalidTransitionError):
         sched.retry(jid)  # queued is not failed
+
+
+def test_a_lost_dispatch_race_reports_state_instead_of_raising(db: Path) -> None:
+    """The background dispatcher and the ``job.dispatch`` IPC method both call
+    :meth:`JobScheduler.dispatch`. The state check at the top of it is not
+    atomic with the queued -> running transition, so both callers can pass it;
+    the transition is the real lock. The loser must report what the winner has
+    made of the job, not raise ``InvalidTransitionError`` out at whoever asked.
+    """
+    jobs = JobService(db)
+    scheduler = JobScheduler(db, jobs)
+    job_id = _queued_job(jobs)
+
+    # Stand in for the winner: claim the job between the scheduler's state
+    # check and its own transition.
+    original = scheduler._transition
+
+    def steal(job_id_: str, from_state: str, to_state: str):
+        if (from_state, to_state) == ("queued", "running"):
+            jobs.transition(JobTransitionParams(id=job_id_, fromState="queued", toState="running"))
+        return original(job_id_, from_state, to_state)
+
+    scheduler._transition = steal  # type: ignore[method-assign]
+    assert scheduler.dispatch(job_id).state == "running"

@@ -173,6 +173,25 @@ export function liveProgress(job: JobDetail, snapshot: JobSnapshot | null): numb
   return snapshot === null ? jobProgress(job) : snapshotProgress(snapshot);
 }
 
+/**
+ * The accessible name for something that belongs to one job row.
+ *
+ * Visible text is enough in the table, where a screen reader announces the
+ * Command and State cells before it reaches the Actions cell. It is not
+ * enough anywhere else: pulled out into VoiceOver's controls list, the job
+ * log offered four buttons called "Cancel" and three called "Receipt" with
+ * nothing to tell them apart, and every meter on the screen was called
+ * "Progress for offload". The command alone cannot disambiguate — two
+ * running offloads is the normal case, not an edge one — so the row's id
+ * goes in too. It is the only unique thing a row has.
+ *
+ * The visible label stays the first word, which is what WCAG 2.5.3 asks
+ * for: what you say is what you can click.
+ */
+export function jobRowLabel(action: string, job: JobDetail): string {
+  return `${action} ${job.command} ${job.id}`;
+}
+
 /** Receipt export content is non-empty (a successful export has content). */
 export function receiptExportOk(result: ExportReceiptResult | null): boolean {
   if (result === null) return false;

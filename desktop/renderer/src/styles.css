@@ -2238,8 +2238,29 @@ textarea:focus-visible {
   border-radius: var(--radius-sm);
 }
 
+/*
+ * Text only assistive tech reads.
+ *
+ * `left`/`top` are load-bearing, not tidiness. Without them an absolutely
+ * positioned box resolves to its *static* position, which for the stage
+ * rail's hidden strings is ~750px into a `overflow-x: auto` row — and
+ * because nothing between here and the document root is positioned, the
+ * containing block is the initial one, so the box escapes the scroller and
+ * widens the document instead. At a 640px viewport (200% zoom on a 1280px
+ * window) that put 125px of horizontal scroll on Offload, caused entirely
+ * by two spans nobody can see. Anchoring them at 0,0 keeps them out of the
+ * overflow calculation; they are still 1px and still clipped.
+ *
+ * `text-transform: none` for the same class of reason. Chromium bakes
+ * `text-transform` into the *computed accessible name*, so inheriting the
+ * stage rail's uppercase handed VoiceOver "(COMPLETED)" and "(FROM HERE ON,
+ * FERRY WRITES TO DISK)". This text is never painted, so the transform had
+ * no design intent to serve — only a reader to shout at.
+ */
 .visually-hidden {
   position: absolute;
+  left: 0;
+  top: 0;
   width: 1px;
   height: 1px;
   padding: 0;
@@ -2247,13 +2268,90 @@ textarea:focus-visible {
   overflow: hidden;
   clip: rect(0 0 0 0);
   white-space: nowrap;
+  text-transform: none;
+  letter-spacing: normal;
   border: 0;
+  /* Anchored at 0,0 these now stack in the window's top-left corner. They
+     paint nothing, but a 1px box still hit-tests, so take them out of the
+     pointer path rather than leave a stack of them over whatever lands
+     there next. */
+  pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;
     animation: none !important;
+  }
+}
+
+/*
+ * ===================== forced colours ==========================
+ *
+ * When the OS overrides colour, Chromium keeps very little of this sheet:
+ * `background-color` is forced to Canvas, `background-image` and
+ * `box-shadow` are dropped outright, and `color`/`border-color`/
+ * `outline-color` are repainted from the system palette. Border and outline
+ * *style* and *width* survive, as do opacity and font-weight — measured, not
+ * assumed.
+ *
+ * Most of the design survives that on purpose, because every state is also
+ * spelled out in words: a chip loses its hue and its dot but still reads
+ * FAILED, a banner still says "Error:", the stage rail still shows a check
+ * against a done stage and a number against a pending one. Two things do
+ * not survive, and both are fixed here rather than left to the one channel
+ * that happens to be text.
+ */
+@media (forced-colors: active) {
+  /*
+   * The meter. Its fill is a background-colour, so it was forced to Canvas
+   * and became invisible: every bar rendered as an empty outlined track,
+   * which made a complete offload and an unstarted one the same drawing.
+   * `Highlight` is a system colour, so it honours the user's palette while
+   * still contrasting with Canvas.
+   */
+  .progress__fill,
+  /* Each status sets its own fill hue at `.progress--x .progress__fill`, and
+     a media query adds no specificity, so the bare `.progress__fill` above
+     loses to all four of them — which left `complete`, `failed`, `cancelled`
+     and `stalled`, the statuses that carry consequence, still painting
+     Canvas on Canvas. Matched selector for matched selector. */
+  .progress--complete .progress__fill,
+  .progress--failed .progress__fill,
+  .progress--cancelled .progress__fill,
+  .progress--stalled .progress__fill {
+    background-color: Highlight;
+  }
+
+  /*
+   * The hatch that rules out the ground a stopped meter never covered is a
+   * `background-image`, and this mode drops those, so the one thing
+   * separating "stopped at 25%" from "25% and climbing" went with it.
+   * Border style is a channel this mode does leave alone — and a dashed
+   * edge already means "stopped" here, because the cancelled chip is drawn
+   * that way — so the track carries the distinction instead.
+   */
+  .progress--failed,
+  .progress--cancelled,
+  .progress--stalled {
+    border-style: dashed;
+  }
+
+  /*
+   * The nav rail. Idle items reserve the active item's 2px marker in
+   * `transparent` so the label does not shift when it appears — and
+   * `transparent` is repainted as CanvasText here, so all eight items grew
+   * the marker that means "you are here". Style, not colour, hides it.
+   */
+  .nav__item {
+    border-left-style: none;
+    padding-left: var(--sp-4);
+  }
+
+  .nav__item:hover,
+  .nav__item--active {
+    border-left-style: solid;
+    padding-left: calc(var(--sp-4) - 2px);
   }
 }
 

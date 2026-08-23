@@ -13,7 +13,7 @@
  * dialog used to render inline at the bottom of the page, below the
  * content it was blocking.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { confirmEnabled, normalizePhrase } from '../lib/confirm.js';
 import { FOCUSABLE_SELECTOR, isTrapKey, nextFocusIndex } from '../lib/focus-trap.js';
 import { IconAlert } from './icons.js';
@@ -36,6 +36,7 @@ export function ConfirmDialog({
   onCancel: () => void;
 }): JSX.Element {
   const [typed, setTyped] = useState('');
+  const bodyId = useId();
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const enabled = exact
     ? normalizePhrase(typed) === normalizePhrase(phrase)
@@ -89,14 +90,22 @@ export function ConfirmDialog({
         role="alertdialog"
         aria-modal="true"
         aria-label={title}
+        // The body is the whole warning -- that the source files are deleted
+        // and that ferry cannot undo it. Without this it was a loose
+        // paragraph: `aria-modal` prunes everything outside the dialog from
+        // the platform tree, focus goes straight to the phrase field, and
+        // the announcement was the dialog's name and then the field's,
+        // with the sentence in between never read. `aria-describedby` makes
+        // it part of what opening the dialog says.
+        aria-describedby={bodyId}
         ref={dialogRef}
         onKeyDown={onKeyDown}
       >
-        <h3 className="confirm__title">
+        <h2 className="confirm__title">
           <IconAlert size={18} />
           {title}
-        </h3>
-        <p>{body}</p>
+        </h2>
+        <p id={bodyId}>{body}</p>
         {exact ? (
           <div className="field">
             <label htmlFor="confirm-phrase">

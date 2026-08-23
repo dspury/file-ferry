@@ -1,25 +1,27 @@
 /**
  * Pure Home-screen logic (testable without React/DOM).
  *
- * The Home screen shows active jobs, connected sources, unsafe cards,
- * missing/unverified replicas, failed work, and proxy readiness. The
- * aggregation and health derivation live here so they are unit-testable.
+ * The Dashboard reports the state of the *work*: how much is in flight, how
+ * much is waiting on a person, and how much failed. It deliberately reports
+ * nothing else.
+ *
+ * It used to also carry unsafe-card, unverified-replica and proxy-readiness
+ * counts. Those cannot be computed from where this screen stands: the IPC
+ * surface exposes `replica.list` and `derivatives.list` per *asset*, so a
+ * library-wide figure would be one call per asset, and there is no method at
+ * all that lists intake sessions, which is what an unsafe card is. They were
+ * therefore hard-coded to `0` and rendered as tiles anyway -- and `0` on a
+ * tile called UNSAFE CARDS is not an absence, it is an assertion an operator
+ * could format a card on. They are gone rather than faked; a library-wide
+ * aggregate is a sidecar feature, and when one exists it will be shaped by
+ * whatever method gets built rather than by the guess that used to live here.
  */
-import type {
-  JobDetail,
-  AssetSummary,
-  ReplicaSummary,
-  DerivativeSummary,
-} from '../../../shared/ipc-methods.js';
+import type { JobDetail } from '../../../shared/ipc-methods.js';
 
 export interface HomeSummary {
   readonly activeJobs: number;
   readonly attentionJobs: number;
   readonly failedJobs: number;
-  readonly unsafeCards: number;
-  readonly unverifiedReplicas: number;
-  readonly assets: number;
-  readonly proxyPending: number;
 }
 
 const ACTIVE_STATES = new Set(['queued', 'running', 'verifying', 'resumable']);
@@ -45,49 +47,18 @@ export function isJobFailed(job: JobStateOnly): boolean {
   return job.state === 'failed';
 }
 
-/** A job with no successful proxy derivative is "proxy pending". */
-export function proxyPending(
-  jobs: readonly JobDetail[],
-  derivativesByAsset: Map<string, readonly DerivativeSummary[]>,
-): JobDetail[] {
-  return jobs.filter((job) => {
-    const derivatives = derivativesByAsset.get(job.projectId) ?? [];
-    return !derivatives.some((d) => d.status === 'ready');
-  });
-}
-
-export function summarizeHome(opts: {
-  jobs: readonly JobDetail[];
-  assets: readonly AssetSummary[];
-  replicas: readonly ReplicaSummary[];
-  proxyDerivatives: readonly DerivativeSummary[];
-}): HomeSummary {
-  const activeJobs = opts.jobs.filter(isJobActive).length;
-  const attentionJobs = opts.jobs.filter(isJobAttention).length;
-  const failedJobs = opts.jobs.filter(isJobFailed).length;
-  const unverifiedReplicas = opts.replicas.filter((r) => !r.verified).length;
-  // Proxy readiness is conservative: if any asset lacks a ready derivative,
-  // report it pending.
-  const readyProxyAssets = new Set(
-    opts.proxyDerivatives.filter((d) => d.status === 'ready').map((d) => d.assetId),
-  );
-  const proxyPendingCount = opts.assets.filter((a) => !readyProxyAssets.has(a.id)).length;
-  return {
-    activeJobs,
-    attentionJobs,
-    failedJobs,
-    unsafeCards: 0, // derived from intake sessions; filled by the screen when available
-    unverifiedReplicas,
-    assets: opts.assets.length,
-    proxyPending: proxyPendingCount,
-  };
-}
-
-/** A single Home status card model. */
+/**
+ * A single Home status card model.
+ *
+ * The tone union is exactly what `homeCards` can emit, plus the `neutral`
+ * the screen substitutes at a count of zero. `ok` and `warn` were in it for
+ * the two tiles that are gone; a union member nothing can produce is the
+ * same dead surface as a count nothing can compute.
+ */
 export interface StatusCard {
   readonly label: string;
   readonly count: number;
-  readonly tone: 'active' | 'ok' | 'warn' | 'danger' | 'attention' | 'neutral';
+  readonly tone: 'active' | 'danger' | 'attention' | 'neutral';
 }
 
 /**
@@ -105,8 +76,5 @@ export function homeCards(s: HomeSummary): StatusCard[] {
     { label: 'Active jobs', count: s.activeJobs, tone: 'active' },
     { label: 'Needs attention', count: s.attentionJobs, tone: 'attention' },
     { label: 'Failed', count: s.failedJobs, tone: 'danger' },
-    { label: 'Unsafe cards', count: s.unsafeCards, tone: 'danger' },
-    { label: 'Unverified replicas', count: s.unverifiedReplicas, tone: 'warn' },
-    { label: 'Proxy pending', count: s.proxyPending, tone: 'warn' },
   ];
 }

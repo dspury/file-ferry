@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   ingestStage,
+  ingestPrimary,
   planReviewable,
   planBlocked,
   sourceReady,
@@ -13,6 +14,8 @@ import {
 } from '../renderer/src/lib/ingest.js';
 import {
   organizeStage,
+  organizePrimary,
+  applyStageMark,
   previewApplyable,
   collisionBlocks,
   moveRequiresConfirm,
@@ -124,6 +127,31 @@ describe('ingest', () => {
     expect(ingestStage({ source, plan: plan(), executing: false, done: true })).toBe('done');
   });
 
+  /*
+   * One filled accent primary at a time, and it is always the next action.
+   * Every stage's button used to keep the filled variant after it had been
+   * used, so the plan stage showed two of them under an accent stage marker.
+   */
+  it('ingestPrimary names exactly one action per stage, and it is the next one', () => {
+    expect(ingestPrimary('source')).toBe('scan');
+    // A source that inspected to zero entries: the plan is still what comes
+    // next, so the accent does not stay on a scan that already ran.
+    expect(ingestPrimary('destinations')).toBe('plan');
+    expect(ingestPrimary('plan')).toBe('plan');
+    expect(ingestPrimary('ready')).toBe('execute');
+    expect(ingestPrimary('running')).toBe('execute');
+    // Nothing more happens on this screen once the job exists; the receipt
+    // that makes the card safe to format is earned in Activity.
+    expect(ingestPrimary('done')).toBe('watch');
+  });
+
+  it('ingestPrimary never lights the scan again once a source is inspected', () => {
+    const later = (['destinations', 'plan', 'ready', 'running', 'done'] as const).map(
+      ingestPrimary,
+    );
+    expect(later).not.toContain('scan');
+  });
+
   it('capacityLabel and destinationKinds', () => {
     expect(capacityLabel(plan())).toBe('capacity ok');
     expect(capacityLabel(plan({ capacityOk: false, neededBytes: 500 }))).toContain('500 B');
@@ -171,6 +199,41 @@ describe('organize', () => {
         { path: 'b', reason: 'y', count: 3 },
       ]),
     ).toBe(5);
+  });
+
+  it('organizePrimary names exactly one action per stage', () => {
+    expect(organizePrimary('source')).toBe('preview');
+    expect(organizePrimary('preview')).toBe('preview');
+    expect(organizePrimary('ready')).toBe('apply');
+    expect(organizePrimary('running')).toBe('apply');
+    expect(organizePrimary('done')).toBe('apply');
+  });
+
+  /*
+   * The rail's terminal stage is reached on any returned outcome, so before
+   * this it stamped an accent DONE over an apply that lost a file. The stage
+   * now carries the outcome's own severity and its own word.
+   */
+  it('applyStageMark reads the outcome, not the arrival', () => {
+    expect(applyStageMark(null)).toEqual({ label: 'Done', tone: 'accent' });
+    expect(applyStageMark({ ok: 6, failed: 0, total: 6 })).toEqual({
+      label: 'Done',
+      tone: 'accent',
+    });
+    expect(applyStageMark({ ok: 5, failed: 1, total: 6 })).toEqual({
+      label: 'Incomplete',
+      tone: 'warn',
+    });
+    expect(applyStageMark({ ok: 0, failed: 6, total: 6 })).toEqual({
+      label: 'Failed',
+      tone: 'danger',
+    });
+  });
+
+  it('applyStageMark never says Done while an entry failed', () => {
+    for (const failed of [1, 2, 6]) {
+      expect(applyStageMark({ ok: 6 - failed, failed, total: 6 }).label).not.toBe('Done');
+    }
   });
 
   it('organizeStage gates', () => {

@@ -277,25 +277,21 @@ describe('toolTone', () => {
 });
 
 describe('homeCards', () => {
-  const summary = {
-    activeJobs: 1,
-    attentionJobs: 0,
-    failedJobs: 0,
-    unsafeCards: 0,
-    unverifiedReplicas: 0,
-    assets: 0,
-    proxyPending: 0,
-  };
+  const summary = { activeJobs: 1, attentionJobs: 0, failedJobs: 0 };
 
   it('gives active work the accent tone, not the success tone', () => {
     const active = homeCards(summary).find((c) => c.label === 'Active jobs');
     expect(active?.tone).toBe('active');
   });
 
+  /*
+   * The `Unverified replicas` assertion that used to be here went with the
+   * tile: it was toned `warn` over a count the screen hard-coded to `0`, so
+   * what the test pinned was the colour of a claim that could not be made.
+   */
   it('keeps the failure tones where they were', () => {
     const cards = homeCards(summary);
     expect(cards.find((c) => c.label === 'Failed')?.tone).toBe('danger');
     expect(cards.find((c) => c.label === 'Needs attention')?.tone).toBe('attention');
-    expect(cards.find((c) => c.label === 'Unverified replicas')?.tone).toBe('warn');
   });
 });

@@ -3,13 +3,7 @@
  * These run in node without React/DOM.
  */
 import { describe, expect, it } from 'vitest';
-import {
-  homeCards,
-  isJobActive,
-  isJobAttention,
-  isJobFailed,
-  summarizeHome,
-} from '../renderer/src/lib/home.js';
+import { homeCards, isJobActive, isJobAttention, isJobFailed } from '../renderer/src/lib/home.js';
 import { policyHealth, policyLabel, projectRow } from '../renderer/src/lib/projects.js';
 import {
   assetOverview,
@@ -117,41 +111,25 @@ describe('home', () => {
     expect(isJobFailed(job('e', 'failed'))).toBe(true);
   });
 
-  it('summarizes counts', () => {
-    const s = summarizeHome({
-      jobs: [
-        job('a', 'running'),
-        job('b', 'needs_attention'),
-        job('c', 'failed'),
-        job('d', 'succeeded'),
-      ],
-      assets: [asset('asset-1'), asset('asset-2')],
-      replicas: [replica(1, true), replica(2, false)],
-      proxyDerivatives: [derivative(1, 'ready')],
-    });
-    expect(s.activeJobs).toBe(1);
-    expect(s.attentionJobs).toBe(1);
-    expect(s.failedJobs).toBe(1);
-    expect(s.unverifiedReplicas).toBe(1);
-    expect(s.assets).toBe(2);
-    // asset-1 has a ready derivative; asset-2 lacks one -> proxy pending.
-    expect(s.proxyPending).toBe(1);
-  });
-
   it('builds status cards', () => {
-    const cards = homeCards({
-      activeJobs: 2,
-      attentionJobs: 1,
-      failedJobs: 0,
-      unsafeCards: 1,
-      unverifiedReplicas: 0,
-      assets: 5,
-      proxyPending: 3,
-    });
+    const cards = homeCards({ activeJobs: 2, attentionJobs: 1, failedJobs: 0 });
     expect(cards.find((c) => c.label === 'Failed')?.tone).toBe('danger');
     // `active`, not `ok`: running is not succeeded, and the success tone on
     // this tile made a card still mid-transfer read as a card safely landed.
     expect(cards.find((c) => c.label === 'Active jobs')?.tone).toBe('active');
+  });
+
+  /*
+   * The tiles this screen is allowed to draw, stated as a test so the set
+   * cannot quietly grow a member nothing can compute. `summarizeHome` used
+   * to sit here too, computing `unverifiedReplicas` and `proxyPending` for
+   * tiles the screen filled with a hard-coded `0` -- exported, tested, and
+   * called by nothing but this file. It is deleted rather than commented,
+   * along with the three tiles it fed.
+   */
+  it('draws only the tiles it can compute, all of them from the job list', () => {
+    const cards = homeCards({ activeJobs: 0, attentionJobs: 0, failedJobs: 0 });
+    expect(cards.map((c) => c.label)).toEqual(['Active jobs', 'Needs attention', 'Failed']);
   });
 });
 

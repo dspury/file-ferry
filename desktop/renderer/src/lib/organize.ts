@@ -74,6 +74,67 @@ export function outcomeTone(summary: OrganizeOutcomeSummary): 'ok' | 'warn' | 'd
   return 'warn';
 }
 
+/**
+ * What the rail's last stage says, and in which tone.
+ *
+ * The rail stamped `DONE` in the accent the moment `organizeStage` reached
+ * its terminal stage, which it does on *any* returned outcome -- so an apply
+ * that wrote five of six entries put an accent DONE at the top of the page
+ * while the sentence saying one file did not land sat 1053px down it. The
+ * stage is the outcome, not the arrival, so it now reads the outcome's own
+ * severity: the same `outcomeTone` the result banner uses, which keeps the
+ * two from ever disagreeing.
+ *
+ * `Incomplete` rather than `Partial` because it is the word the banner
+ * underneath already uses, and rather than `Failed` because five files did
+ * land and the receipt names them -- calling that a failure would overstate
+ * it in the opposite direction. `Failed` is kept for the run where nothing
+ * landed at all, which is what `outcomeTone` calls `danger`.
+ *
+ * `accent` before an apply: the stage is then a *pending* one, and a pending
+ * stage is drawn from its position in the rail, not from an outcome it does
+ * not have yet.
+ */
+export interface ApplyStageMark {
+  readonly label: string;
+  readonly tone: 'accent' | 'warn' | 'danger';
+}
+
+export function applyStageMark(outcome: OrganizeOutcomeSummary | null): ApplyStageMark {
+  if (outcome === null) return { label: 'Done', tone: 'accent' };
+  switch (outcomeTone(outcome)) {
+    case 'ok':
+      return { label: 'Done', tone: 'accent' };
+    case 'warn':
+      return { label: 'Incomplete', tone: 'warn' };
+    case 'danger':
+      return { label: 'Failed', tone: 'danger' };
+  }
+}
+
+/**
+ * Which of the screen's actions is the next one, derived from the rail's
+ * stage so the lit button and the lit stage cannot disagree. See
+ * `ingestPrimary` for why only one action wears the filled accent.
+ *
+ * A satisfied action keeps its outline variant and stays pressable: a
+ * preview never touches the filesystem, so re-previewing after changing the
+ * profile or the mode is exactly what an operator should do.
+ */
+export type OrganizeAction = 'preview' | 'apply';
+
+export function organizePrimary(stage: OrganizeStage): OrganizeAction {
+  switch (stage) {
+    case 'source':
+    case 'preview':
+      return 'preview';
+    case 'ready':
+    case 'running':
+    case 'done':
+      return 'apply';
+  }
+}
+
 export function profileLabel(profile: OrganizationProfile): string {
   return `${profile.name} v${profile.version}`;
 }

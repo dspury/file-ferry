@@ -383,7 +383,7 @@ schemas are versioned and covered by fixture tests.
 | Surface | Required content and actions |
 | --- | --- |
 | Onboarding / Doctor | Storage roots, FFmpeg/ffprobe, Resolve status, permissions, safety policy, data location. |
-| Home | Active jobs, connected sources, unsafe cards, missing/unverified replicas, failed work, proxy readiness. |
+| Home | Active jobs, connected sources, unsafe cards, missing/unverified replicas, failed work, proxy readiness. **Partly unimplemented:** unsafe cards, unverified replicas and proxy readiness need a sidecar-computed aggregate — `replica.list` and `derivatives.list` are per-asset, and there is no `intake.list` at all, so the renderer cannot derive them without one call per asset. Their tiles were removed in #94 rather than left reading a hard-coded `0`, since `0` on a safety tile is an assertion an operator could act on. Restore them with the aggregate. |
 | Projects | Project list, storage-policy health, assets, clip groups, replicas, derivatives, receipt history. |
 | Ingest | Source inventory, project/destination selection, capacity, copy policy, reviewable plan, live execution. |
 | Organize | Existing-media source selection, profile picker/editor, tree preview, collision decisions, job handoff. |

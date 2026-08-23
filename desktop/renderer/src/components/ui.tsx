@@ -411,6 +411,18 @@ export interface StepDef {
 }
 
 /**
+ * The severity the *current* stage is reporting.
+ *
+ * `accent` is the resting case: the stage is simply where the flow has got
+ * to. The other two exist for a terminal stage that has an outcome, because
+ * "you have arrived at the last stage" and "the last stage went well" are
+ * two different claims and the rail was making the second one for free. A
+ * toned stage always changes its *label* too (`DONE` -> `INCOMPLETE`), so
+ * the severity never rests on the plate colour alone.
+ */
+export type StepTone = 'accent' | 'warn' | 'danger';
+
+/**
  * Progress through a plan -> review -> execute -> verify sequence.
  *
  * Ingest and Organize both gate later stages on earlier ones, and before
@@ -428,10 +440,12 @@ export function Steps({
   label,
   steps,
   activeId,
+  activeTone = 'accent',
 }: {
   label: string;
   steps: readonly StepDef[];
   activeId: string;
+  activeTone?: StepTone | undefined;
 }): JSX.Element {
   const activeIndex = steps.findIndex((s) => s.id === activeId);
   const gateIndex = steps.findIndex((s) => s.writes === true);
@@ -440,7 +454,8 @@ export function Steps({
       {steps.map((step, index) => {
         const done = activeIndex > index;
         const active = activeIndex === index;
-        const state = done ? ' step--done' : active ? ' step--active' : '';
+        const tone = active && activeTone !== 'accent' ? ` step--active-${activeTone}` : '';
+        const state = done ? ' step--done' : active ? ` step--active${tone}` : '';
         // Only the first writing stage carries the marker: it is a boundary,
         // not a property each later stage repeats.
         const gate = index === gateIndex && gateIndex > 0;

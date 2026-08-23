@@ -121,7 +121,11 @@ export function Panel({
       {hasHeader ? (
         <div className="card__header">
           <div>
-            {title === undefined ? null : <h3 className="card__title">{title}</h3>}
+            {/* h2, not h3: the header's screen name is the only h1, so a
+                panel is the second level of the outline. Every screen used
+                to jump h1 -> h3, leaving assistive tech a document with a
+                missing rank. All the styling is on the class. */}
+            {title === undefined ? null : <h2 className="card__title">{title}</h2>}
             {description === undefined ? null : <p className="card__desc">{description}</p>}
           </div>
           {actions === undefined ? null : <div className="card__actions">{actions}</div>}

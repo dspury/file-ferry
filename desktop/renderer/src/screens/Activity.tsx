@@ -38,6 +38,7 @@ import {
   canResume,
   canRetry,
   canShowReceipt,
+  jobRowLabel,
   searchJobs,
   type JobFilter,
 } from '../lib/activity.js';
@@ -267,7 +268,7 @@ function ActivityRow({
         <td>
           <Progress
             percent={progressPercent(liveProgress(job, snapshot))}
-            label={`Progress for ${job.command}`}
+            label={jobRowLabel('Progress for', job)}
             status={jobMeterStatus(job.state)}
           />
           {/* A percentage alone does not say whether a slow job is moving or
@@ -287,22 +288,42 @@ function ActivityRow({
               controls: Apply (move) and the typed move confirmation.
             */}
             {canCancel(job) ? (
-              <button type="button" className="btn btn--sm" onClick={onCancel}>
+              <button
+                type="button"
+                className="btn btn--sm"
+                onClick={onCancel}
+                aria-label={jobRowLabel('Cancel', job)}
+              >
                 Cancel
               </button>
             ) : null}
             {canResume(job) ? (
-              <button type="button" className="btn btn--sm" onClick={onResume}>
+              <button
+                type="button"
+                className="btn btn--sm"
+                onClick={onResume}
+                aria-label={jobRowLabel('Resume', job)}
+              >
                 Resume
               </button>
             ) : null}
             {canRetry(job) ? (
-              <button type="button" className="btn btn--sm" onClick={onRetry}>
+              <button
+                type="button"
+                className="btn btn--sm"
+                onClick={onRetry}
+                aria-label={jobRowLabel('Retry', job)}
+              >
                 Retry
               </button>
             ) : null}
             {canShowReceipt(job) ? (
-              <button type="button" className="btn btn--sm" onClick={onReceipt}>
+              <button
+                type="button"
+                className="btn btn--sm"
+                onClick={onReceipt}
+                aria-label={jobRowLabel('Receipt', job)}
+              >
                 Receipt
               </button>
             ) : null}

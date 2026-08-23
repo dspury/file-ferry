@@ -13,13 +13,21 @@
 import { cloneElement, isValidElement, useId, type ReactElement, type ReactNode } from 'react';
 import { IconAlert, IconCheck, IconInbox, IconInfo } from './icons.js';
 
-export type Tone = 'neutral' | 'ok' | 'warn' | 'danger' | 'attention';
+/**
+ * The six operational states an offload, proxy run, or replica can be in,
+ * plus `attention` for "a human has to look at this". `active` and
+ * `cancelled` exist so a running job and a job an operator stopped are not
+ * both forced through `neutral`; their token treatments live in styles.css.
+ */
+export type Tone = 'neutral' | 'active' | 'ok' | 'warn' | 'danger' | 'cancelled' | 'attention';
 
 const CHIP_CLASS = {
   neutral: 'chip',
+  active: 'chip chip--active',
   ok: 'chip chip--ok',
   warn: 'chip chip--warn',
   danger: 'chip chip--danger',
+  cancelled: 'chip chip--cancelled',
   attention: 'chip chip--attention',
   // `satisfies` checks every Tone is covered without widening the values
   // back to `string`, so the exact class strings stay visible to callers.

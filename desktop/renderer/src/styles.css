@@ -6,41 +6,133 @@
  * bad light. Every value below comes from a token — screens should not
  * hand-roll colours, spacing, or type sizes.
  *
+ * The palette is derived from CinePrompt's "rental house" system so the two
+ * apps read as siblings: warm matte camera-body blacks, bone-white spec
+ * text, restrained borders, and a focus-ring orange for everything
+ * interactive. The token *names* are file-ferry's own — they are consumed
+ * throughout this sheet and by every screen — so only their values moved.
+ *
  * Safety-critical states (plan §8.2) get explicit, high-contrast
  * semantics: success/unsafe/attention are never communicated by colour
  * alone — each carries a label and an icon/text marker as well.
  */
 
 :root {
-  /* --- surfaces, back to front --- */
-  --c-rail: #0b0d11;
-  --c-bg: #101319;
-  --c-surface: #171b22;
-  --c-surface-2: #1e232c;
-  --c-surface-3: #262c37;
+  /* --- surfaces, back to front.
+     CinePrompt's coal / panel / plate / plate-hover family, plus a darker
+     rail behind them for the nav. The relative lightness steps of the old
+     cool-grey palette are preserved in order and roughly in size, so every
+     depth relationship this sheet already relied on still reads. --- */
+  --c-rail: #0d0a08;
+  --c-bg: #14100e; /* coal */
+  --c-surface: #1b1714; /* panel */
+  --c-surface-2: #231e1a; /* plate */
+  --c-surface-3: #2b2420; /* plate-hover */
 
   /* --- lines --- */
-  --c-border: #262c36;
-  --c-border-strong: #38404e;
+  --c-border: #322b25; /* line */
+  --c-border-strong: #443b32; /* tick */
 
-  /* --- text --- */
-  --c-text: #e8eaef;
-  --c-text-dim: #98a1af;
-  --c-text-faint: #6a7382;
+  /* --- text.
+     bone / tape straight from CinePrompt. The faintest tier is deliberately
+     lifted well above CinePrompt's `--dim` (#6e6659, only 3.4:1 on coal),
+     because in this app it is not decoration: it carries the stat-tile
+     labels, every table column header, the nav group headings, and the
+     plan/review/execute/verify stage labels. None of those are WCAG "large
+     text" (that needs 24px, or 18.66px bold), so all of them need the full
+     4.5:1 — which this value clears on `--c-bg` (5.21:1), `--c-surface`
+     (4.91:1) and `--c-surface-2` (4.55:1), the three surfaces that host it.
+     It is the *minimum* lift that does so: going lighter would only erode
+     the gap to `--c-text-dim` for margin the spec does not ask for. That
+     gap is 1.25x in luminance, which is tight, but the three tiers are also
+     separated by weight (600 vs 400), casing, and tracking — lightness is
+     not carrying the hierarchy alone. --- */
+  --c-text: #efe7d8; /* bone */
+  --c-text-dim: #9e9384; /* tape */
+  --c-text-faint: #8f8576;
 
   /* --- accent + semantics.
-     Each semantic colour has a `-soft` fill so a chip or banner can be
-     tinted without the text losing contrast against it. --- */
-  --c-accent: #4c8dff;
-  --c-accent-soft: rgba(76, 141, 255, 0.14);
-  --c-ok: #3fc48d;
-  --c-ok-soft: rgba(63, 196, 141, 0.13);
-  --c-warn: #e3a83c;
-  --c-warn-soft: rgba(227, 168, 60, 0.13);
-  --c-danger: #f2665f;
-  --c-danger-soft: rgba(242, 102, 95, 0.13);
-  --c-attention: #b98cf5;
-  --c-attention-soft: rgba(185, 140, 245, 0.13);
+     Three of these are warm, and two of them are safety-critical, so they
+     are separated on purpose rather than by luck. Measured against the
+     interaction accent: warning sits +28.3° of hue at 1.63x its relative
+     luminance, danger sits -23.7° of hue at 0.76x its relative luminance.
+     So danger is cooler *and* darker than the accent, warning is yellower
+     *and* brighter than both, and the three stay apart in greyscale as well
+     as in hue. Danger stops short of the rose end of that range on purpose:
+     a wider hue gap was available, but past about 350° the colour reads as
+     pink and a "Format card" button that does not read as red is its own
+     safety problem. Colour is only ever the second signal regardless —
+     every state also carries a word.
+
+     Each semantic colour has a `-soft` fill and a `-line` border. The fill
+     is an opaque, hue-tinted plate sitting just above `--c-bg` rather than
+     a translucent wash over whatever is behind it. That is CinePrompt's
+     recessed-chip idiom, and it is what lets the foreground stay a deep
+     crimson while still clearing 4.5:1 against its own fill on every
+     surface a chip, banner, or button can land on.
+
+     The `-line` alphas differ per hue on purpose. They are tuned for equal
+     *visual weight*, not equal opacity: each one lands between 3.1:1 and
+     3.6:1 against every surface a chip or banner sits on, so no state's
+     hairline is louder or fainter than the others. --- */
+  --c-accent: #ff6a2c; /* focus-ring orange */
+  --c-accent-hover: #ff7d47;
+  --c-accent-soft: #1e140d;
+  --c-accent-line: rgba(255, 106, 44, 0.65);
+  /* Foreground for anything filled with the accent. Warm near-black, not
+     the cool near-black the old blue accent used. */
+  --c-on-accent: #1a0d05;
+
+  --c-ok: #35a96c; /* fuji green */
+  --c-ok-soft: #0c1911;
+  --c-ok-line: rgba(53, 169, 108, 0.65);
+
+  --c-warn: #e7b923; /* pushed toward kodak yellow, away from the accent */
+  --c-warn-soft: #1b160a;
+  --c-warn-line: rgba(231, 185, 35, 0.5);
+
+  --c-danger: #f0495a; /* pushed cooler and deeper, away from the accent */
+  --c-danger-soft: #241013;
+  --c-danger-line: rgba(240, 73, 90, 0.78);
+
+  /* "Needs review" stays off the warm axis entirely: a dusty orchid is the
+     one hue no colour-vision deficiency can collapse into orange, amber, or
+     crimson. */
+  --c-attention: #c391e0;
+  --c-attention-soft: #1a1322;
+  --c-attention-line: rgba(195, 145, 224, 0.6);
+
+  /* Cancelled work was stopped by an operator, not by a failure, so it must
+     not borrow danger's red — and it must not read as plain neutral either.
+     A near-colourless cool grey is the only tone in this palette that says
+     "inert" without claiming a severity. */
+  --c-cancelled: #8d94a0;
+  --c-cancelled-soft: #141519;
+  --c-cancelled-line: rgba(141, 148, 160, 0.65);
+
+  /* The plate under a chip that is carrying no signal at all. */
+  --c-neutral-soft: #191512;
+
+  --c-scrim: rgba(10, 7, 5, 0.66);
+
+  /* --- operational states.
+     The six states a file-ferry operation can be in, named the way the UI
+     names them rather than by hue. This is the layer screens and shared
+     primitives should reach for; the raw semantics above are the palette
+     it is built from. Every state has a foreground and a fill, and every
+     state is also spelled out in words wherever it is rendered. --- */
+  --state-neutral: var(--c-text-dim);
+  --state-neutral-soft: var(--c-neutral-soft);
+  --state-active: var(--c-accent);
+  --state-active-soft: var(--c-accent-soft);
+  --state-success: var(--c-ok);
+  --state-success-soft: var(--c-ok-soft);
+  --state-warning: var(--c-warn);
+  --state-warning-soft: var(--c-warn-soft);
+  --state-failure: var(--c-danger);
+  --state-failure-soft: var(--c-danger-soft);
+  --state-cancelled: var(--c-cancelled);
+  --state-cancelled-soft: var(--c-cancelled-soft);
 
   /* --- spacing scale --- */
   --sp-1: 4px;
@@ -52,7 +144,11 @@
   --sp-7: 32px;
   --sp-8: 44px;
 
-  /* --- type scale --- */
+  /* --- type scale.
+     `--fs-2xs` is CinePrompt's 9-10px engraved-label tier; nothing in this
+     sheet needs it yet, but it exists so the shared primitives do not
+     hand-roll it. --- */
+  --fs-2xs: 10px;
   --fs-xs: 11px;
   --fs-sm: 12px;
   --fs-md: 13px;
@@ -60,13 +156,26 @@
   --fs-xl: 19px;
   --fs-2xl: 26px;
 
-  --ff-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Inter, system-ui, sans-serif;
-  --ff-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  /* --- tracking. CinePrompt letterspaces uppercase labels hard; `--tr-wide`
+     is the mono-eyebrow step, reserved for the shared primitives. --- */
+  --tr-label: 0.07em;
+  --tr-wide: 0.14em;
+
+  /* --- families.
+     Both faces are bundled with the app (imported in renderer/src/main.tsx)
+     rather than fetched: the packaged renderer runs offline behind
+     `font-src 'self'`, so a CDN link would simply fail. The rest of each
+     stack is the graceful degradation if a face ever fails to load. --- */
+  --ff-sans:
+    'Archivo Variable', Archivo, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Inter,
+    system-ui, sans-serif;
+  --ff-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
 
   /* --- shape --- */
   --radius-sm: 5px;
   --radius: 8px;
   --radius-lg: 12px;
+  --radius-pill: 999px;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
 
@@ -181,7 +290,7 @@ code,
 .nav__group-label {
   font-size: var(--fs-xs);
   font-weight: 600;
-  letter-spacing: 0.07em;
+  letter-spacing: var(--tr-label);
   text-transform: uppercase;
   color: var(--c-text-faint);
   padding: 0 var(--sp-2) var(--sp-2);
@@ -415,6 +524,9 @@ code,
   border-left: 3px solid var(--c-border-strong);
 }
 
+.stat--active {
+  border-left-color: var(--c-accent);
+}
 .stat--ok {
   border-left-color: var(--c-ok);
 }
@@ -423,6 +535,9 @@ code,
 }
 .stat--danger {
   border-left-color: var(--c-danger);
+}
+.stat--cancelled {
+  border-left-color: var(--c-cancelled);
 }
 .stat--attention {
   border-left-color: var(--c-attention);
@@ -434,7 +549,7 @@ code,
   min-height: calc(2 * 1.5 * var(--fs-xs));
   font-size: var(--fs-xs);
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--tr-label);
   text-transform: uppercase;
   color: var(--c-text-faint);
 }
@@ -446,6 +561,9 @@ code,
   letter-spacing: -0.02em;
 }
 
+.stat--active .stat__value {
+  color: var(--c-accent);
+}
 .stat--ok .stat__value {
   color: var(--c-ok);
 }
@@ -454,6 +572,9 @@ code,
 }
 .stat--danger .stat__value {
   color: var(--c-danger);
+}
+.stat--cancelled .stat__value {
+  color: var(--c-cancelled);
 }
 .stat--attention .stat__value {
   color: var(--c-attention);
@@ -475,7 +596,7 @@ code,
   font-size: var(--fs-sm);
   font-weight: 550;
   border: 1px solid var(--c-border-strong);
-  background: var(--c-surface-2);
+  background: var(--c-neutral-soft);
   color: var(--c-text-dim);
   white-space: nowrap;
 }
@@ -490,27 +611,49 @@ code,
   flex: none;
 }
 
+/*
+ * The six operational states. A tone chip is a recessed hue-tinted plate
+ * with a hue border, so its outline survives on any surface -- the old
+ * transparent border left the chip's shape to the fill alone. The tone is
+ * still never the only signal: the chip always spells the state out, and
+ * `.chip__dot` gives it a non-colour marker.
+ */
+.chip--active {
+  color: var(--c-accent);
+  border-color: var(--c-accent-line);
+  background: var(--c-accent-soft);
+}
+
 .chip--ok {
   color: var(--c-ok);
-  border-color: transparent;
+  border-color: var(--c-ok-line);
   background: var(--c-ok-soft);
 }
 
 .chip--warn {
   color: var(--c-warn);
-  border-color: transparent;
+  border-color: var(--c-warn-line);
   background: var(--c-warn-soft);
 }
 
 .chip--danger {
   color: var(--c-danger);
-  border-color: transparent;
+  border-color: var(--c-danger-line);
   background: var(--c-danger-soft);
+}
+
+/* Cancelled is inert, not severe: the dashed edge says "this run stopped"
+   without borrowing danger's weight. */
+.chip--cancelled {
+  color: var(--c-cancelled);
+  border-color: var(--c-cancelled-line);
+  border-style: dashed;
+  background: var(--c-cancelled-soft);
 }
 
 .chip--attention {
   color: var(--c-attention);
-  border-color: transparent;
+  border-color: var(--c-attention-line);
   background: var(--c-attention-soft);
 }
 
@@ -547,13 +690,13 @@ code,
 .btn--primary {
   background: var(--c-accent);
   border-color: var(--c-accent);
-  color: #08101f;
+  color: var(--c-on-accent);
   font-weight: 600;
 }
 
 .btn--primary:hover:not(:disabled) {
-  background: #629bff;
-  border-color: #629bff;
+  background: var(--c-accent-hover);
+  border-color: var(--c-accent-hover);
 }
 
 .btn--danger {
@@ -657,7 +800,7 @@ code,
   color: var(--c-text-faint);
   font-weight: 600;
   font-size: var(--fs-xs);
-  letter-spacing: 0.06em;
+  letter-spacing: var(--tr-label);
   text-transform: uppercase;
   padding: var(--sp-2) var(--sp-4);
   background: var(--c-surface);
@@ -892,19 +1035,19 @@ textarea:focus-visible {
 }
 
 .banner--danger {
-  border-color: rgba(242, 102, 95, 0.45);
+  border-color: var(--c-danger-line);
   background: var(--c-danger-soft);
   color: var(--c-danger);
 }
 
 .banner--warn {
-  border-color: rgba(227, 168, 60, 0.45);
+  border-color: var(--c-warn-line);
   background: var(--c-warn-soft);
   color: var(--c-warn);
 }
 
 .banner--ok {
-  border-color: rgba(63, 196, 141, 0.45);
+  border-color: var(--c-ok-line);
   background: var(--c-ok-soft);
   color: var(--c-ok);
 }
@@ -995,7 +1138,7 @@ textarea:focus-visible {
 .step--active .step__index {
   background: var(--c-accent);
   border-color: var(--c-accent);
-  color: #08101f;
+  color: var(--c-on-accent);
 }
 
 .step--done {
@@ -1023,14 +1166,14 @@ textarea:focus-visible {
   max-width: 160px;
   height: 6px;
   background: var(--c-surface-3);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   overflow: hidden;
 }
 
 .progress__fill {
   height: 100%;
   background: var(--c-accent);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 .progress--ok .progress__fill {
@@ -1106,7 +1249,7 @@ textarea:focus-visible {
   position: fixed;
   inset: 0;
   z-index: 50;
-  background: rgba(4, 6, 10, 0.62);
+  background: var(--c-scrim);
   display: grid;
   place-items: center;
   padding: var(--sp-6);
@@ -1188,7 +1331,7 @@ textarea:focus-visible {
   top: 0;
   z-index: 100;
   background: var(--c-accent);
-  color: #08101f;
+  color: var(--c-on-accent);
   padding: var(--sp-2) var(--sp-3);
   border-radius: 0 0 var(--radius) 0;
 }

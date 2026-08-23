@@ -19,6 +19,7 @@ import {
   IconProjects,
   IconSettings,
 } from './components/icons.js';
+import { StatusReadout } from './components/ui.js';
 import { Onboarding } from './screens/Onboarding.js';
 import { Home } from './screens/Home.js';
 import { Projects } from './screens/Projects.js';
@@ -256,10 +257,9 @@ export function App(): JSX.Element {
             the operator has to know about, and the rail is the one place
             on screen that never scrolls out of view.
           */}
-          <span className={`status status--${status.tone}`} role="status">
-            <span className="status__dot" aria-hidden="true" />
+          <StatusReadout tone={status.tone} live>
             {status.text}
-          </span>
+          </StatusReadout>
         </div>
       </header>
 

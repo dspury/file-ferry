@@ -58,6 +58,42 @@ export function Chip({
   );
 }
 
+/** The three things a passive readout can be reporting. */
+export type StatusTone = 'ok' | 'danger' | 'neutral';
+
+/**
+ * A passive hardware readout: a small tone dot and faint mono text on a
+ * recessed plate.
+ *
+ * This is deliberately *not* a `Chip`. A chip is a state pill sized and
+ * coloured for a state a row is in, and the accent tier of it (`active`) is
+ * reserved for live work and pressable things. A readout reports a
+ * condition of the app itself — the sidecar is up, the event subscription
+ * is open — which is neither. It says the same thing more quietly, and the
+ * dot is the only coloured pixel in it.
+ *
+ * `live` opts into `role="status"`. It is off by default: a readout whose
+ * text changes as a count ticks would announce itself on every change,
+ * which is chatter rather than news. Only the connection indicator — where
+ * the transition genuinely has to interrupt — asks for it.
+ */
+export function StatusReadout({
+  tone = 'neutral',
+  live = false,
+  children,
+}: {
+  tone?: StatusTone | undefined;
+  live?: boolean | undefined;
+  children: ReactNode;
+}): JSX.Element {
+  return (
+    <span className={`status status--${tone}`} role={live ? 'status' : undefined}>
+      <span className="status__dot" aria-hidden="true" />
+      {children}
+    </span>
+  );
+}
+
 /**
  * A titled section.
  *
@@ -97,6 +133,23 @@ export function Panel({
 }
 
 /**
+ * How much ceremony an empty well is allowed.
+ *
+ * `full` is the default: framed glyph, a 15px title, a hint with room to
+ * wrap. `compact` drops the glyph and steps the type and padding down.
+ *
+ * It exists because a screen can be *nothing but* empty states — a
+ * first-run Dashboard is two of them, Media's asset detail is three — and
+ * at that point the ceremony is what pushes the one actionable thing off
+ * the fold. The rule is one full well per screen: whichever panel owns the
+ * action an operator would take next earns the frame, and every other well
+ * on that screen states its condition compactly. That keeps the emphasis
+ * where the next move is instead of spending it evenly on panels that have
+ * nothing to offer.
+ */
+export type EmptyDensity = 'full' | 'compact';
+
+/**
  * Nothing-here state.
  *
  * An empty list is a moment where the operator most needs telling what to
@@ -107,19 +160,26 @@ export function EmptyState({
   message,
   hint,
   action,
+  density = 'full',
 }: {
   message: string;
   hint?: string | undefined;
   action?: ReactNode | undefined;
+  density?: EmptyDensity | undefined;
 }): JSX.Element {
   return (
-    <div className="empty">
+    <div className={density === 'compact' ? 'empty empty--compact' : 'empty'}>
       {/* The glyph is framed rather than floating: an empty panel is a
           place something goes, and the plate plus the dashed well around
-          it say so before the sentence is read. */}
-      <span className="empty__frame" aria-hidden="true">
-        <IconInbox />
-      </span>
+          it say so before the sentence is read. Dropped entirely in the
+          compact density rather than shrunk — a 28px plate reads as a
+          smaller version of the same ornament, and the point of compact is
+          that this well is not the one asking to be looked at. */}
+      {density === 'compact' ? null : (
+        <span className="empty__frame" aria-hidden="true">
+          <IconInbox />
+        </span>
+      )}
       <p className="empty__title">{message}</p>
       {hint === undefined ? null : <p className="empty__hint">{hint}</p>}
       {action === undefined ? null : <div className="empty__actions">{action}</div>}

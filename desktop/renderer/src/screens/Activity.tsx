@@ -18,6 +18,7 @@ import {
   ScreenError,
   ScreenLoading,
   SegmentedControl,
+  StatusReadout,
 } from '../components/ui.js';
 import {
   jobErrorTone,
@@ -112,9 +113,18 @@ export function Activity(): JSX.Element {
         actions={
           <>
             {stream.subscribed > 0 ? (
-              /* `active`, not `ok`: this reports that a subscription is
-                 open, which is work in flight, not work that succeeded. */
-              <Chip tone="active">Live · {stream.subscribed} watched</Chip>
+              /*
+                A readout, not an accent chip. This is a passive fact about
+                the app -- the event subscription is open and watching N
+                jobs -- and it is neither pressable nor itself live work.
+                As `Chip tone="active"` it sat at the top of the busiest
+                screen in the accent, competing with the row chips and
+                progress fills below it that *are* live work. The dot
+                carries the same "up" signal the header's sidecar
+                indicator does, in the same treatment, without spending
+                the accent on it.
+              */
+              <StatusReadout tone="ok">Live · {stream.subscribed} watched</StatusReadout>
             ) : null}
             {/*
               A search input needs no visible label here: it sits in a

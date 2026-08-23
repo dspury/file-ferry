@@ -126,6 +126,18 @@ const NAV_GROUPS: readonly NavGroup[] = [
 
 const VIEWS = flattenViews(NAV_GROUPS);
 
+/**
+ * Which rail group each view sits in, for the header's kicker.
+ *
+ * Presentational only: the header states the whole location — TRANSFER /
+ * Offload — rather than just the leaf, which is what a screen title on its
+ * own leaves ambiguous once there are eight of them. The nav already
+ * announces the grouping via `role="group"`, so the kicker is aria-hidden.
+ */
+const GROUP_OF = new Map<string, string>(
+  NAV_GROUPS.flatMap((group) => group.views.map((view) => [view.id, group.label] as const)),
+);
+
 interface ShellStatus {
   readonly tone: 'ok' | 'danger' | 'neutral';
   readonly text: string;
@@ -207,7 +219,12 @@ export function App(): JSX.Element {
       </nav>
 
       <header className="header">
-        <h1 className="header__title">{active.label}</h1>
+        <div className="header__lede">
+          <span className="header__kicker" aria-hidden="true">
+            {GROUP_OF.get(active.id) ?? ''}
+          </span>
+          <h1 className="header__title">{active.label}</h1>
+        </div>
         <p className="header__subtitle">{active.description}</p>
         <div className="header__actions">
           {/*

@@ -109,7 +109,12 @@ export function EmptyState({
 }): JSX.Element {
   return (
     <div className="empty">
-      <IconInbox className="empty__icon" />
+      {/* The glyph is framed rather than floating: an empty panel is a
+          place something goes, and the plate plus the dashed well around
+          it say so before the sentence is read. */}
+      <span className="empty__frame" aria-hidden="true">
+        <IconInbox />
+      </span>
       <p className="empty__title">{message}</p>
       {hint === undefined ? null : <p className="empty__hint">{hint}</p>}
       {action === undefined ? null : <div className="empty__actions">{action}</div>}
@@ -120,10 +125,14 @@ export function EmptyState({
 /**
  * Busy state. `aria-busy` plus a polite live region means the wait is
  * announced instead of the screen just going quiet.
+ *
+ * It shares `EmptyState`'s centring but not its dashed well: "put something
+ * here" is the wrong instruction while the app is fetching something it
+ * already has. #88 owns what a wait says per screen; this is the container.
  */
 export function LoadingState({ message = 'Loading…' }: { message?: string }): JSX.Element {
   return (
-    <div className="empty" aria-busy="true" aria-live="polite">
+    <div className="empty empty--busy" aria-busy="true" aria-live="polite">
       <p className="muted">{message}</p>
     </div>
   );

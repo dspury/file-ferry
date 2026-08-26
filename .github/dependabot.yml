@@ -1,0 +1,30 @@
+# Dependabot keeps the three dependency ecosystems this repo actually
+# ships behind updated: the Python package (pyproject.toml at the root),
+# the Electron desktop app (desktop/package.json), and the GitHub Actions
+# workflows themselves. ffmpeg and DaVinci Resolve are runtime-detected
+# system binaries, not packages, so there is nothing to track for them.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      # Dev-only bumps (pytest, ruff, mypy, …) are safe to review as one
+      # change; runtime dependencies stay individual so a bump to a
+      # runtime dep is visible on its own.
+      dev-dependencies:
+        dependency-type: development
+
+  - package-ecosystem: npm
+    directory: /desktop
+    schedule:
+      interval: weekly
+    groups:
+      dev-dependencies:
+        dependency-type: development
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

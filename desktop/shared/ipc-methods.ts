@@ -267,6 +267,11 @@ export interface ListJobsResult {
   readonly jobs: readonly JobDetail[];
 }
 
+/** Mirrors `ListJobsParams` in `src/file_ferry/service/protocol.py`. */
+export interface ListJobsParams {
+  readonly projectId?: string;
+}
+
 export interface AuditEvent {
   readonly id: number;
   readonly occurredAt: string;
@@ -609,7 +614,7 @@ export interface MethodCatalog {
   'intake.evaluate': { params: { sessionId: string }; result: SafeToFormatEval };
   'intake.adoptSource': { params: AdoptSourceParams; result: AdoptSourceResult };
   'job.create': { params: CreateJobParams; result: JobDetail };
-  'job.list': { params: { projectId?: string }; result: ListJobsResult };
+  'job.list': { params: ListJobsParams; result: ListJobsResult };
   'job.get': { params: { id: string }; result: JobDetail };
   'job.transition': { params: JobTransitionParams; result: JobDetail };
   'job.cancel': { params: CancelJobParams; result: Record<string, never> };

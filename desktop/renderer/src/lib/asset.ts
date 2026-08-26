@@ -239,10 +239,32 @@ export function tallyNotice(tally: LifecycleTally): TallyNotice | null {
  * (`PRIVATE/M4ROOT/CLIP/C0012.MP4`), so a list keyed on the full relative
  * path is a column of near-identical prefixes. The name goes in the primary
  * column and the full path stays available beside it.
+ *
+ * Total on nullish input (#97): the wire is not validated in the renderer,
+ * so a payload the type calls `AssetSummary` can still lack the field.
+ * A throw here would blank the whole screen into the ErrorBoundary's
+ * fallback -- recoverable now, but a name the function can render is
+ * cheaper than a crash the operator has to retry past.
  */
-export function assetFileName(relativePath: string): string {
+export function assetFileName(relativePath: string | null | undefined): string {
+  if (relativePath == null) return '';
   const segments = relativePath.split('/').filter((part) => part !== '');
   return segments[segments.length - 1] ?? relativePath;
+}
+
+/**
+ * Whether a payload can be rendered by the asset detail screen (#97).
+ *
+ * The `sourceRelativePath` is the field the detail header is built from —
+ * the page title and the path cell both `.split` it — so a response that
+ * lacks it must take the not-found path rather than the render path.
+ * The Python side makes this unreachable (the handler answers a missing
+ * id with a typed error, and `AssetSummary` is a required-field model),
+ * but a deep link is only ever one sidecar change away from a partial
+ * payload, and the cost of checking is one comparison.
+ */
+export function isCompleteAsset(value: AssetSummary | null): value is AssetSummary {
+  return value !== null && typeof value.sourceRelativePath === 'string';
 }
 
 /** Case-insensitive search over the path, media kind, and lifecycle state. */

@@ -12,7 +12,12 @@ import {
   snapshotProgress,
   streamableJobIds,
 } from '../renderer/src/lib/activity.js';
-import { assetFileName, searchAssets, sortAssets } from '../renderer/src/lib/asset.js';
+import {
+  assetFileName,
+  isCompleteAsset,
+  searchAssets,
+  sortAssets,
+} from '../renderer/src/lib/asset.js';
 import { jobUpdatedFrame } from '../shared/replay.js';
 import type { AssetSummary, JobDetail, JobSnapshot } from '../shared/ipc-methods.js';
 
@@ -256,6 +261,32 @@ describe('assetFileName', () => {
   it('falls back to the input when there is nothing to take', () => {
     expect(assetFileName('')).toBe('');
     expect(assetFileName('/')).toBe('/');
+  });
+
+  it('is total: nullish input returns an empty name instead of throwing (#97)', () => {
+    // A payload lacking sourceRelativePath used to reach the .split and
+    // unmount the renderer tree; the name is rendered, never computed on.
+    expect(assetFileName(null)).toBe('');
+    expect(assetFileName(undefined)).toBe('');
+  });
+});
+
+describe('isCompleteAsset', () => {
+  it('accepts a payload that carries the fields the detail screen renders', () => {
+    expect(isCompleteAsset(asset())).toBe(true);
+  });
+
+  it('rejects null and a payload without sourceRelativePath (#97)', () => {
+    expect(isCompleteAsset(null)).toBe(false);
+    // The fixture minus the one field the guard exists to check. The spread
+    // keeps the payload shaped like the real thing rather than hand-built,
+    // so the test fails if the guard starts checking a different field.
+    const { sourceRelativePath: _omitted, ...partial } = asset();
+    // SAFETY: `partial` is `Omit<AssetSummary, 'sourceRelativePath'>` stood
+    // in for the unvalidated wire value a truncated payload delivers; the
+    // assertion re-adds the declared type so it can be passed where the
+    // compiled caller would have one, which is the situation under test.
+    expect(isCompleteAsset(partial as AssetSummary)).toBe(false);
   });
 });
 

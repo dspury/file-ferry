@@ -20,6 +20,7 @@ import {
   IconSettings,
 } from './components/icons.js';
 import { StatusReadout } from './components/ui.js';
+import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { Onboarding } from './screens/Onboarding.js';
 import { Home } from './screens/Home.js';
 import { Projects } from './screens/Projects.js';
@@ -265,7 +266,15 @@ export function App(): JSX.Element {
 
       <main id="content" className="content" tabIndex={-1}>
         <div className="content__inner">
-          <ActiveScreen />
+          {/*
+            The boundary is keyed by view id so each route gets a fresh one:
+            a crash held on one screen must not paint another screen's
+            fallback, and revisiting a crashed screen re-attempts the render
+            instead of replaying the cached error (#97).
+          */}
+          <ErrorBoundary key={active.id}>
+            <ActiveScreen />
+          </ErrorBoundary>
         </div>
       </main>
     </div>

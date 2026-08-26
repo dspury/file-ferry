@@ -434,6 +434,18 @@ class JobTransitionParams(FrozenModel):
     to_state: str = Field(alias="toState")
 
 
+class ListJobsParams(FrozenModel):
+    """The params for ``job.list``.
+
+    A dedicated model rather than a reuse of ``ListAssetsParams``: the two
+    happen to share a ``projectId`` filter today, but each method's params
+    are its own contract, and a future field on either (pagination, state
+    filters) would otherwise silently change what the other accepts.
+    """
+
+    project_id: str | None = Field(default=None, alias="projectId")
+
+
 class ListJobsResult(FrozenModel):
     """The result of ``job.list``."""
 
@@ -995,6 +1007,7 @@ __all__ = [
     "ListAssetsResult",
     "ListAuditParams",
     "ListAuditResult",
+    "ListJobsParams",
     "ListJobsResult",
     "ListProfilesResult",
     "ListProjectsResult",

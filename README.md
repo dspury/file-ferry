@@ -269,7 +269,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 
-pytest                # 326 tests
+pytest
 ruff check . && ruff format --check .
 mypy src
 ```

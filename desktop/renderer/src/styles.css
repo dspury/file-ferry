@@ -1717,20 +1717,32 @@ textarea:focus-visible {
  * Ingest and Organize are both plan -> review -> execute -> verify. The
  * rail makes that sequence visible so the operator knows where they are
  * and what is still gating them.
+ *
+ * The rail wraps rather than scrolls (#100). It used to be a single
+ * `nowrap` row with `overflow-x: auto` as the escape, which at >=150%
+ * zoom clipped stages 4-6 inside a scroll container that nothing in it
+ * could focus -- a sighted keyboard-only operator could see the cut-off
+ * and could not move it (WCAG 2.1.1). Wrapping costs vertical space at
+ * small widths instead: nothing is ever off-box, so there is no scroll
+ * region to make reachable in the first place. Each `.step` keeps its
+ * own `nowrap` (a stage label never breaks mid-word) and refuses to
+ * shrink, so the rail wraps at whole-stage boundaries only.
  */
 .steps {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--sp-2);
+  row-gap: var(--sp-2);
   padding: var(--sp-3) var(--sp-4);
   background: var(--c-surface);
   border: 1px solid var(--c-border);
   border-radius: var(--radius);
-  overflow-x: auto;
 }
 
 .step {
   display: flex;
+  flex: none;
   align-items: center;
   gap: var(--sp-2);
   font-family: var(--ff-mono);

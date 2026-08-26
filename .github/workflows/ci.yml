@@ -48,6 +48,52 @@ jobs:
       - name: Test with pytest
         run: pytest --cov=file_ferry --cov-report=term-missing
 
+  # macOS leg of the Python suite. The package classifies itself
+  # MacOS/POSIX and the operators who run ferry work on macOS, but CI only
+  # ever proved the suite on Linux — and the codebase has real
+  # platform-specific surface (drive detection shells out to `mount` vs
+  # `diskutil`-adjacent paths, volume enumeration, path handling).
+  #
+  # Kept as its own job rather than an `os:` entry in the matrix above so
+  # the existing check names — which branch protection on `main` requires
+  # — stay stable. Add the three names this job produces to the required
+  # contexts after this lands.
+  test-macos:
+    name: test (macos, py${{ matrix.python-version }})
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12', '3.13']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          cache-dependency-path: pyproject.toml
+
+      # The macOS runner images already carry ffmpeg for some versions of
+      # the image; brew is a fast no-op when they do.
+      - name: Install ffmpeg
+        run: |
+          brew install ffmpeg
+          ffmpeg -version | head -1
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      # ruff and mypy are OS-independent and already gate every Linux leg;
+      # repeating them here only adds minutes. The suite itself — the part
+      # that can behave differently on darwin — is what runs.
+      - name: Test with pytest
+        run: pytest --cov=file_ferry --cov-report=term-missing
+
   desktop:
     name: desktop (node${{ matrix.node-version }})
     runs-on: ubuntu-latest

@@ -53,6 +53,7 @@ from file_ferry.service.protocol import (
     ListAssetsResult,
     ListAuditParams,
     ListAuditResult,
+    ListJobsParams,
     ListJobsResult,
     ListProfilesResult,
     ListProjectsResult,
@@ -240,7 +241,7 @@ def _build_handlers(service: ApplicationService) -> dict[str, Handler]:
         return service.job_create(p)
 
     def job_list(params: dict[str, Any]) -> ListJobsResult:
-        p = _validate(ListAssetsParams, params)
+        p = _validate(ListJobsParams, params)
         return ListJobsResult(jobs=service.job_list(p.project_id))
 
     def job_get(params: dict[str, Any]) -> JobDetail:

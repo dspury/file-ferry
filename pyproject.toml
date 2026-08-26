@@ -93,6 +93,14 @@ ignore = ["E501"]
 testpaths = ["tests"]
 addopts = "-ra -q --strict-markers"
 pythonpath = ["src"]
+filterwarnings = [
+    # PR #46 fixed #41 by wrapping `created_at` in `_iso()`; PR #54's rewrite
+    # silently reverted it, and the resulting DeprecationWarning fired in the
+    # suite for weeks without failing anything. A raw `datetime` passed to
+    # sqlite3 stops working entirely on a future Python (3.12 deprecates the
+    # default adapter), so make the warning an error to catch regressions.
+    "error:The default datetime adapter is deprecated:DeprecationWarning",
+]
 
 [tool.mypy]
 python_version = "3.11"

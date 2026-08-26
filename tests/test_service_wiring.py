@@ -228,6 +228,30 @@ class TestPackage7Methods:
         finally:
             svc.close()
 
+    def test_job_list_validates_params_against_its_own_model(self, tmp_path: Path) -> None:
+        """``job.list`` must reject junk a ``ListJobsParams`` cannot express.
+
+        The handler previously validated against ``ListAssetsParams`` -- a
+        borrow that worked only while both models held a ``projectId``. A
+        non-string ``projectId`` (or any field ``ListJobsParams`` forbids,
+        thanks to ``extra="forbid"``) must surface as ``invalid_params``.
+        """
+        svc = _service(tmp_path)
+        try:
+            for bad in ({"projectId": 123}, {"stateFilter": "running"}):
+                resp = _parse(_serve(svc, _request("job.list", bad)))
+                assert resp["kind"] == "error", bad
+                assert resp["error"]["code"] == "invalid_params", bad
+
+            # A well-formed filter that matches nothing is a success with an
+            # empty list (a filter, not a lookup), but it proves the params
+            # passed validation rather than tripping it.
+            ok = _parse(_serve(svc, _request("job.list", {"projectId": "no-such-project"})))
+            assert ok["kind"] == "response"
+            assert ok["result"]["jobs"] == []
+        finally:
+            svc.close()
+
     def test_receipt_get_missing_is_error(self, tmp_path: Path) -> None:
         svc = _service(tmp_path)
         try:

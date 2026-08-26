@@ -27,6 +27,7 @@ import {
   assetFileName,
   assetOverview,
   availabilityNote,
+  isCompleteAsset,
   lifecycleTally,
   lifecycleTone,
   proxyReadiness,
@@ -262,7 +263,14 @@ function AssetView({
     );
   }
   const a = asset.data;
-  if (a === null) {
+  /*
+    A payload that cannot be rendered takes the not-found path (#97): the
+    detail header `.split`s `sourceRelativePath`, and a response the type
+    calls an AssetSummary but the wire under-filled would otherwise throw
+    during render. Guarding here keeps the failure local and readable;
+    the ErrorBoundary above the screen is the backstop, not the plan.
+  */
+  if (!isCompleteAsset(a)) {
     return (
       <div className="page">
         <Panel actions={back}>

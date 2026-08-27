@@ -18,6 +18,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
+from file_ferry.application.audit import record_event
 from file_ferry.application.policies import StoragePolicy
 from file_ferry.persistence.connection import transaction
 from file_ferry.persistence.repositories import replicas as replica_repo
@@ -141,6 +142,24 @@ class ReplicaService:
                 size=_size_or_none(dest),
                 availability="present" if dest.exists() else "missing",
                 last_checked_at=now,
+            )
+            # Recorded because this is the deliberate, operator-initiated
+            # `replica.verify` -- one replica at a time. The offload
+            # engine's per-file path (`record_verified`) stays silent on
+            # purpose; see the granularity note in `application/audit.py`.
+            record_event(
+                conn,
+                "replica.verified" if verified else "replica.mismatch",
+                entity_type="replica",
+                entity_id=str(replica_id),
+                data={
+                    "asset_id": row.asset_id,
+                    "path": row.path,
+                    "algo": algo,
+                    "verified": verified,
+                    "available": dest.exists(),
+                },
+                occurred_at=now,
             )
         return VerifyReplicaResult(
             replicaId=replica_id,

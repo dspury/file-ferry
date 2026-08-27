@@ -72,7 +72,19 @@ def test_store_writes_file_and_row(tmp_path: Path) -> None:
                 export_version INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL,
                 UNIQUE(operation_id, kind)
-            )
+            );
+            -- `write` also appends to the timeline, so the fixture needs the
+            -- table the migration runner always provides in production.
+            CREATE TABLE audit_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                occurred_at TEXT NOT NULL,
+                actor TEXT,
+                event_type TEXT NOT NULL,
+                entity_type TEXT,
+                entity_id TEXT,
+                data TEXT,
+                run_id INTEGER
+            );
             """
         )
     store = ReceiptStore(tmp_path / "app_data")
@@ -102,3 +114,13 @@ def test_store_writes_file_and_row(tmp_path: Path) -> None:
         assert row["export_version"] == 1
         # The stored hash equals the computed receipt hash.
         assert row["receipt_hash"] == receipt.receipt_hash()
+
+        # And the write is on the audit timeline, in the same transaction.
+        event = conn.execute(
+            "SELECT event_type, entity_type, entity_id, data FROM audit_events"
+        ).fetchone()
+        assert event is not None
+        assert event["event_type"] == "receipt.written"
+        assert event["entity_type"] == "receipt"
+        assert event["entity_id"] == "intake-1"
+        assert json.loads(event["data"])["receipt_hash"] == receipt.receipt_hash()

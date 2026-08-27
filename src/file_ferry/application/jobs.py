@@ -23,6 +23,7 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
+from file_ferry.application.audit import record_event
 from file_ferry.persistence.connection import transaction
 from file_ferry.persistence.repositories import jobs as job_repo
 from file_ferry.service.protocol import (
@@ -85,6 +86,20 @@ class JobService:
         )
         with transaction(self._db_path) as conn:
             job_repo.insert_job(conn, row)
+            record_event(
+                conn,
+                "job.created",
+                entity_type="job",
+                entity_id=job_id,
+                data={
+                    "command": params.command,
+                    "project_id": params.project_id,
+                    "session_id": params.session_id,
+                    "state": "planned",
+                    "total_steps": params.total_steps,
+                },
+                occurred_at=now,
+            )
         return self._to_detail(row)
 
     def get(self, job_id: str) -> JobDetail:
@@ -130,6 +145,29 @@ class JobService:
                 updated_at=now,
             )
             updated = job_repo.get_job(conn, params.id)
+            # Every job state change in the application funnels through this
+            # method -- the scheduler, the dispatcher and the `job.transition`
+            # IPC call all reach it -- so recording here captures the whole
+            # lifecycle from one place, and a state change that rolls back
+            # takes its event with it.
+            event_data: dict[str, object] = {
+                "command": row.command,
+                "project_id": row.project_id,
+                "from_state": params.from_state,
+                "to_state": params.to_state,
+            }
+            if row.session_id is not None:
+                event_data["session_id"] = row.session_id
+            if updated is not None and updated.error is not None:
+                event_data["error"] = updated.error
+            record_event(
+                conn,
+                f"job.{params.to_state}",
+                entity_type="job",
+                entity_id=params.id,
+                data=event_data,
+                occurred_at=now,
+            )
         assert updated is not None
         return self._to_detail(updated)
 

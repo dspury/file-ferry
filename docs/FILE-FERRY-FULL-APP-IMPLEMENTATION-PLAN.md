@@ -711,10 +711,12 @@ app is called stable.
 - **The Desktop CI gap.** `.github/workflows/ci.yml` runs the Python matrix
   only; the desktop typecheck/lint/tests/build are run locally and are not yet
   enforced in CI. Add a desktop job before relying on the desktop surface.
-- **Sidecar version strings are still `"0.0.0+foundation"`.**
-  `SIDECAR_VERSION` in `application/service.py` and the `service.py` module
-  docstring still describe the foundation cut. Refresh to a real version and
-  current description now that the app is feature-complete.
+- ~~**Sidecar version strings are still `"0.0.0+foundation"`.**~~ Closed
+  (#119). `SIDECAR_VERSION` now derives from `file_ferry.__version__`, so the
+  version the sidecar reports over `app.getStatus` / `app.doctor` and the one
+  stamped into receipts are one source; the `service.py` module docstring no
+  longer describes a foundation cut. A test asserts the two cannot diverge
+  again.
 - **`source.inspect` / volume observations and classification.** The volume
   adapter reports observations only and never labels a card; the intake layer
   decides. Review that no hidden heuristic labels a card anywhere.

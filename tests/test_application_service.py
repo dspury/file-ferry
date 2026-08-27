@@ -6,7 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from file_ferry.application.service import ApplicationService
+from file_ferry import __version__
+from file_ferry.application.service import SIDECAR_VERSION, ApplicationService
 from file_ferry.service.protocol import (
     CreateProjectParams,
     SourceInspectParams,
@@ -27,6 +28,35 @@ def service(tmp_path: Path) -> ApplicationService:
     s = ApplicationService(db_path=tmp_path / "ferry.db", app_data_dir=tmp_path / "app")
     s.bootstrap()
     return s
+
+
+class TestVersionIdentity:
+    """One version string per run (#119).
+
+    `SIDECAR_VERSION` was the separate literal "0.0.0+foundation", so
+    `app.getStatus` / `app.doctor` told the operator they were running 0.0.0
+    while the same run stamped `APP_VERSION` (0.3.0) into its receipts.
+    """
+
+    def test_the_sidecar_reports_the_package_version(self) -> None:
+        assert __version__ == SIDECAR_VERSION
+
+    def test_receipts_and_the_sidecar_agree(self) -> None:
+        """The two identities that disagreed. They are one source now."""
+        from file_ferry import APP_VERSION
+
+        assert SIDECAR_VERSION == APP_VERSION
+
+    def test_get_status_reports_it_over_the_wire(self, service: ApplicationService) -> None:
+        assert service.sidecar_version() == __version__
+
+    def test_doctor_reports_it_too(self, service: ApplicationService) -> None:
+        """`app.doctor` is what the desktop Environment screen renders."""
+        assert service.app_doctor().version == __version__
+
+    def test_no_foundation_placeholder_survives(self) -> None:
+        """The literal this replaced, named so a revert is loud."""
+        assert "foundation" not in SIDECAR_VERSION
 
 
 def test_method_names_include_new_methods(service: ApplicationService) -> None:

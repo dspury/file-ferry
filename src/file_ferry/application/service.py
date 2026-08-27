@@ -5,11 +5,12 @@ SQLite connection, the migration runner, the repositories, and the
 per-domain services. The CLI, the TUI, and the sidecar all instantiate
 exactly one :class:`ApplicationService` per process.
 
-The foundation cut is intentionally minimal: it boots, runs the
-pending migrations, and serves the protocol-shaped methods that the
-desktop shell and the in-process client both consume. The actual
-business logic (intake planning, replica verification, job
-execution) lands in subsequent packages per ADR-0005.
+It boots, runs the pending migrations, and serves the protocol-shaped
+methods that the desktop shell and the in-process client both consume.
+The domain work it delegates to -- intake planning, replica
+verification, organization, reconciliation, and job execution -- lives
+in the per-domain services under ``file_ferry.application`` per
+ADR-0005; this module wires them together and owns nothing else.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ import logging
 from collections.abc import Callable
 from pathlib import Path
 
+from file_ferry import APP_VERSION
 from file_ferry.application.assets import AssetService
 from file_ferry.application.audit import AuditService
 from file_ferry.application.clips import ClipService
@@ -101,7 +103,13 @@ from file_ferry.service.protocol import (
 
 LOGGER = logging.getLogger(__name__)
 
-SIDECAR_VERSION = "0.0.0+foundation"
+# The version the sidecar reports over `app.getStatus` / `app.doctor`.
+# Derived rather than declared: it was a separate literal
+# ("0.0.0+foundation") through 0.3.0, so the desktop Environment screen
+# told the operator they were running 0.0.0 while the same run stamped
+# 0.3.0 into its receipts. Two version strings describing one operation
+# undercut both surfaces, so there is now one source.
+SIDECAR_VERSION = APP_VERSION
 
 METHOD_NAMES: tuple[str, ...] = (
     "app.getStatus",

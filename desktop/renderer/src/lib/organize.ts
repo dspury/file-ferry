@@ -139,6 +139,25 @@ export function profileLabel(profile: OrganizationProfile): string {
   return `${profile.name} v${profile.version}`;
 }
 
+/**
+ * Resolve the selected profile from a `profile.list` payload.
+ *
+ * Takes the array as possibly-absent on purpose. `profiles.data?.profiles`
+ * is `undefined` whenever the payload lacks the array -- optional chaining
+ * stops at `data`, not at `.profiles` -- and calling `.find` on that throws
+ * during render, unmounting the screen (#110). The real sidecar always
+ * returns `{profiles: [...]}` (pydantic `ListProfilesResult`), so this is
+ * unreachable against the shipped backend; it is the same hardening
+ * `isCompleteAsset` applies for #97, and the same reason: a partial payload
+ * is one sidecar change away, and the cost of checking is one `??`.
+ */
+export function selectProfile(
+  profiles: readonly OrganizationProfile[] | undefined,
+  profileId: number | null,
+): OrganizationProfile | null {
+  return (profiles ?? []).find((p) => p.id === profileId) ?? null;
+}
+
 export function collisionCount(collisions: readonly CollisionIssue[]): number {
   return collisions.reduce((sum, c) => sum + c.count, 0);
 }

@@ -31,6 +31,7 @@ import {
   organizePrimary,
   profileLabel,
   collisionCount,
+  selectProfile,
 } from '../lib/organize.js';
 import type { OrganizePreview, OrganizationProfile } from '../../../shared/ipc-methods.js';
 
@@ -91,7 +92,7 @@ export function Organize(): JSX.Element {
     }
   };
 
-  const selectedProfile = profiles.data?.profiles.find((p) => p.id === profileId) ?? null;
+  const selectedProfile = selectProfile(profiles.data?.profiles, profileId);
 
   const buildPreview = async () => {
     if (!sourcePath || !destRoot) return;

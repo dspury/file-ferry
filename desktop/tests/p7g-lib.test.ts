@@ -18,11 +18,11 @@ import {
 } from '../renderer/src/lib/job-state.js';
 import { lifecycleTally, lifecycleTone } from '../renderer/src/lib/asset.js';
 import { splitPathTail } from '../renderer/src/lib/format.js';
-import { outcomeTone } from '../renderer/src/lib/organize.js';
+import { outcomeTone, selectProfile } from '../renderer/src/lib/organize.js';
 import { policyHealthLabel } from '../renderer/src/lib/projects.js';
 import { toolTone } from '../renderer/src/lib/doctor.js';
 import { homeCards } from '../renderer/src/lib/home.js';
-import type { AssetSummary } from '../shared/ipc-methods.js';
+import type { AssetSummary, OrganizationProfile } from '../shared/ipc-methods.js';
 
 /** Every state `application/jobs.py` can put a job in. */
 const ALL_STATES = [
@@ -245,6 +245,43 @@ describe('outcomeTone', () => {
   it('is a success only when nothing failed', () => {
     expect(outcomeTone({ ok: 412, failed: 0, total: 412 })).toBe('ok');
     expect(outcomeTone({ ok: 0, failed: 0, total: 0 })).toBe('ok');
+  });
+});
+
+describe('selectProfile', () => {
+  const profile = (id: number): OrganizationProfile => ({
+    id,
+    name: `profile-${id}`,
+    version: 1,
+    template: {},
+    conflictPolicy: 'skip',
+    mutationPolicy: 'copy',
+    createdAt: '2026-08-27T00:00:00Z',
+    updatedAt: '2026-08-27T00:00:00Z',
+  });
+
+  it('finds the profile matching the selected id', () => {
+    expect(selectProfile([profile(1), profile(2)], 2)?.name).toBe('profile-2');
+  });
+
+  it('is null when no profile matches', () => {
+    expect(selectProfile([profile(1)], 9)).toBeNull();
+  });
+
+  it('is null when nothing is selected', () => {
+    expect(selectProfile([profile(1)], null)).toBeNull();
+  });
+
+  // #110: `profiles.data?.profiles` is `undefined` when the payload lacks
+  // the array, and the old inline `.find` threw during render and unmounted
+  // the screen. This is the regression guard.
+  it('survives a partial payload with no profiles array', () => {
+    expect(selectProfile(undefined, 1)).toBeNull();
+    expect(selectProfile(undefined, null)).toBeNull();
+  });
+
+  it('survives an empty profiles array', () => {
+    expect(selectProfile([], 1)).toBeNull();
   });
 });
 

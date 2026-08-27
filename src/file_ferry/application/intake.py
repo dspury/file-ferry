@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from file_ferry.application.assets import AssetService
+from file_ferry.application.audit import record_event
 from file_ferry.application.policies import StoragePolicy
 from file_ferry.application.replicas import ReplicaService, evaluate_gate
 from file_ferry.application.sources import _volume_fingerprint
@@ -113,6 +114,18 @@ class IntakeService:
                 volume_fingerprint_at_scan=fingerprint_at_scan,
             )
             intake_repo.insert_session(conn, row)
+            record_event(
+                conn,
+                "intake.session_created",
+                entity_type="intake_session",
+                entity_id=session_id,
+                data={
+                    "project_id": params.project_id,
+                    "source_id": params.source_id,
+                    "kind": params.kind,
+                },
+                occurred_at=now,
+            )
         return self._to_session(row)
 
     def add_destination(self, params: AddDestinationParams) -> IntakeDestination:
@@ -130,6 +143,21 @@ class IntakeService:
             if intake_repo.get_session(conn, params.intake_session_id) is None:
                 raise IntakeSessionNotFoundError(params.intake_session_id)
             intake_repo.insert_destination(conn, dest)
+            # A required destination is a condition of the safe-to-format
+            # gate (ADR-0004), so which ones were declared -- and when -- is
+            # part of why a card was eventually called safe.
+            record_event(
+                conn,
+                "intake.destination_added",
+                entity_type="intake_session",
+                entity_id=params.intake_session_id,
+                data={
+                    "kind": params.kind,
+                    "root_path": params.root_path,
+                    "role": params.role,
+                    "required": bool(params.required),
+                },
+            )
         return IntakeDestination(
             id=dest.id,
             intakeSessionId=params.intake_session_id,
@@ -197,6 +225,22 @@ class IntakeService:
                 algo="xxhash64",
                 source_checksum="",
                 verified=False,
+            )
+        # One event for the adoption, not one per asset: the per-asset rows
+        # are the `assets` and `replicas` tables, and `asset_count` is what
+        # makes the timeline entry meaningful.
+        with transaction(self._db_path) as conn:
+            record_event(
+                conn,
+                "intake.source_adopted",
+                entity_type="intake_session",
+                entity_id=session_id,
+                data={
+                    "project_id": pid,
+                    "source_id": source_id,
+                    "destination_root": destination_root,
+                    "asset_count": len(asset_ids),
+                },
             )
         return asset_ids
 

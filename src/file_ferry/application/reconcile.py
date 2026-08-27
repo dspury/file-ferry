@@ -11,11 +11,11 @@ silently overwrites history (plan §7.5).
 
 from __future__ import annotations
 
-import json
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
+from file_ferry.application.audit import record_event
 from file_ferry.application.replicas import compute_checksum
 from file_ferry.persistence.connection import transaction
 from file_ferry.persistence.repositories import replicas as replica_repo
@@ -90,23 +90,17 @@ class ReconcileService:
                 availability="present",
                 last_checked_at=now,
             )
-            conn.execute(
-                """
-                INSERT INTO audit_events (occurred_at, event_type, entity_type, entity_id, data)
-                VALUES (?, 'reconcile.accept_change', 'asset', ?, ?)
-                """,
-                (
-                    now,
-                    asset_id,
-                    json.dumps(
-                        {
-                            "replica_id": replica_id,
-                            "old_checksum": old_checksum,
-                            "new_checksum": new_checksum,
-                        },
-                        sort_keys=True,
-                    ),
-                ),
+            record_event(
+                conn,
+                "reconcile.accept_change",
+                entity_type="asset",
+                entity_id=asset_id,
+                data={
+                    "replica_id": replica_id,
+                    "old_checksum": old_checksum,
+                    "new_checksum": new_checksum,
+                },
+                occurred_at=now,
             )
         return self.reconcile_asset(asset_id, algo=algo)
 

@@ -24,6 +24,7 @@ from typing import Any
 
 from pydantic import Field
 
+from file_ferry.application.audit import record_event
 from file_ferry.application.policies import StoragePolicy
 from file_ferry.service.protocol import FrozenModel
 
@@ -173,6 +174,24 @@ class ReceiptStore:
                 RECEIPT_EXPORT_VERSION,
                 receipt.created_at,
             ),
+        )
+        # The receipt is the durable record an operation ends with, so its
+        # existence belongs on the timeline -- `receipt.export` needs an
+        # operation id, and the timeline is how you find one. The hash is
+        # included so a receipt superseded by a resumed attempt is
+        # distinguishable from the original in the trail.
+        record_event(
+            conn,
+            "receipt.written",
+            entity_type="receipt",
+            entity_id=receipt.operation_id,
+            data={
+                "kind": receipt.kind,
+                "final_state": receipt.final_state,
+                "receipt_hash": digest,
+                "replaced": replace,
+            },
+            occurred_at=receipt.created_at,
         )
         return file_path
 

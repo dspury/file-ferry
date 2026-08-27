@@ -28,7 +28,8 @@ from file_ferry.service.protocol import (
     SourceInspectParams,
 )
 
-DEFAULT_DB_PATH = Path.home() / ".ferry" / "ferry.db"
+# The ledger location is resolved by `file_ferry.paths.default_db_path` and
+# threaded in from the root `--db` option; these verbs never pick their own.
 
 console = Console()
 

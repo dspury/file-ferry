@@ -45,9 +45,8 @@ from file_ferry.config import config_target, load_config, save_config
 from file_ferry.log import LogStore
 from file_ferry.models import ChecksumAlgo, FerryConfig, OrganizeConfig
 from file_ferry.organize import compute_output_tree
+from file_ferry.paths import default_db_path
 from file_ferry.probe import SYSTEM_ARTIFACT_NAMES
-
-DEFAULT_DB = Path.home() / ".ferry" / "ferry.db"
 
 MM_THEME = Theme(
     name="ferry-studio",
@@ -1197,9 +1196,11 @@ class FerryApp(App[Any]):
         "settings": SettingsScreen,
     }
 
-    def __init__(self, db_path: Path = DEFAULT_DB, config_path: Path | None = None) -> None:
+    def __init__(self, db_path: Path | None = None, config_path: Path | None = None) -> None:
         super().__init__()
-        self.db_path = db_path
+        # Resolved here rather than as a default argument so the answer is
+        # read from the filesystem at launch, not frozen at import.
+        self.db_path = db_path if db_path is not None else default_db_path()
         self.config_path = config_path
 
     def on_mount(self) -> None:
@@ -1238,7 +1239,7 @@ class FerryApp(App[Any]):
         await super().action_quit()
 
 
-def main(db_path: Path = DEFAULT_DB, config_path: Path | None = None) -> None:
+def main(db_path: Path | None = None, config_path: Path | None = None) -> None:
     FerryApp(db_path, config_path).run()
 
 

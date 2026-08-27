@@ -18,20 +18,10 @@ if TYPE_CHECKING:
     from _typeshed import SupportsWrite
 
 from file_ferry.application.service import ApplicationService
+from file_ferry.paths import default_db_path
 from file_ferry.service import PROTOCOL_VERSION
 from file_ferry.service.server import SidecarServer
 from file_ferry.service.wiring import wire_server
-
-
-def _default_db_path() -> Path:
-    """Return the default SQLite path under the user's app-data dir."""
-    import platform as _platform
-
-    base = {
-        "Darwin": Path.home() / "Library" / "Application Support",
-        "Windows": Path.home() / "AppData" / "Local",
-    }.get(_platform.system(), Path.home() / ".local" / "share")
-    return base / "ferry" / "ferry.db"
 
 
 def warn_on_host_protocol_mismatch(
@@ -86,7 +76,7 @@ def main(argv: list[str] | None = None) -> int:
 
     warn_on_host_protocol_mismatch(os.environ.get("FERRY_PROTOCOL_VERSION"))
 
-    db_path = args.db or _default_db_path()
+    db_path = args.db or default_db_path()
     service = ApplicationService(db_path=db_path, app_data_dir=args.app_data or db_path.parent)
     service.bootstrap()
 

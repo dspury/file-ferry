@@ -9,9 +9,9 @@ uses, instead of composing the capability modules directly.
 The **legacy standalone verbs are preserved and unchanged**: `probe`,
 `organize`, `proxy`, `resolve create`, `verify`, `log`, and `run`. Existing
 automation that calls these does **not** need to change and is **not**
-forced to launch Electron. The legacy audit log at
-`~/.ferry/ferry.db` and the existing CLI/TUI behavior are
-untouched.
+forced to launch Electron. The existing CLI/TUI behavior is untouched, and
+an existing audit log at `~/.ferry/ferry.db` keeps being read from there
+(see the ledger note below).
 
 The **vNext verbs are additive**. They call the same
 `file_ferry.application.service.ApplicationService` the sidecar uses, so
@@ -36,10 +36,36 @@ All accept `--json` for machine-readable output unless noted.
 | `ferry receipt export OPERATION [--format markdown\|html]` | Export a receipt |
 | `ferry reconcile project ID` | Reconcile a project's replicas |
 
-> The vNext verbs read/write the same SQLite database the legacy CLI uses
-> (`--db`, default `~/.ferry/ferry.db`), so legacy and vNext
-> surfaces coexist on one store. The vNext database schema is created and
-> migrated on first use by the application-service bootstrap.
+> The vNext verbs read/write the same SQLite database the legacy CLI uses,
+> so legacy and vNext surfaces coexist on one store. The vNext database
+> schema is created and migrated on first use by the application-service
+> bootstrap.
+
+### Which database, exactly
+
+This promise was only half-true until 0.3.1. The CLI, TUI, and vNext verbs
+defaulted to `~/.ferry/ferry.db` while `service/cli.py` — the sidecar the
+desktop app spawns — defaulted to the platform application-data directory.
+The two surfaces were therefore **two separate ledgers**: an offload run in
+the desktop app was invisible to `ferry project list`, and vice versa.
+
+All four entry points now resolve through
+`file_ferry.paths.default_db_path`:
+
+1. `--db <path>` or `FERRY_DB`, when given.
+2. Otherwise the platform application-data database —
+   `~/Library/Application Support/ferry/ferry.db` (macOS),
+   `~/AppData/Local/ferry/ferry.db` (Windows),
+   `~/.local/share/ferry/ferry.db` (otherwise).
+3. Except when that file does not exist and `~/.ferry/ferry.db` does, in
+   which case the older log is used — so a CLI-only install is not handed a
+   fresh, empty database in place of its history.
+
+When both files exist the application-data one wins and the CLI prints
+which it chose, because the loser is invisible to every surface.
+
+Config resolution is a separate question and is unchanged: `ferry.toml` /
+`~/.ferry/config.toml` already agreed across all four entry points.
 
 ## TUI
 

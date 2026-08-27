@@ -40,11 +40,18 @@ def open_connection(db_path: Path) -> sqlite3.Connection:
     ``COMMIT`` / ``ROLLBACK``.
     """
     db_path.parent.mkdir(parents=True, exist_ok=True)
+    # sqlite3's default `check_same_thread=True` is deliberately left in
+    # place. Every connection this factory hands out is opened, used, and
+    # closed inside a single call stack -- `transaction()` below is the only
+    # supported way to hold one, and it closes in its `finally`. No caller
+    # stashes a connection on an instance, so none is ever shared between
+    # the IPC handler threads and the `JobDispatcher` daemon thread. Keeping
+    # the default means sqlite3 enforces that invariant for us instead of
+    # letting a future cross-thread share fail somewhere further away.
     conn = sqlite3.connect(
         str(db_path),
         isolation_level=None,
         timeout=5.0,
-        check_same_thread=False,
     )
     conn.row_factory = sqlite3.Row
     _apply_pragmas(conn)

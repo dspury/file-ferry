@@ -213,7 +213,25 @@ The database schema did not change, so a moved `ferry.db` is read as-is.
 
 ## The audit log
 
-Every operation writes to `~/.ferry/ferry.db` (SQLite). The schema covers runs, files, probes, proxies, projects, verifications, and organize operations.
+Every operation writes to one local SQLite database, shared by the CLI, the TUI, and the desktop app. The schema covers runs, files, probes, proxies, projects, verifications, and organize operations.
+
+The default location is your platform's application-data directory:
+
+| Platform | Path |
+| --- | --- |
+| macOS | `~/Library/Application Support/ferry/ferry.db` |
+| Windows | `~/AppData/Local/ferry/ferry.db` |
+| Linux | `~/.local/share/ferry/ferry.db` |
+
+Override it with `--db <path>` or the `FERRY_DB` environment variable.
+
+If you have been using the CLI from a release before 0.3.1, your log is at `~/.ferry/ferry.db`. Ferry keeps reading it from there — nothing to migrate — as long as no application-data database exists yet. When both exist, the application-data one wins and `ferry` tells you which it picked. To adopt the old log deliberately, move it:
+
+```bash
+mv ~/.ferry/ferry.db "$HOME/Library/Application Support/ferry/ferry.db"   # macOS
+```
+
+Note that `ferry.toml` / `config.toml` resolution is unchanged and still looks in `~/.ferry/`.
 
 The log answers questions like:
 

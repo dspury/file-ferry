@@ -1,7 +1,9 @@
 """CLI entry point for ferry.
 
 Wires together the capability modules via Click commands. The default audit
-log lives at ~/.ferry/ferry.db and is created on first use.
+log is resolved by :func:`file_ferry.paths.default_db_path` -- the same
+ledger the TUI, the vNext verbs, and the desktop sidecar use -- and is
+created on first use.
 
 Layout:
     ferry probe <path>
@@ -29,11 +31,10 @@ from file_ferry.config import load_config
 from file_ferry.log import LogStore
 from file_ferry.models import FerryConfig, ResolveProjectSpec
 from file_ferry.organize import organize_path
+from file_ferry.paths import default_db_path, legacy_db_is_shadowed, legacy_db_path
 from file_ferry.probe import probe_path
 from file_ferry.proxy import generate_proxies
 from file_ferry.verify import verify_folder
-
-DEFAULT_DB_PATH = Path.home() / ".ferry" / "ferry.db"
 
 
 def _load_create_resolve_project() -> Any:
@@ -63,9 +64,13 @@ def _load_create_resolve_project() -> Any:
 @click.option(
     "--db",
     type=click.Path(path_type=Path),
-    default=DEFAULT_DB_PATH,
+    default=None,
     envvar="FERRY_DB",
-    help=f"Audit log SQLite database (default: {DEFAULT_DB_PATH})",
+    help=(
+        "Audit log SQLite database. Defaults to the ferry application-data "
+        "directory, falling back to ~/.ferry/ferry.db when that is where "
+        "your existing log lives."
+    ),
 )
 @click.option(
     "--config",
@@ -81,9 +86,19 @@ def _load_create_resolve_project() -> Any:
     help="Stay in CLI mode when no subcommand is supplied.",
 )
 @click.pass_context
-def main(ctx: click.Context, db: Path, config_path: Path | None, no_tui: bool) -> None:
+def main(ctx: click.Context, db: Path | None, config_path: Path | None, no_tui: bool) -> None:
     """ferry: zero-cost CLI for post-production media ops."""
     ctx.ensure_object(dict)
+    if db is None:
+        db = default_db_path()
+        if legacy_db_is_shadowed():
+            # Both ledgers exist, so one of them is about to be ignored.
+            # Say which rather than picking in silence.
+            click.echo(
+                f"note: using {db}; the older log at {legacy_db_path()} is "
+                "not being read. Pass --db to choose.",
+                err=True,
+            )
     ctx.obj["db_path"] = db
     ctx.obj["config"] = load_config(config_path)
     ctx.obj["config_path"] = config_path

@@ -10,8 +10,9 @@ from __future__ import annotations
 
 import io
 
+from file_ferry.paths import default_db_path
 from file_ferry.service import PROTOCOL_VERSION
-from file_ferry.service.cli import _default_db_path, warn_on_host_protocol_mismatch
+from file_ferry.service.cli import warn_on_host_protocol_mismatch
 
 
 class TestHostProtocolMismatch:
@@ -58,7 +59,7 @@ class TestHostProtocolMismatch:
 
 class TestDefaultDbPath:
     def test_lands_under_a_ferry_app_data_dir(self) -> None:
-        path = _default_db_path()
+        path = default_db_path()
         assert path.name == "ferry.db"
         # The Electron shell computes the same location from its userData dir,
         # which electron-builder derives from productName (`ferry`).

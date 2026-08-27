@@ -109,7 +109,9 @@ Compute fast checksums (xxhash by default; sha256 optional) of all files in a fo
 
 ### 5.6 SQLite audit log (the system of record)
 
-Every operation writes to a local SQLite database (`~/.ferry/ferry.db` by default). Schema covers: runs, files, probes, proxies, projects, verifications, errors. Queryable via `ferry log` subcommand (e.g., `ferry log --since 1d --missing`).
+Every operation writes to a local SQLite database. Schema covers: runs, files, probes, proxies, projects, verifications, errors. Queryable via `ferry log` subcommand (e.g., `ferry log --since 1d --missing`).
+
+The default location is the platform application-data directory (`~/Library/Application Support/ferry/ferry.db` on macOS, `~/AppData/Local/ferry/ferry.db` on Windows, `~/.local/share/ferry/ferry.db` otherwise), resolved by `file_ferry.paths.default_db_path` so the CLI, the TUI, and the desktop sidecar all address **one** store. A pre-0.3.1 log at `~/.ferry/ferry.db` continues to be used when no application-data database exists. Override with `--db` or `FERRY_DB`.
 
 ---
 

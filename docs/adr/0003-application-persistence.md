@@ -36,8 +36,14 @@ The plan §6.1 demands:
   and never held across an external-tool invocation (ffmpeg, ffprobe,
   Resolve).
 
-**App data layout** (`~/.ferry/` on macOS and Linux;
-`%APPDATA%/ferry/` on Windows):
+**App data layout.** The tree below was written against `~/.ferry/`. The
+directory is now the platform application-data dir —
+`~/Library/Application Support/ferry/` on macOS,
+`~/AppData/Local/ferry/` on Windows, `~/.local/share/ferry/` otherwise —
+resolved by `file_ferry.paths.app_data_dir`. The layout inside it is
+unchanged. See `docs/CLI-TUI-PARITY.md` for why: this ADR's single-store
+intent was defeated in practice by the CLI and the sidecar defaulting to
+different directories.
 
 ```
 ~/.ferry/

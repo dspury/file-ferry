@@ -32,6 +32,7 @@ import { jobStateTone } from '../lib/job-state.js';
 import { formatBytes } from '../lib/doctor.js';
 import { navigateTo } from '../views.js';
 import type { JobDetail } from '../../../shared/ipc-methods.js';
+import type { JSX } from 'react';
 
 /** Jobs are listed newest-work-first; the dashboard shows only the head of
  *  the list and defers the rest to Activity, which can filter and search. */

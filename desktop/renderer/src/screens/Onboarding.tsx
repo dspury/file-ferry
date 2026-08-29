@@ -19,6 +19,7 @@ import {
   ScreenLoading,
 } from '../components/ui.js';
 import { toolTone, healthBanner, overallHealth, formatBytes } from '../lib/doctor.js';
+import type { JSX } from 'react';
 
 export function Onboarding(): JSX.Element {
   const doctor = useAsync(() => window.ferry.app.doctor());

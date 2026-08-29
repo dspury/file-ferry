@@ -7,7 +7,7 @@
  * Paths are entered as text (native pickers arrive with the full desktop
  * flow in a later sub-package).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type JSX } from 'react';
 import { useAsync } from '../hooks/useAsync.js';
 import {
   Banner,

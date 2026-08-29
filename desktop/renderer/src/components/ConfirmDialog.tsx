@@ -13,7 +13,7 @@
  * dialog used to render inline at the bottom of the page, below the
  * content it was blocking.
  */
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type JSX } from 'react';
 import { confirmEnabled, normalizePhrase } from '../lib/confirm.js';
 import { FOCUSABLE_SELECTOR, isTrapKey, nextFocusIndex } from '../lib/focus-trap.js';
 import { IconAlert } from './icons.js';

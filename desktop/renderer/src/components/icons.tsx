@@ -9,7 +9,7 @@
  * always paired with a visible text label, so announcing them again would
  * only duplicate it.
  */
-import type { SVGProps } from 'react';
+import type { JSX, SVGProps } from 'react';
 
 type IconProps = { size?: number } & Omit<SVGProps<SVGSVGElement>, 'width' | 'height'>;
 

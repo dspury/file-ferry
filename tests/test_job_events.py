@@ -36,6 +36,29 @@ def service(tmp_path: Path) -> ApplicationService:
         config_path=tmp_path / "config.toml",
     )
     svc.bootstrap()
+    # Stop the background dispatcher `bootstrap` starts (#146).
+    #
+    # These tests drive the §6.4 state machine by hand, and reaching
+    # `queued` is the dispatcher's entire trigger condition -- deliberately,
+    # since #84 fixed the opposite bug. So the dispatcher could claim a job
+    # the moment a test queued it, run it, and fail it before the test's
+    # next transition, which then failed with
+    # "job ... is 'failed', not 'queued'". Roughly 3% of isolated runs, and
+    # it red-lit an unrelated PR on CI.
+    #
+    # Nothing in this file exercises dispatch -- it is all subscription and
+    # event publishing -- so the dispatcher is ambient interference here,
+    # not the thing under test. Tests that DO want it live should keep it
+    # and settle it instead; see `_settle_dispatcher` in test_job_start.py.
+    #
+    # The dispatcher's own `stop()` rather than `svc.shutdown()`: shutdown
+    # also clears the reference, and `job_create` goes through
+    # `_dispatcher_service()`, which reads a missing dispatcher as
+    # "bootstrap() was never called" and raises. Stopping the loop leaves the
+    # object in place, so `kick()` still sets an event -- there is simply no
+    # thread waiting on it.
+    assert svc._dispatcher is not None
+    svc._dispatcher.stop()
     yield svc
     svc.close()
 

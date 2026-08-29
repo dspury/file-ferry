@@ -7,7 +7,7 @@
  * Paths are entered as text (native pickers arrive with the full desktop
  * flow in a later sub-package).
  */
-import { useEffect, useState, type JSX } from 'react';
+import { useState, type JSX } from 'react';
 import { useAsync } from '../hooks/useAsync.js';
 import {
   Banner,
@@ -28,16 +28,19 @@ const CONFLICTS = ['skip', 'overwrite', 'rename'];
 
 export function Settings(): JSX.Element {
   const loaded = useAsync(() => window.ferry.settings.get());
-  const [form, setForm] = useState<AppSettings | null>(null);
+  // Only the operator's edits are state; the baseline is what the sidecar
+  // returned. This used to be one `form` state seeded from an effect
+  // (`if (loaded.data !== null && form === null) setForm(loaded.data)`),
+  // which is the copy-props-into-state pattern react-hooks 7 flags as
+  // `set-state-in-effect`: it renders once with `form === null`, commits,
+  // then immediately re-renders with the value. Deriving it needs no effect
+  // and no second commit.
+  const [edits, setEdits] = useState<AppSettings | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (loaded.data !== null && form === null) {
-      setForm(loaded.data);
-    }
-  }, [loaded.data, form]);
+  const form = edits ?? loaded.data;
 
   if (loaded.loading) {
     return <ScreenLoading message="Reading saved settings…" />;
@@ -52,7 +55,7 @@ export function Settings(): JSX.Element {
   }
 
   const set = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) => {
-    setForm({ ...form, [key]: value });
+    setEdits({ ...form, [key]: value });
     setSavedMsg(null);
     setSaveError(null);
   };
@@ -79,7 +82,7 @@ export function Settings(): JSX.Element {
         organizeOnConflict: form.organizeOnConflict,
       });
       // Reflect the persisted result, not an optimistic value.
-      setForm(updated);
+      setEdits(updated);
       setSavedMsg('Settings saved.');
     } catch (err) {
       setSaveError(err instanceof Error ? err.message : String(err));

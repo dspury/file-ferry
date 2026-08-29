@@ -30,8 +30,22 @@ export function useJobStream(jobs: readonly JobDetail[], onUnknownJob: () => voi
   // every render — which would drop events landing in the gap.
   const knownIds = useRef<ReadonlySet<string>>(new Set());
   const unknownHandler = useRef(onUnknownJob);
-  knownIds.current = new Set(jobs.map((job) => job.id));
-  unknownHandler.current = onUnknownJob;
+
+  // Written in an effect, not during render. A render can be thrown away
+  // (React may start one and abandon it), and mutating a ref from the render
+  // body makes that discarded work visible to the listener — which is why
+  // `react-hooks/refs` rejects it. This effect has no dependency array on
+  // purpose: it runs after every commit, so the refs track the latest
+  // committed props exactly as the old assignments did.
+  //
+  // The values are therefore one commit behind only between render and the
+  // passive-effect flush. Nothing can observe that: `job.updated` arrives
+  // over IPC as a macrotask, and the worst case is one spurious
+  // `onUnknownJob()`, which just refetches the list.
+  useEffect(() => {
+    knownIds.current = new Set(jobs.map((job) => job.id));
+    unknownHandler.current = onUnknownJob;
+  });
 
   useEffect(() => {
     return window.ferry.sidecarEvents.onJobUpdated((frame) => {

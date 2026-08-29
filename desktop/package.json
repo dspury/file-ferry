@@ -44,7 +44,7 @@
     "electron-builder": "^25.1.8",
     "eslint": "^8.57.1",
     "eslint-plugin-react": "^7.37.2",
-    "eslint-plugin-react-hooks": "^5.0.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "oxlint": "^1.80.0",
     "prettier": "^3.4.2",
     "typescript": "^5.7.2",

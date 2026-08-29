@@ -3,6 +3,14 @@
 # the Electron desktop app (desktop/package.json), and the GitHub Actions
 # workflows themselves. ffmpeg and DaVinci Resolve are runtime-detected
 # system binaries, not packages, so there is nothing to track for them.
+#
+# Grouping rule of thumb, learned from #112/#113/#114 (see #121):
+#
+#   * Group things that MUST move together, so they cannot arrive split
+#     into individually-unmergeable PRs.
+#   * Group low-risk minor/patch noise, so it is one review instead of ten.
+#   * Never group majors otherwise -- a major is a migration and deserves
+#     its own PR, its own CI run, and its own revert.
 version: 2
 updates:
   - package-ecosystem: pip
@@ -12,19 +20,67 @@ updates:
     groups:
       # Dev-only bumps (pytest, ruff, mypy, …) are safe to review as one
       # change; runtime dependencies stay individual so a bump to a
-      # runtime dep is visible on its own.
-      dev-dependencies:
+      # runtime dep is visible on its own. Majors are excluded so a ruff
+      # or mypy major -- which can fail the build on new diagnostics --
+      # is not buried in a batch of patches.
+      dev-minor-and-patch:
         dependency-type: development
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: npm
     directory: /desktop
     schedule:
       interval: weekly
     groups:
-      dev-dependencies:
+      # React and its type packages are one atomic unit: `react` and
+      # `react-dom` share a peer range, and `@types/react-dom` requires a
+      # matching `@types/react`. Dependabot previously split 18 -> 19
+      # across three PRs (#112/#113/#114) and every one of them failed
+      # `npm ci` with ERESOLVE, because each half conflicted with the half
+      # still on 18. Grouping by pattern -- with no `update-types` filter,
+      # so majors group too -- is what makes that upgrade landable.
+      #
+      # Listed before the catch-all group below: a dependency joins the
+      # first group it matches.
+      react:
+        patterns:
+          - react
+          - react-dom
+          - '@types/react'
+          - '@types/react-dom'
+
+      # Everything else dev-only, minor and patch only. The npm dev block
+      # is not the harmless linters-and-formatters set it is on the Python
+      # side -- it holds the build toolchain, the test framework, the
+      # linter AND the Electron runtime -- so a major here is never
+      # "review it with the batch". #112 arrived as ten majors at once
+      # (TypeScript 5.9 -> 7.0, eslint 8 -> 10 against an .eslintrc.cjs
+      # repo, vite 5 -> 8, vitest 2 -> 4, electron 33 -> 43) and was not
+      # reviewable, let alone mergeable.
+      dev-minor-and-patch:
         dependency-type: development
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    groups:
+      # Action bumps are small and independent, but they arrive in bursts
+      # whenever GitHub ships a runner major. Minor/patch as one PR;
+      # majors stay separate because they can change runner behaviour.
+      #
+      # NOTE: `secret-scan.yml` pins actions/checkout by commit SHA on
+      # purpose. When Dependabot bumps that pin, the trailing `# vX.Y.Z`
+      # comment must be updated with it -- it silently did not in #109,
+      # leaving the pin claiming v6 while running v7.0.1 (#125).
+      actions-minor-and-patch:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch

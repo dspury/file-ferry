@@ -9,6 +9,7 @@ import { useAsync } from '../hooks/useAsync.js';
 import { Chip, EmptyState, Panel, ScreenError, ScreenLoading } from '../components/ui.js';
 import { projectRow, policyHealthLabel, policyLabel } from '../lib/projects.js';
 import { navigateTo } from '../views.js';
+import type { JSX } from 'react';
 
 export function Projects(): JSX.Element {
   const projects = useAsync(() => window.ferry.project.list());

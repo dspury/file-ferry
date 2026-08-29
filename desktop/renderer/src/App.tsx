@@ -3,7 +3,7 @@
  * the URL hash. It does not import filesystem, database, or node APIs; it
  * only consumes the `window.ferry` API exposed by the preload.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type JSX } from 'react';
 import { useRoute } from './hooks/useRoute.js';
 import type { FerryAPI } from '../../shared/preload-api.js';
 import { flattenViews, navigateTo, type NavGroup, type ViewDef } from './views.js';

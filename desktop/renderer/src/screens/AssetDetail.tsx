@@ -38,7 +38,7 @@ import {
 } from '../lib/asset.js';
 import { formatBytes } from '../lib/format.js';
 import { navigateTo } from '../views.js';
-import { useState } from 'react';
+import { useState, type JSX } from 'react';
 import type { ReplicaSummary } from '../../../shared/ipc-methods.js';
 import type { AssetOverview } from '../lib/asset.js';
 

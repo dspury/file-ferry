@@ -6,7 +6,7 @@
  * lists for large asset inventories", §10 Pkg7 step 4 "large-library
  * rendering behavior"). Pure row-window math is in lib/virtualize.ts.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type JSX } from 'react';
 import type { ReactNode } from 'react';
 import { windowForScroll } from '../lib/virtualize.js';
 

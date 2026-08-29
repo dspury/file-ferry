@@ -10,7 +10,14 @@
  * AND a chip colour — never colour alone — so the semantics survive
  * high-contrast / colour-blind contexts.
  */
-import { cloneElement, isValidElement, useId, type ReactElement, type ReactNode } from 'react';
+import {
+  cloneElement,
+  isValidElement,
+  useId,
+  type JSX,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import { IconAlert, IconCheck, IconInbox, IconInfo } from './icons.js';
 import { splitPathTail } from '../lib/format.js';
 import type { MeterStatus, StateTone } from '../lib/job-state.js';

@@ -6,7 +6,7 @@
  * actions are gated on real state (canCancel/canResume/canRetry); the UI
  * reflects the sidecar result, never an optimistic transition.
  */
-import { useState } from 'react';
+import { useState, type JSX } from 'react';
 import { useAsync } from '../hooks/useAsync.js';
 import { useJobStream } from '../hooks/useJobStream.js';
 import {

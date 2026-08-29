@@ -7,7 +7,7 @@
  * deliberately a separate, explicit action (create job) — never an
  * optimistic success; the stage gates on real plan data.
  */
-import { useState } from 'react';
+import { useState, type JSX } from 'react';
 import { useAsync } from '../hooks/useAsync.js';
 import {
   Banner,

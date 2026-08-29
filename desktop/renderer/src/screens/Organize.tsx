@@ -6,7 +6,7 @@
  * target tree (never mutating), decide collisions, then apply. A move
  * requires explicit confirmation; nothing is optimistic.
  */
-import { useState } from 'react';
+import { useState, type JSX } from 'react';
 import { useAsync } from '../hooks/useAsync.js';
 import {
   Banner,

@@ -40,8 +40,8 @@
     "@typescript-eslint/parser": "^8.18.0",
     "@vitejs/plugin-react": "^6.1.1",
     "concurrently": "^9.1.0",
-    "electron": "^33.2.0",
-    "electron-builder": "^25.1.8",
+    "electron": "^43.4.1",
+    "electron-builder": "^26.15.3",
     "eslint": "^8.57.1",
     "eslint-plugin-react": "^7.37.2",
     "eslint-plugin-react-hooks": "^7.1.1",
@@ -52,6 +52,6 @@
     "vitest": "^4.1.11"
   },
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=22.12.0"
   }
 }

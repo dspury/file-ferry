@@ -7,6 +7,7 @@
 # This spec keeps the bundle minimal — no bundled FFmpeg or Resolve,
 # which remain detected at runtime per the plan's dependency policy.
 
+import glob
 import os
 
 # Resolve the src root relative to this spec file so the build is
@@ -15,15 +16,33 @@ SCRIPTS_DIR = os.path.dirname(os.path.abspath(SPEC))
 ROOT = os.path.abspath(os.path.join(SCRIPTS_DIR, "..", "src"))
 ENTRY = os.path.join(ROOT, "file_ferry", "service", "cli.py")
 
+# Migrations are discovered at runtime with `pkgutil.iter_modules`
+# (persistence/runner.py), which PyInstaller's static analysis cannot
+# follow -- nothing imports them by name, so without help none are
+# collected. They therefore have to be named as hidden imports.
+#
+# Globbed rather than hand-listed. The list WAS hand-listed, naming only
+# 001 and 002, and 003 was added without it: the frozen sidecar then knew
+# about two migrations, computed `target 2`, and refused to open any
+# database at schema_version 3 -- which is every real one. The packaged
+# app died on launch with "sidecar exited before announcing readiness"
+# (#139). A hand-maintained list re-breaks on every future migration,
+# silently, so it is derived from disk instead.
+MIGRATIONS_DIR = os.path.join(ROOT, "file_ferry", "persistence", "migrations")
+MIGRATION_MODULES = sorted(
+    "file_ferry.persistence.migrations." + os.path.splitext(os.path.basename(path))[0]
+    for path in glob.glob(os.path.join(MIGRATIONS_DIR, "[0-9][0-9][0-9]_*.py"))
+)
+if not MIGRATION_MODULES:
+    raise SystemExit(f"sidecar.spec: no migrations found under {MIGRATIONS_DIR}")
+print(f"sidecar.spec: bundling {len(MIGRATION_MODULES)} migrations: {MIGRATION_MODULES}")
+
 a = Analysis(
     [ENTRY],
     pathex=[ROOT],
     binaries=[],
     datas=[],
-    hiddenimports=[
-        "file_ferry.persistence.migrations.001_initial_legacy",
-        "file_ferry.persistence.migrations.002_vnext_entities",
-    ],
+    hiddenimports=MIGRATION_MODULES,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

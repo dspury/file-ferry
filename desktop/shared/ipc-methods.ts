@@ -85,6 +85,8 @@ export interface SourceInventoryEntry {
   readonly path: string;
   readonly size: number;
   readonly mtime: number;
+  /** Non-regular findings are flagged; regular files keep the default. */
+  readonly entryType?: 'file' | 'symlink' | 'other';
 }
 
 export interface SourceInspectParams {
@@ -102,6 +104,11 @@ export interface SourceInspectResult {
   readonly totalBytes: number;
   readonly manifestHash: string;
   readonly entries: readonly SourceInventoryEntry[];
+  /** True only when the caller supplied an explicit entry cap. */
+  readonly truncated?: boolean;
+  /** Exact count of scan failures; `scanErrors` is a bounded sample. */
+  readonly errorCount?: number;
+  readonly scanErrors?: readonly string[];
 }
 
 export interface OrganizationProfile {
@@ -378,12 +385,22 @@ export interface OrganizeEntry {
   readonly size: number;
 }
 
+/** Checksum evidence for one verified copy; present iff `ok`. */
+export interface CopyVerification {
+  readonly checksumAlgo: string;
+  readonly sourceChecksum: string;
+  readonly destChecksum: string;
+  readonly bytes: number;
+  readonly mtimePreserved: boolean;
+}
+
 export interface OrganizeOutcome {
   readonly sourcePath: string;
   readonly destPath: string;
   readonly operation: string;
   readonly ok: boolean;
   readonly error: string | null;
+  readonly verification?: CopyVerification | null;
 }
 
 export interface OrganizePreview {

@@ -623,13 +623,19 @@ class OrganizeEntry(FrozenModel):
 
 
 class OrganizeOutcome(FrozenModel):
-    """The result of one organize operation."""
+    """The result of one organize operation.
+
+    ``verification`` is present exactly when ``ok`` is true: a copy that
+    reported success without checksum evidence was one of the confirmed
+    baseline defects, so the evidence now rides with the outcome.
+    """
 
     source_path: str = Field(alias="sourcePath")
     dest_path: str = Field(alias="destPath")
     operation: str
     ok: bool
     error: str | None = None
+    verification: dict[str, Any] | None = None
 
 
 class OrganizePreview(FrozenModel):
@@ -776,11 +782,16 @@ class ResolveImportManifest(FrozenModel):
 
 
 class SourceInventoryEntry(FrozenModel):
-    """One file found by a read-only source scan."""
+    """One file found by a read-only source scan.
+
+    ``entry_type`` flags non-regular findings (``symlink``, ``other``);
+    regular files keep the default and old payloads stay valid.
+    """
 
     path: str
     size: int
     mtime: float
+    entry_type: Literal["file", "symlink", "other"] = Field(default="file", alias="entryType")
 
 
 class SourceInspectParams(FrozenModel):
@@ -792,7 +803,15 @@ class SourceInspectParams(FrozenModel):
 
 
 class SourceInspectResult(FrozenModel):
-    """The result of ``source.inspect`` — a read-only scan summary."""
+    """The result of ``source.inspect`` — a read-only scan summary.
+
+    ``truncated`` is true only when the caller supplied an explicit
+    ``max_entries`` bound (the default is unbounded; the baseline's
+    silent 5,000-entry cap was a confirmed defect). ``error_count`` /
+    ``scan_errors`` surface scan failures that approval must account
+    for; ``scan_errors`` is bounded for wire size while ``error_count``
+    is exact.
+    """
 
     source_id: int = Field(alias="sourceId")
     root_path: str = Field(alias="rootPath")
@@ -802,6 +821,9 @@ class SourceInspectResult(FrozenModel):
     total_bytes: int = Field(alias="totalBytes")
     manifest_hash: str = Field(alias="manifestHash")
     entries: list[SourceInventoryEntry]
+    truncated: bool = False
+    error_count: int = Field(default=0, alias="errorCount")
+    scan_errors: list[str] = Field(default_factory=list, alias="scanErrors")
 
 
 class JobSnapshot(FrozenModel):

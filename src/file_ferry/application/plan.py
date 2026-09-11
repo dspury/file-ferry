@@ -136,11 +136,20 @@ class IntakePlanner:
             return StoragePolicy()
 
 
-def detect_collisions(planned: Sequence[_CollisionEntry]) -> list[CollisionIssue]:
-    """Detect duplicate destinations and case-only collisions.
+def detect_collisions(
+    planned: Sequence[_CollisionEntry], *, dest_root: Path | None = None
+) -> list[CollisionIssue]:
+    """Detect duplicate destinations, case-only collisions, and existing files.
 
     ``label_of`` returns the source-relative label for a planned entry
     (``rel_path`` on :class:`PlanEntry`, ``source_path`` on organize entries).
+
+    When ``dest_root`` is provided, destinations that already exist on
+    disk are reported as ``existing_destination`` issues. This closes the
+    confirmed baseline defect where organize reported "no collision" for
+    a destination that was already populated — and then overwrote it.
+    Existence is probed with ``lstat`` semantics (a symlink is a finding,
+    never followed).
     """
     issues: list[CollisionIssue] = []
 
@@ -168,6 +177,14 @@ def detect_collisions(planned: Sequence[_CollisionEntry]) -> list[CollisionIssue
     for key, rels in by_lower.items():
         if len(set(rels)) > 1:
             issues.append(CollisionIssue(path=key, reason="case_only", count=len(set(rels))))
+
+    # Existing content at a planned destination (spec §6.4).
+    if dest_root is not None:
+        from file_ferry.application.transfer_safety import existing_destination_collisions
+
+        existing = existing_destination_collisions(dest_root, [e.dest_path for e in planned])
+        for dest_path, kind in sorted(existing.items()):
+            issues.append(CollisionIssue(path=dest_path, reason=kind, count=1))
     return issues
 
 

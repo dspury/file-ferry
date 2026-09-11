@@ -15,7 +15,9 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from collections.abc import Iterable
+import stat
+from collections.abc import Iterator
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -57,6 +59,31 @@ class SourceNotFoundError(KeyError):
     """Raised when a named source does not exist."""
 
 
+@dataclass(frozen=True)
+class ScanItem:
+    """One raw scan finding, before filtering."""
+
+    rel: str
+    size: int
+    mtime: float
+    entry_type: str  # file | symlink | other | error
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class DetailedScan:
+    """A scan that accounts for every entry it saw.
+
+    ``scan_errors`` carries the findings for entries that could not be
+    stat/read; ``non_files`` carries symlinks and unsupported objects
+    that must be flagged rather than silently skipped (spec §6.3).
+    """
+
+    files: list[SourceInventoryEntry] = field(default_factory=list)
+    non_files: list[SourceInventoryEntry] = field(default_factory=list)
+    scan_errors: list[str] = field(default_factory=list)
+
+
 def _is_skip_file(name: str) -> bool:
     return name in _SKIP_FILE_NAMES or name.startswith("._")  # AppleDouble sidecars
 
@@ -72,7 +99,7 @@ class SourceService:
         self._db_path = Path(db_path)
 
     def inspect(
-        self, params: SourceInspectParams, *, max_entries: int = 5000
+        self, params: SourceInspectParams, *, max_entries: int | None = None
     ) -> SourceInspectResult:
         """Identify a source and scan it without writing.
 
@@ -80,6 +107,14 @@ class SourceService:
         deterministic manifest hash) plus the scanned file entries. The
         manifest hash covers the sorted ``(path, size, mtime)`` tuples,
         so re-scanning an unchanged source yields the same fingerprint.
+
+        ``max_entries`` bounds only the wire payload when a caller
+        explicitly passes one; the ``truncated`` flag then says so. The
+        default is unbounded: the baseline silently capped the payload at
+        5,000 entries while reporting the true count, and the desktop
+        organize flow then copied only what it was given (spec §2,
+        confirmed defect; A01). Full server-side inventories (P2) make
+        even an explicit cap harmless to correctness.
         """
         root = Path(params.path).expanduser()
         if not root.exists():
@@ -87,15 +122,15 @@ class SourceService:
         if not root.is_dir():
             raise NotADirectoryError(f"source path is not a directory: {root}")
 
-        entries = scan_inventory(root)
+        detailed = scan_inventory_detailed(root)
+        entries = detailed.files
         total_bytes = sum(e.size for e in entries)
         manifest_hash = _manifest_hash(entries)
 
         source_id = self._register(
             root, params.kind, params.label, manifest_hash, len(entries), total_bytes
         )
-        # Bound the entries returned over the wire; the full inventory is
-        # re-derived by the intake planner from the source manifest.
+        payload = entries if max_entries is None else entries[:max_entries]
         return SourceInspectResult(
             sourceId=source_id,
             rootPath=str(root),
@@ -104,7 +139,10 @@ class SourceService:
             fileCount=len(entries),
             totalBytes=total_bytes,
             manifestHash=manifest_hash,
-            entries=entries[:max_entries],
+            entries=payload,
+            truncated=max_entries is not None and len(payload) < len(entries),
+            errorCount=len(detailed.scan_errors),
+            scanErrors=detailed.scan_errors[:50],
         )
 
     def get(self, source_id: int) -> SourceRow:
@@ -158,8 +196,14 @@ class SourceService:
             return source_repo.insert_source(conn, source)
 
 
-def _walk(root: Path) -> Iterable[tuple[str, int, float]]:
-    """Yield ``(relative_path, size, mtime)`` for media files under ``root``."""
+def _walk(root: Path) -> Iterator[ScanItem]:
+    """Yield scan items under ``root``, recording failures instead of hiding them.
+
+    A file that cannot be stat/read is yielded as an *error* item rather
+    than silently skipped: a scan whose result cannot account for every
+    entry must not present itself as complete (spec §2 confirmed defect;
+    §7.1 blocks approval on unexplained scan errors).
+    """
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if not _is_skip_dir(d)]
         base = Path(dirpath)
@@ -168,27 +212,71 @@ def _walk(root: Path) -> Iterable[tuple[str, int, float]]:
                 continue
             full = base / name
             try:
-                st = full.stat()
-            except OSError:
+                st = full.lstat()
+            except OSError as exc:
+                yield ScanItem(
+                    rel=str(full.relative_to(root)),
+                    size=0,
+                    mtime=0.0,
+                    entry_type="error",
+                    error=f"lstat failed: {exc}",
+                )
                 continue
-            if not os.path.isfile(full):
+            if not stat.S_ISREG(st.st_mode):
+                kind = "symlink" if stat.S_ISLNK(st.st_mode) else "other"
+                yield ScanItem(
+                    rel=str(full.relative_to(root)),
+                    size=0,
+                    mtime=0.0,
+                    entry_type=kind,
+                    error=None if kind == "symlink" else "unsupported filesystem object",
+                )
                 continue
             rel = str(full.relative_to(root))
-            yield rel, int(st.st_size), st.st_mtime
+            yield ScanItem(
+                rel=rel, size=int(st.st_size), mtime=st.st_mtime, entry_type="file", error=None
+            )
 
 
 def scan_inventory(root: Path) -> list[SourceInventoryEntry]:
-    """Return the read-only media-file inventory of ``root``.
+    """Return the read-only inventory of ``root`` (files only, no errors).
 
-    Applies the same system-artifact exclusions as :meth:`SourceService.inspect`
-    so a planner that re-scans a source at plan time agrees with the
-    source scan that created the manifest.
+    Applies the same system-artifact exclusions as
+    :meth:`SourceService.inspect` so a planner that re-scans a source at
+    plan time agrees with the source scan that created the manifest.
+    Error and non-file findings are excluded here; callers that need the
+    full accounting use :func:`scan_inventory_detailed`.
     """
-    entries = [
-        SourceInventoryEntry(path=rel, size=size, mtime=mtime) for rel, size, mtime in _walk(root)
-    ]
-    entries.sort(key=lambda e: e.path)
-    return entries
+    entries = [item for item in _walk(root) if item.entry_type == "file"]
+    entries.sort(key=lambda e: e.rel)
+    return [SourceInventoryEntry(path=e.rel, size=e.size, mtime=e.mtime) for e in entries]
+
+
+def scan_inventory_detailed(root: Path) -> DetailedScan:
+    """Scan ``root`` keeping every finding, including errors.
+
+    Returns files, non-file objects (symlinks and unsupported objects,
+    flagged per spec §6.3), and the bounded error list with a total
+    count. The manifest hash covers only regular files so it remains
+    comparable with historical manifests.
+    """
+    items = sorted(_walk(root), key=lambda e: e.rel)
+    files = [e for e in items if e.entry_type == "file"]
+    others = [e for e in items if e.entry_type in ("symlink", "other")]
+    errors = [e for e in items if e.entry_type == "error"]
+    return DetailedScan(
+        files=[SourceInventoryEntry(path=e.rel, size=e.size, mtime=e.mtime) for e in files],
+        non_files=[
+            SourceInventoryEntry(
+                path=e.rel,
+                size=e.size,
+                mtime=e.mtime,
+                entryType="symlink" if e.entry_type == "symlink" else "other",
+            )
+            for e in others
+        ],
+        scan_errors=[f"{e.rel}: {e.error}" for e in errors],
+    )
 
 
 def _manifest_hash(entries: list[SourceInventoryEntry]) -> str:

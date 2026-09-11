@@ -54,8 +54,8 @@ const STEPS: readonly StepDef[] = [
  */
 const MODE_NOTE = {
   copy: 'Source files are left untouched.',
-  move: 'Source files are removed after a successful write. Destructive.',
-  link: 'No bytes are copied; the destination points at the source.',
+  move: 'Disabled pending the verified-transfer safety contract (see the destination-presets spec §1.2).',
+  link: 'Disabled pending the verified-transfer safety contract (see the destination-presets spec §1.2).',
 } satisfies Record<'copy' | 'move' | 'link', string>;
 
 export function Organize(): JSX.Element {
@@ -265,8 +265,15 @@ export function Organize(): JSX.Element {
               }}
             >
               <option value="copy">Copy</option>
-              <option value="move">Move</option>
-              <option value="link">Link</option>
+              {/* Disabled, not removed: the restriction is deliberate and
+                * visible (destination-presets spec §1.2) until move/link
+                * meet the verified-transfer safety contract. */}
+              <option value="move" disabled>
+                Move (disabled — unsafe until verified-move contract)
+              </option>
+              <option value="link" disabled>
+                Link (disabled — unsafe until verified-link contract)
+              </option>
             </select>
           </Field>
         </div>

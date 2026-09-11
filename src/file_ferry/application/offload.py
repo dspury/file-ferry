@@ -35,6 +35,7 @@ from file_ferry.application.policies import StoragePolicy
 from file_ferry.application.receipts import ReceiptWriter, build_receipt
 from file_ferry.application.replicas import ReplicaService, compute_checksum
 from file_ferry.application.scheduler import JobScheduler
+from file_ferry.application.transfer_safety import publish_exclusive
 from file_ferry.service.protocol import (
     PROTOCOL_VERSION,
     BuildPlanParams,
@@ -72,10 +73,15 @@ def copy_file_atomic(
     *,
     on_progress: Callable[[int], None] | None = None,
 ) -> int:
-    """Copy ``source`` to ``dest`` atomically.
+    """Copy ``source`` to ``dest`` atomically and without overwriting.
 
-    Writes to a temporary sibling, fsyncs, then renames over ``dest``.
-    On any failure the temporary file is removed and ``dest`` is left
+    Writes to a temporary sibling, fsyncs, then publishes exclusively via
+    :func:`file_ferry.application.transfer_safety.publish_exclusive` — a
+    hard link that fails if ``dest`` already exists. The baseline used
+    ``os.replace`` here, which silently replaced externally created
+    destination files (spec §2/A09); an existing target now raises
+    ``DestinationExistsError`` and the job item fails visibly. On any
+    failure the temporary file is removed and ``dest`` is left
     untouched. Returns the number of bytes copied.
 
     ``on_progress`` is called with the running byte total after each chunk.
@@ -102,7 +108,7 @@ def copy_file_atomic(
                         on_progress(total)
             out.flush()
             os.fsync(out.fileno())
-        os.replace(tmp, dest)
+        publish_exclusive(tmp, dest)
         return total
     except Exception:
         with contextlib.suppress(OSError):
@@ -286,6 +292,28 @@ class OffloadRunner:
                 dest_file = Path(entry.dest_path)
                 report = self._byte_reporter(scheduler, job.id, asset.id, item_base)
                 try:
+                    reused = self._existing_verified_checksums(src, dest_file)
+                    if reused is not None:
+                        # A previously verified output (a resumed attempt, or
+                        # an interruption that published but never committed)
+                        # is adopted only after a full content checksum
+                        # match — never by name alone (spec §6.4/§7.3).
+                        scs, rcs = reused
+                        self._replicas.record_verified(
+                            asset.id,
+                            project_id,
+                            str(dest_file),
+                            checksum=rcs,
+                            algo=self._algo,
+                            source_checksum=scs,
+                        )
+                        self._record_replica(
+                            attempt, rel_path, dest_file, scs=scs, rcs=rcs, verified=True
+                        )
+                        attempt.warnings.append(f"reused verified existing output: {rel_path}")
+                        item_base += self._size_of(src)
+                        self._set_item_bytes(job.id, asset.id, item_base)
+                        continue
                     copied = copy_file_atomic(src, dest_file, on_progress=report)
                 except OSError as exc:
                     self._mark_item_failed(job.id, asset.id, f"copy failed: {exc}")
@@ -330,6 +358,35 @@ class OffloadRunner:
         self._finish_step(job.id, "transfer")
         scheduler.notify_progress(job.id)
         return "succeeded"
+
+    # ---- verified reuse (resume) -------------------------------------
+
+    def _existing_verified_checksums(self, src: Path, dest_file: Path) -> tuple[str, str] | None:
+        """Return ``(source, dest)`` checksums when ``dest`` reuses verified bytes.
+
+        Publication is exclusive, so a destination that exists was either
+        written by an earlier attempt of this job or by someone else. Name
+        alone proves nothing; full content equality under the job's
+        algorithm is the only grounds for reuse, and a mismatch fails the
+        item visibly instead of replacing the file (spec §6.4: no replace,
+        no delete in this workflow).
+        """
+        if not dest_file.exists():
+            return None
+        try:
+            scs, rcs, match = verify_copy(src, dest_file, self._algo)
+        except OSError as exc:
+            raise OSError(f"existing destination unreadable: {dest_file}: {exc}") from exc
+        if not match:
+            raise OSError(f"destination already exists with different content: {dest_file}")
+        return scs, rcs
+
+    @staticmethod
+    def _size_of(src: Path) -> int:
+        try:
+            return src.stat().st_size
+        except OSError:
+            return 0
 
     # ---- progress helpers -------------------------------------------
     #

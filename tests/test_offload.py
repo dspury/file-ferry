@@ -84,17 +84,23 @@ def _setup(tmp_path: Path):
 # ---- pure copy/verify -----------------------------------------------
 
 
-def test_copy_file_atomic_writes_and_replaces(tmp_path: Path) -> None:
+def test_copy_file_atomic_writes_and_refuses_overwrite(tmp_path: Path) -> None:
     src = tmp_path / "src.bin"
     src.write_bytes(b"hello")
     dest = tmp_path / "sub" / "dest.bin"
     n = copy_file_atomic(src, dest)
     assert dest.read_bytes() == b"hello"
     assert n == 5
-    # Overwrite works.
+    # A destination that appeared after planning is never replaced
+    # (spec §2/A09): publication is exclusive, so the second copy fails
+    # and the externally created content survives untouched.
     src.write_bytes(b"longer-content")
-    copy_file_atomic(src, dest)
-    assert dest.read_bytes() == b"longer-content"
+    dest.write_bytes(b"someone-elses-file")
+    from file_ferry.application.transfer_safety import DestinationExistsError
+
+    with pytest.raises(DestinationExistsError):
+        copy_file_atomic(src, dest)
+    assert dest.read_bytes() == b"someone-elses-file"
     # No .part leftovers.
     assert not list(tmp_path.rglob("*.part"))
 

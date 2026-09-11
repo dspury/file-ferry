@@ -35,3 +35,4 @@ htmlcov/
 
 # Demo pipeline output — regenerated on each run
 examples/test-dataset/output/
+.p2-stash/

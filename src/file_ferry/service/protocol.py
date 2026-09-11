@@ -810,7 +810,9 @@ class SourceInspectResult(FrozenModel):
     silent 5,000-entry cap was a confirmed defect). ``error_count`` /
     ``scan_errors`` surface scan failures that approval must account
     for; ``scan_errors`` is bounded for wire size while ``error_count``
-    is exact.
+    is exact. ``non_files`` carries symlinks and unsupported objects
+    that the user must explicitly exclude (spec §6.3) — they are not
+    hidden inside the file count.
     """
 
     source_id: int = Field(alias="sourceId")
@@ -824,6 +826,7 @@ class SourceInspectResult(FrozenModel):
     truncated: bool = False
     error_count: int = Field(default=0, alias="errorCount")
     scan_errors: list[str] = Field(default_factory=list, alias="scanErrors")
+    non_files: list[SourceInventoryEntry] = Field(default_factory=list, alias="nonFiles")
 
 
 class JobSnapshot(FrozenModel):

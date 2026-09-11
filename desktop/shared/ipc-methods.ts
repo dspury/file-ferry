@@ -109,6 +109,8 @@ export interface SourceInspectResult {
   /** Exact count of scan failures; `scanErrors` is a bounded sample. */
   readonly errorCount?: number;
   readonly scanErrors?: readonly string[];
+  /** Symlinks and unsupported objects — first-class findings, not hidden. */
+  readonly nonFiles?: readonly SourceInventoryEntry[];
 }
 
 export interface OrganizationProfile {

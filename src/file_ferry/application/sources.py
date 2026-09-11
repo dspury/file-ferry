@@ -143,6 +143,7 @@ class SourceService:
             truncated=max_entries is not None and len(payload) < len(entries),
             errorCount=len(detailed.scan_errors),
             scanErrors=detailed.scan_errors[:50],
+            nonFiles=detailed.non_files,
         )
 
     def get(self, source_id: int) -> SourceRow:
@@ -202,9 +203,16 @@ def _walk(root: Path) -> Iterator[ScanItem]:
     A file that cannot be stat/read is yielded as an *error* item rather
     than silently skipped: a scan whose result cannot account for every
     entry must not present itself as complete (spec §2 confirmed defect;
-    §7.1 blocks approval on unexplained scan errors).
+    §7.1 blocks approval on unexplained scan errors). The walker installs
+    an ``onerror`` callback so a permission-denied descent is surfaced
+    as an error finding rather than vanishing silently.
     """
-    for dirpath, dirnames, filenames in os.walk(root):
+    walk_errors: list[str] = []
+
+    def _onerror(exc: OSError) -> None:
+        walk_errors.append(f"{getattr(exc, 'filename', '')}: {exc}")
+
+    for dirpath, dirnames, filenames in os.walk(root, onerror=_onerror):
         dirnames[:] = [d for d in dirnames if not _is_skip_dir(d)]
         base = Path(dirpath)
         for name in filenames:
@@ -236,6 +244,8 @@ def _walk(root: Path) -> Iterator[ScanItem]:
             yield ScanItem(
                 rel=rel, size=int(st.st_size), mtime=st.st_mtime, entry_type="file", error=None
             )
+    for err in walk_errors:
+        yield ScanItem(rel=err, size=0, mtime=0.0, entry_type="error", error="walk failed")
 
 
 def scan_inventory(root: Path) -> list[SourceInventoryEntry]:

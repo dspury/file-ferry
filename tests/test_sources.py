@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from pathlib import Path
 
@@ -82,3 +83,73 @@ def test_inspect_rejects_non_directory(tmp_path: Path) -> None:
     f.write_text("hi")
     with pytest.raises(NotADirectoryError):
         svc.inspect(SourceInspectParams(path=str(f), kind="card"))
+
+
+# ---- A07: scan failures + unsupported objects are visible, not hidden ---
+
+
+def test_scan_flags_symlink_entries(tmp_path: Path) -> None:
+    root = tmp_path / "media"
+    root.mkdir()
+    (root / "A.mov").write_bytes(b"video")
+    (root / "link.mov").symlink_to(root / "A.mov")
+    svc = _svc(tmp_path)
+    result = svc.inspect(SourceInspectParams(path=str(root)))
+    by_path = {e.path: e.entry_type for e in result.entries}
+    assert by_path["A.mov"] == "file"
+    non_by_path = {e.path: e.entry_type for e in result.non_files}
+    assert non_by_path["link.mov"] == "symlink"
+    # The file count does not silently include the symlink.
+    assert result.file_count == 1
+
+
+def test_scan_flags_unsupported_objects(tmp_path: Path) -> None:
+    root = tmp_path / "media"
+    root.mkdir()
+    (root / "A.mov").write_bytes(b"video")
+    fifo = root / "fifo"
+    os.mkfifo(str(fifo))
+    svc = _svc(tmp_path)
+    result = svc.inspect(SourceInspectParams(path=str(root)))
+    non_by_path = {e.path: e.entry_type for e in result.non_files}
+    assert non_by_path["fifo"] == "other"
+
+
+def test_scan_flags_broken_symlinks_as_symlinks(tmp_path: Path) -> None:
+    # A broken symlink lstats successfully and is reported as a symlink
+    # entry — never silently skipped, never counted as a regular file.
+    root = tmp_path / "media"
+    root.mkdir()
+    (root / "A.mov").write_bytes(b"v")
+    broken = root / "broken_link.mov"
+    broken.symlink_to(root / "nope.mov")
+    svc = _svc(tmp_path)
+    result = svc.inspect(SourceInspectParams(path=str(root)))
+    by_path = {e.path: e.entry_type for e in result.non_files}
+    assert by_path["broken_link.mov"] == "symlink"
+    assert result.file_count == 1
+    assert result.error_count == 0
+
+
+def test_scan_records_unreadable_subtree(tmp_path: Path) -> None:
+    # Removing execute permission on a child directory causes os.walk to
+    # fail with EACCES when it tries to descend. The scanner records the
+    # failure as a scan error rather than reporting a zero-error scan.
+    root = tmp_path / "media"
+    root.mkdir()
+    (root / "A.mov").write_bytes(b"v")
+    locked = root / "locked"
+    locked.mkdir()
+    (locked / "inside.mov").write_bytes(b"deep")
+    locked.chmod(0o000)
+    svc = _svc(tmp_path)
+    result = svc.inspect(SourceInspectParams(path=str(root)))
+    # The accessible file is still inventoried; the inaccessible subtree
+    # contributes at least one error finding (file count, not strictly
+    # errorCount, because chmod only denies descent in some configurations).
+    assert result.file_count == 1
+    assert result.error_count >= 1
+    try:
+        assert any("locked" in s for s in result.scan_errors)
+    finally:
+        locked.chmod(0o755)

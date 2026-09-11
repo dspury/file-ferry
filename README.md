@@ -259,11 +259,16 @@ adoption, project reconciliation, and a retained CLI/TUI.
 
 The full build plan is in
 [`docs/FILE-FERRY-FULL-APP-IMPLEMENTATION-PLAN.md`](./docs/FILE-FERRY-FULL-APP-IMPLEMENTATION-PLAN.md).
-**All nine implementation packages are landed** (see its §0 progress table):
-Electron shell + secure bridge, the complete desktop experience, TUI/CLI
-parity, and packaged-release hardening. The remaining items are operator-owned
-release gates (signing/notarization, real-media suite, soak, security review)
-— see §16 of the plan.
+Its implementation packages are built out (shell, IPC, services,
+screens, packaging), but "landed packages" is not a production claim:
+the operator-owned release gates (signing/notarization, real-media
+suite, soak, security review) have not been run — see §16 of the plan.
+
+The next scoped increment — saved destinations, organization presets,
+and verified copy-only transfers — is specified in
+[`docs/DESTINATION-PRESETS-PRODUCTION-SPEC.md`](./docs/DESTINATION-PRESETS-PRODUCTION-SPEC.md)
+and tracked in its execution report. Nothing in that spec is a shipped
+feature until the report says so.
 
 Longer-term ideas (not yet scheduled):
 

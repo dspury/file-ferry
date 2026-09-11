@@ -1,8 +1,17 @@
 # file-ferry desktop
 
-Electron desktop shell for file-ferry vNext. The foundation cut
-contains the security boundary, the IPC contract, the sidecar
-supervisor, and a minimal renderer — not the actual screens.
+Electron desktop shell for file-ferry vNext: the security boundary,
+the IPC contract, the sidecar supervisor, and the working screens
+(Home, Ingest, Organize, Projects, Activity, Asset detail, Settings,
+Onboarding) backed by the Python application services under
+`src/file_ferry/application/`.
+
+The desktop **Organize** flow's saved-destination and preset work is
+being rebuilt per
+[`docs/DESTINATION-PRESETS-PRODUCTION-SPEC.md`](../docs/DESTINATION-PRESETS-PRODUCTION-SPEC.md);
+until that lands, its move/link actions are disabled and copies are
+review-first. Treat that document, not this README, as the source of
+truth for what has actually shipped.
 
 See:
 
@@ -15,7 +24,7 @@ See:
 ```
 desktop/
 ├── electron/             main process, preload, sidecar supervisor
-├── renderer/             React + TypeScript shell (placeholder)
+├── renderer/             React + TypeScript screens (Home/Ingest/Organize/…)
 ├── shared/               IPC protocol types (TS + matched by Python pydantic)
 ├── tests/                vitest contract + supervision tests
 ├── build/                electron-builder config + macOS entitlements
@@ -77,15 +86,15 @@ echo '{"jsonrpc":"2.0","v":1,"kind":"request","id":"x","method":"app.getCapabili
   | ./desktop/sidecar/arm64/ferry-service --once --db /tmp/x.db
 ```
 
-## What's NOT in this foundation
+## What is and is NOT implemented
 
-- The actual screens (Home, Ingest, Organize, Projects, Activity).
-  They land in Package 7 of the implementation plan.
-- The actual application services (project, source, intake, jobs,
-  replicas, assets, receipts). They land in
-  `src/file_ferry/application/` per ADR-0005.
-- The renderer is a single placeholder that calls `app.getStatus`. It
-  is a sanity check, not a UI.
+- The screens listed above exist and drive the vNext application
+  services over the IPC bridge.
+- The saved-destination / organization-preset workflow from the
+  destination-presets spec is in progress; see that spec's execution
+  report for per-phase status.
+- Live DaVinci Resolve project creation is NOT implemented — the
+  Resolve handoff produces an import manifest, per plan §7.4.
 
 ## Security
 

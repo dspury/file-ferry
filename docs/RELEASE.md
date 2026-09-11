@@ -54,7 +54,7 @@ run that exercises fresh migrations from an empty store.
 For a true **clean machine** (no build artifacts): clone the repo fresh,
 `pip install -e .` into a new venv, `cd desktop && npm ci && npm run build`,
 then run the clean-app-data procedure and verify-packaged against the built
-app. See `docs/DEVELOPMENT.md` for the environment.
+app. See the root `README.md` development-setup section for the environment.
 
 ## Release gates (plan §11.3)
 

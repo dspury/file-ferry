@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import shutil
 import sqlite3
+import threading
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -23,9 +24,24 @@ BACKUP_SUFFIX = ".db"
 
 
 def _now_iso() -> str:
-    """Return the current UTC timestamp in a filename-safe ISO format."""
+    """Return the current UTC timestamp in a filename-safe ISO format.
+
+    Microsecond precision plus a per-call counter: two backups taken in
+    the same microsecond (concurrent runners sharing a backups dir) must
+    never collide on one filename, because a collision means one backup
+    silently overwrites the other and the "pre-migration" copy is then a
+    post-migration lie for one of them.
+    """
     now = datetime.now(UTC)
-    return now.strftime("%Y-%m-%dT%H-%M-%SZ")
+    stamp = now.strftime("%Y-%m-%dT%H-%M-%S") + f"-{now.microsecond:06d}"
+    with _COUNTER_LOCK:
+        _COUNTER[0] += 1
+        seq = _COUNTER[0]
+    return f"{stamp}-{seq:04d}Z"
+
+
+_COUNTER: list[int] = [0]
+_COUNTER_LOCK = threading.Lock()
 
 
 def write_backup(db_path: Path, backups_dir: Path, version: int) -> Path:
@@ -33,13 +49,25 @@ def write_backup(db_path: Path, backups_dir: Path, version: int) -> Path:
 
     The backup uses SQLite's online backup API so the snapshot is
     consistent even if WAL mode is active. The backup filename is
-    ``ferry-{ISO8601}-pre-{version:03d}.db``.
+    ``ferry-{unique ISO8601}-pre-{version:03d}.db`` where the timestamp
+    has microsecond precision plus a per-process counter, so two backups
+    can never collide on one filename.
+
+    Raises ``sqlite3.OperationalError`` with the offending path in the
+    message context if either end cannot be opened, rather than leaving
+    the caller to guess which "unable to open database file" failed.
     """
     backups_dir.mkdir(parents=True, exist_ok=True)
     target = backups_dir / f"{BACKUP_PREFIX}-{_now_iso()}-pre-{version:03d}{BACKUP_SUFFIX}"
-    source = sqlite3.connect(str(db_path), timeout=5.0)
     try:
-        dest = sqlite3.connect(str(target), timeout=5.0)
+        source = sqlite3.connect(str(db_path), timeout=5.0)
+    except sqlite3.OperationalError as exc:
+        raise sqlite3.OperationalError(f"backup source {db_path}: {exc}") from exc
+    try:
+        try:
+            dest = sqlite3.connect(str(target), timeout=5.0)
+        except sqlite3.OperationalError as exc:
+            raise sqlite3.OperationalError(f"backup target {target}: {exc}") from exc
         try:
             source.backup(dest)
         finally:

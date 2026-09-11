@@ -6,7 +6,7 @@ named ``NNN_description.py`` with ``upgrade(conn)`` and
 that:
 
 1. Opens a single connection with the project's frozen PRAGMAs.
-2. Starts an EXCLUSIVE transaction so a second runner fails fast.
+2. Reads the current version from ``schema_meta``.
 3. For each migration to apply, in source order:
    - Verify the target version is not less than the current version.
    - Take a backup of the DB file at
@@ -15,11 +15,15 @@ that:
    - Run ``upgrade(conn)``.
    - Update ``schema_meta.schema_version`` to the new version.
    - On any failure, restore from the backup file and re-raise.
-4. Commits the transaction.
+4. Commits each statement as it runs (the connection is in autocommit
+   mode).
 
-The runner is single-threaded. The single-writer guarantee comes
-from the desktop shell serializing the runner calls; the EXCLUSIVE
-transaction is a failsafe against a second runner.
+The runner is single-threaded. Cross-process serialization is *not*
+provided by the runner itself: the desktop shell serializes the runner
+calls, and concurrent writers rely on SQLite's write locking (the
+connection PRAGMAs include a busy timeout). A second process racing
+the first sees write-lock errors rather than a clean refusal — the
+callers must not race it.
 
 See ADR-0003 (application persistence model).
 """

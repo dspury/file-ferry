@@ -165,3 +165,36 @@ export function IconFolderOpen(props: IconProps): JSX.Element {
     </Icon>
   );
 }
+
+/** A saved destination: a place pinned on a map. */
+export function IconDestination(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M12 21s-6.5-5.4-6.5-10a6.5 6.5 0 0 1 13 0c0 4.6-6.5 10-6.5 10z" />
+      <circle cx="12" cy="10.5" r="2.2" />
+    </Icon>
+  );
+}
+
+/** A preset: ordered rules feeding one output. */
+export function IconPreset(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M4 6h10M4 12h7M4 18h4" />
+      <circle cx="18" cy="6" r="2" />
+      <circle cx="15" cy="12" r="2" />
+      <circle cx="12" cy="18" r="2" />
+    </Icon>
+  );
+}
+
+/** A planned transfer: one source, one destination, an arrow between. */
+export function IconTransfer(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <rect x="2.5" y="7" width="7" height="10" rx="1.5" />
+      <rect x="14.5" y="7" width="7" height="10" rx="1.5" />
+      <path d="M11 12h2m0 0-1.2-1.2M13 12l-1.2 1.2" />
+    </Icon>
+  );
+}

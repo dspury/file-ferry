@@ -18,6 +18,7 @@ import { join } from 'node:path';
 import { api } from '../shared/preload-api.js';
 import { App } from '../renderer/src/App.js';
 import { Banner, Chip, StatusReadout } from '../renderer/src/components/ui.js';
+import type { JobDetail, ProjectSummary } from '../shared/ipc-methods.js';
 
 afterEach(() => {
   // RTL's auto-cleanup registers on a global afterEach, which vitest
@@ -44,6 +45,25 @@ function stubFerry(): void {
     },
     job: { ...api.job, list: () => Promise.resolve({ jobs: [] }) },
     source: { ...api.source, listVolumes: () => Promise.resolve({ volumes: [] }) },
+    project: { ...api.project, list: () => Promise.resolve({ projects: [] }) },
+  });
+}
+
+/** Extend the shell stub with one recent job and named projects. */
+function stubFerryWithJobs(
+  jobs: readonly JobDetail[],
+  projects: readonly ProjectSummary[] = [],
+): void {
+  vi.stubGlobal('ferry', {
+    ...api,
+    app: {
+      ...api.app,
+      getStatus: () =>
+        Promise.resolve({ sidecarVersion: '0.3.0', protocolVersion: 1, capabilities: [] }),
+    },
+    job: { ...api.job, list: () => Promise.resolve({ jobs }) },
+    source: { ...api.source, listVolumes: () => Promise.resolve({ volumes: [] }) },
+    project: { ...api.project, list: () => Promise.resolve({ projects }) },
   });
 }
 
@@ -76,6 +96,51 @@ describe('App shell', () => {
   });
 });
 
+describe('Dashboard project column', () => {
+  // Full literal; SAFETY: tsc checks the fixture against the wire types.
+  const PROJECT = {
+    id: 'b72d0dbe-610f-48ad-bcc6-5ebd80005027',
+    name: 'Moon Landing',
+    workingRoot: '/Users/dspury/Moon Landing',
+    backupRoot: null,
+    status: 'active',
+    storagePolicy: {
+      requiredReplicas: 2,
+      backupOnDifferentVolume: true,
+      checksumAlgo: 'xxhash64' as const,
+      safetyReserveBytes: 0,
+      requireSourceFingerprint: true,
+    },
+    createdAt: '2026-09-14T00:00:00Z',
+    updatedAt: '2026-09-14T00:00:00Z',
+    archivedAt: null,
+  };
+  const JOB = {
+    id: 'job-recent',
+    projectId: PROJECT.id,
+    sessionId: null,
+    command: 'organize',
+    argsFingerprint: null,
+    state: 'succeeded',
+    currentStep: null,
+    totalSteps: 1,
+    startedAt: '2026-09-14T00:00:02Z',
+    updatedAt: '2026-09-14T00:00:03Z',
+    finishedAt: '2026-09-14T00:00:03Z',
+    error: null,
+    resumable: false,
+  };
+
+  it('names a recent job project instead of printing its UUID', async () => {
+    stubFerryWithJobs([JOB], [PROJECT]);
+    render(<App />);
+    await screen.findByText('Connected sources');
+    await screen.findByText('Moon Landing');
+    // The full UUID never renders; the elided fallback is for unknown ids.
+    const cell = screen.getByText('Moon Landing');
+    expect(cell.closest('tr')?.textContent).not.toContain(PROJECT.id);
+  });
+});
 describe('design-system primitives', () => {
   it('Chip carries the tone in shape and text, never colour alone', () => {
     render(<Chip tone="danger">MISSING</Chip>);

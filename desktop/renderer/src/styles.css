@@ -378,22 +378,18 @@ code,
 }
 
 /*
- * The mark is a bordered plate with an accent glyph rather than a solid
- * accent tile. The accent is this system's *interaction* colour — a
- * permanently lit 28px block of it in the corner competes with every button
- * on screen for the eye, and on a screen full of nothing to do it was the
- * loudest thing in the window.
+ * The mark was a bordered plate holding a generic glyph; it now holds the
+ * real solo mark (assets/brand/ferry-logo-black.svg), whose 2.07:1 ratio
+ * and detail need room to read — the plate's border and fill would be
+ * clutter at this width, so they are gone and the mark stands alone
+ * (§8). 48px clears the guide's 32px minimum for the solo mark with detail
+ * left visible; the ratio sets the height (~23px), and `currentColor`
+ * makes the mono vectors a single token colour.
  */
 .nav__mark {
-  width: 30px;
-  height: 30px;
+  width: 48px;
   flex: none;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--c-accent-line);
-  background: var(--c-accent-soft);
   color: var(--c-accent);
-  display: grid;
-  place-items: center;
 }
 
 .nav__wordmark {
@@ -1009,16 +1005,25 @@ code,
   font-size: var(--fs-sm);
 }
 
+/*
+ * Disabled must read as disabled, not as absent (operator note, 2026-09).
+ * `opacity: 0.5` on a primary made its text wash out to ~nothing on
+ * surface-2, and "Scan source" at the same weight as the surrounding
+ * chrome read as a missing control. The disabled state is now carried by
+ * surface + border + text tier, not by transparency: --c-text-faint is the
+ * bottom tier the guide calibrated for small text on surface-2 (4.86:1),
+ * clearly below an enabled button's --c-text but plainly present.
+ */
 .btn:disabled {
-  opacity: 0.5;
+  opacity: 1;
   cursor: not-allowed;
+  color: var(--c-text-faint);
 }
 
 .btn--primary:disabled,
 .btn--danger:disabled {
   background: var(--c-surface-2);
   border-color: var(--c-border);
-  color: var(--c-text-dim);
 }
 
 /* ===================== segmented control ======================== */

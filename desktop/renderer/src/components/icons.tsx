@@ -110,17 +110,6 @@ export function IconSettings(props: IconProps): JSX.Element {
   );
 }
 
-/** Ferry mark: a hull with a stacked cargo box, drawn filled for the rail. */
-export function IconFerry(props: IconProps): JSX.Element {
-  return (
-    <Icon strokeWidth={1.8} {...props}>
-      <path d="M3 15.5h18l-2.5 4a2 2 0 0 1-1.7 1H7.2a2 2 0 0 1-1.7-1z" />
-      <path d="M6 15.5V10h12v5.5" />
-      <path d="M9.5 10V6.5h5V10" />
-    </Icon>
-  );
-}
-
 export function IconAlert(props: IconProps): JSX.Element {
   return (
     <Icon {...props}>

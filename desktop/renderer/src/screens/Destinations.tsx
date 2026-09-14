@@ -204,13 +204,11 @@ export function Destinations(): JSXType.Element {
             <EmptyState
               message="No saved destinations"
               hint="Save the folder a card should land in, and pin the preset that routes it."
+              // Duplicated "Save destination" read as two independent
+              // controls; the header button is the real control.
               action={
-                <button
-                  type="button"
-                  className="btn btn--primary"
-                  onClick={() => setShowForm(true)}
-                >
-                  Save destination
+                <button type="button" className="btn" onClick={() => setShowForm(true)}>
+                  Save the first one
                 </button>
               }
             />

@@ -11,6 +11,7 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import type { Frame, ResponseFrame, EventFrame } from '../shared/ipc-schema.js';
 import type { MethodName, ParamsOf, ResultOf } from '../shared/ipc-methods.js';
 import type { PickRequest, PickResult } from '../shared/dialog.js';
+import type { FerryAPI as DeclaredAPI } from '../shared/preload-api.js';
 
 function invoke<M extends MethodName>(method: M, params: ParamsOf<M>): Promise<ResultOf<M>> {
   // SAFETY: `ipcRenderer.invoke` is typed `Promise<any>` because the channel
@@ -55,11 +56,42 @@ const api = {
     listVolumes: () => invoke('source.listVolumes', {}),
     inspect: (params: ParamsOf<'source.inspect'>) => invoke('source.inspect', params),
   },
+  destination: {
+    save: (params: ParamsOf<'destination.save'>) => invoke('destination.save', params),
+    list: (includeArchived?: boolean) =>
+      invoke('destination.list', includeArchived ? { includeArchived } : {}),
+    get: (id: number) => invoke('destination.get', { id }),
+    archive: (id: number) => invoke('destination.archive', { id }),
+    resolve: (params?: ParamsOf<'destination.resolve'>) =>
+      invoke('destination.resolve', params ?? {}),
+    discovery: () => invoke('destination.discovery', {}),
+    confirmBinding: (params: ParamsOf<'destination.confirmBinding'>) =>
+      invoke('destination.confirmBinding', params),
+  },
+  inventory: {
+    create: (params: ParamsOf<'inventory.create'>) => invoke('inventory.create', params),
+    status: (id: number) => invoke('inventory.status', { id }),
+    entries: (id: number, options?: Pick<ParamsOf<'inventory.entries'>, 'limit' | 'after'>) =>
+      invoke('inventory.entries', { id, ...options }),
+  },
   profile: {
     save: (params: ParamsOf<'profile.save'>) => invoke('profile.save', params),
     list: () => invoke('profile.list', {}),
     get: (id: number) => invoke('profile.get', { id }),
     preview: (params: ParamsOf<'profile.preview'>) => invoke('profile.preview', params),
+    // Immutable preset revisions (spec §4.2). `saveRevision` appends; the
+    // destination's pin — never "latest" — decides what a plan uses.
+    saveRevision: (params: ParamsOf<'profile.saveRevision'>) =>
+      invoke('profile.saveRevision', params),
+    listRevisions: (
+      presetId: number,
+      options?: Pick<ParamsOf<'profile.listRevisions'>, 'limit' | 'after'>,
+    ) => invoke('profile.listRevisions', { presetId, ...options }),
+    getRevision: (presetId: number, revision?: number) =>
+      invoke('profile.getRevision', revision === undefined ? { presetId } : { presetId, revision }),
+    export: (presetId: number, revision?: number) =>
+      invoke('profile.export', revision === undefined ? { presetId } : { presetId, revision }),
+    import: (params: ParamsOf<'profile.import'>) => invoke('profile.import', params),
   },
   asset: {
     list: (params?: ParamsOf<'asset.list'>) => invoke('asset.list', params ?? {}),
@@ -97,6 +129,23 @@ const api = {
   },
   plan: {
     build: (params: ParamsOf<'plan.build'>) => invoke('plan.build', params),
+  },
+  transfer: {
+    planCreate: (params: ParamsOf<'transfer.planCreate'>) => invoke('transfer.planCreate', params),
+    planGet: (id: string) => invoke('transfer.planGet', { id }),
+    planEntries: (
+      id: string,
+      options?: Pick<ParamsOf<'transfer.planEntries'>, 'limit' | 'after'>,
+    ) => invoke('transfer.planEntries', { id, ...options }),
+    planResolve: (params: ParamsOf<'transfer.planResolve'>) =>
+      invoke('transfer.planResolve', params),
+    planApprove: (id: string, fingerprint: string) =>
+      invoke('transfer.planApprove', { id, fingerprint }),
+    preflightStart: (planId: string) => invoke('transfer.preflightStart', { planId }),
+    preflightStatus: (id: number) => invoke('transfer.preflightStatus', { id }),
+    start: (id: string, fingerprint: string) => invoke('transfer.start', { id, fingerprint }),
+    receipt: (planId: string) => invoke('transfer.receipt', { planId }),
+    receiptExport: (planId: string) => invoke('transfer.receiptExport', { planId }),
   },
   receipt: {
     export: (params: ParamsOf<'receipt.export'>) => invoke('receipt.export', params),
@@ -142,6 +191,19 @@ const api = {
 };
 
 export type FerryAPI = typeof api;
+
+// Drift guard. The declared renderer surface (shared/preload-api.ts) and
+// this implementation are two hand-maintained copies of one API, and this
+// file is the only place that can see both. Both assignability directions
+// must hold, so a namespace or method present in one and missing from the
+// other fails the build here rather than surfacing as a runtime
+// `undefined` in the renderer.
+type _DeclaredMatchesImpl = DeclaredAPI extends typeof api
+  ? typeof api extends DeclaredAPI
+    ? true
+    : never
+  : never;
+export const matchesDeclaration: _DeclaredMatchesImpl = true;
 
 contextBridge.exposeInMainWorld('ferry', api);
 

@@ -19,7 +19,14 @@ packaged app must be able to drive destination -> plan -> preflight -> approve
 first, because it is cheap and proves the pipeline, but it is not the
 destination.
 
-Execute in this order: **A -> #120 -> B1 -> B2 -> B3.**
+Execute in this order:
+
+    #120  ->  A0  ->  B1  ->  B2  ->  BRAND  ->  B3  ->  A
+
+The operator wants the **scoped build completed before packaging**, so full
+packaging (A) moves to the end and the app is packaged once, with everything in
+it. `A0` is a single cheap freeze smoke test kept near the front as insurance --
+see "Why A moved, and what A0 is" below.
 
 The reasoning behind that choice is below; it is recorded so the constraint is
 understood, not so it can be reopened.
@@ -46,10 +53,8 @@ That produces two possible readings of "test on sample files":
 | **Stage A only** | The legacy offload / organize / proxy flows | Small — the pipeline already works |
 | **Stage A + B** | The new destination -> plan -> approve -> transfer -> receipt flow | Substantial — this is P6 |
 
-**Stage A first, then Stage B.** Stage A is cheap, proves the packaging
-pipeline against current `main`, and gives the operator something to launch
-while Stage B proceeds. Do not skip it in order to start Stage B, and do not
-stop at it — Stage B is the agreed goal.
+**Stage B is the agreed goal**, and full packaging happens once, at the end,
+with the whole build in it.
 
 ---
 
@@ -73,7 +78,11 @@ not something to ship.
 
 ---
 
-## Stage A — packaged app from current `main`
+## Stage A — package the completed build (runs LAST)
+
+Everything below runs once, after B3 and BRAND are done. `A0` (the freeze smoke
+test) has already run near the front; `A2` re-runs the same freeze against the
+finished tree.
 
 ### A1. Make an unsigned local build possible
 
@@ -162,6 +171,9 @@ bridge namespace list includes `destination`, `inventory`, `transfer`.
 
 ### B3. UI screens
 
+**Gated on BRAND landing** — see that section. Building these against tokens
+that are about to be re-valued means building them twice.
+
 Destination manager, preset editor, inventory/scan view, plan review with the
 conflict and exclusion workflow, preflight status, approval, transfer progress,
 and receipt view.
@@ -173,6 +185,107 @@ refused; `needs_review` items block approval.
 
 **Acceptance:** the whole flow is drivable from the packaged app with no raw
 RPC, and a stale approval is refused in the UI as well as server-side (A08).
+
+---
+
+## Why A moved, and what A0 is
+
+Packaging-first would normally be the safer order: the PyInstaller freeze is
+where a working source tree quietly stops being a working binary, and finding
+that after all of B is expensive. Two facts specific to this repo make the
+deferral acceptable:
+
+1. **The migration-bundling trap is already solved.** `scripts/sidecar.spec`
+   globs `NNN_*.py` at build time into `hiddenimports`, and
+   `persistence/runner.py::discover_migrations` has an explicit frozen-bundle
+   fallback for when `pkg.__path__` is not a real directory. Verified: all five
+   migrations, `005_transfer_execution` included, are picked up. The spec even
+   carries a comment about the past incident where a frozen build "knew about
+   two migrations, computed `target 2`, and refused to open any".
+2. **P2-P5 added no new third-party dependency.** `pyproject.toml` still lists
+   exactly click, pydantic, rich, textual, tomlkit, xxhash. The transfer runner
+   is stdlib-only (`hashlib`, `json`, `os`, `uuid`, `datetime`). New imports are
+   the usual cause of a freeze that succeeds and then fails at runtime, and
+   there are none.
+
+So the freeze risk is low but not zero. **A0** buys down what remains, cheaply:
+
+### A0. Freeze smoke test (do this early, once)
+
+    scripts/build-sidecar.sh arm64
+    desktop/sidecar/arm64/ferry-service --version
+
+Then run the frozen binary against a scratch database and confirm it migrates
+to **schema 5**. Do **not** package the app, sign anything, or touch
+`electron-builder.yml` -- this is only asking "does the current tree still
+freeze and still migrate".
+
+**Acceptance:** the frozen sidecar reports the current version and creates a
+v5 database. If it fails, stop and fix it before starting B -- that is the one
+failure mode this ordering is exposed to.
+
+**Add A0 to the definition of done for any B task that adds a Python import.**
+Re-running it is under a minute and it is the whole cost of the reordering.
+
+---
+
+## BRAND — branding / style guide package
+
+The operator is preparing a branding and style-guide package on a separate
+branch. **It is not on the remote yet**, so this section states the integration
+contract rather than the content; fill in specifics when the branch lands.
+
+### Where it sits
+
+Between **B2** and **B3**, and that position is deliberate: B3 builds seven or
+eight new screens, and building them against tokens that are about to be
+replaced means building them twice. **Do not start B3 before the branding
+package has landed on `main`.**
+
+If the branding branch is delayed, B1 and B2 are unaffected -- neither touches
+presentation -- so continue with those and hold B3.
+
+### What it lands on
+
+`desktop/renderer/src/styles.css` already carries **80 CSS custom properties**
+in a coherent scheme, from the CinePrompt reskin (`c774d36`, reviewed in
+`docs/design/cineprompt-reskin-review.md`):
+
+| Family | Count | What |
+| --- | --- | --- |
+| `--c-*` | 33 | colour |
+| `--state-*` | 12 | job/entity state colours |
+| `--sp-*` | 8 | spacing, `4px`..`44px` |
+| `--fs-*` | 7 | font size, `10px`..`26px` |
+| `--radius-*` | 4 | corner radii |
+| `--tr-*` | 3 | transitions |
+| other | 13 | shadow, scrim, nav, header, glow, control, fills, families |
+
+This is a real system, not ad-hoc values. The branding package should **extend
+or re-value these tokens**, not introduce a second parallel system beside them
+-- two token systems disagreeing about a colour is precisely the cross-surface
+divergence class this codebase has been bitten by before.
+
+### Two things the branding pass should fix while it is in there
+
+- **Issue #101 -- every `--fs-*` is an absolute `px`**, so OS text-only scaling
+  has no effect. Confirmed: `--fs-2xs: 10px` through `--fs-2xl: 26px`. Convert
+  the type scale to `rem` (or equivalent) as part of re-valuing it. Doing this
+  during a branding pass is nearly free; doing it afterwards means re-touching
+  every screen.
+- **Contrast.** Re-valuing colour tokens can silently break WCAG contrast.
+  Check the new palette against the text/background pairings before B3 consumes
+  it, not after. Issue #95 (no screen-reader pass) and #148 (Windows-only a11y
+  verification) are related open a11y work.
+
+### Acceptance
+
+- One token system; no duplicate or shadow set of values
+- `--fs-*` scale is relative, and OS text scaling visibly changes rendered text
+- Contrast checked for the text/background pairings the new palette introduces
+- Existing screens still render correctly -- the reskin is not regressed
+- The desktop suite stays green, and **#122's render tests exist by now** (see
+  below), or the check is honestly recorded as "by eye only"
 
 ---
 
@@ -200,9 +313,13 @@ arch subdirectory**. The doc is wrong; fix the doc.
 ### #122 — no desktop render tests (blocks Stage B3 safely)
 
 `vitest` runs with `environment: 'node'` and no DOM, so there are no render
-tests at all. Issues #97 and #110 were both found by hand. Starting B3 without
-this means UI regressions are invisible. Add jsdom + render tests before or
-alongside B3.
+tests at all. Issues #97 and #110 were both found by hand.
+
+This matters more under the new ordering than the old one. B3 now builds seven
+or eight screens *and* consumes a re-valued token system, with full packaging
+deferred to the very end — so the window between "UI regression introduced" and
+"anyone launches the app" is at its widest. Add jsdom + render tests **before**
+B3, not alongside it.
 
 ---
 

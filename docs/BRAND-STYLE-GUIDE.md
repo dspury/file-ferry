@@ -162,5 +162,70 @@ The new brand diverges from the current in-app themes — this branch changes
 
 Proposed direction: migrate primary/accent tokens to the `ferry`/`steel`
 family on `ink`, keep bone text and the existing ok/warn/danger ramps.
-TUI `ASCII_LOGO` (`src/file_ferry/tui.py:67-74`) stays as the terminal
-fallback; graphical surfaces use the new masters.
+See §7 — the TUI is rebranded too, not left on the old theme.
+
+## 7. The TUI
+
+The terminal UI is rebranded with the rest of the product, not left behind as a
+legacy surface. It cannot show the raster masters, so it carries the brand
+through palette and wordmark instead.
+
+### Theme
+
+`MM_THEME` in `src/file_ferry/tui.py:51-63`. Its background `#0d0f14` is
+already close to brand `ink`, so this is mostly an accent migration rather than
+a reskin.
+
+| Textual slot | From | To | On ink |
+|---|---|---|---|
+| `background` | `#0d0f14` | `#0F1622` (ink) | — |
+| `surface` | `#171922` | `#151E2D` | 1.08:1 |
+| `panel` | `#20232f` | `#1C283B` | 1.22:1 |
+| `primary` | `#ff7a45` | `#75A1C6` (ferry) | 6.62:1 |
+| `secondary` | `#a970ff` | `#5F87A8` | 4.76:1 |
+| `accent` | `#35c5f0` | `#A3C0D7` | 9.57:1 |
+| `success` | `#52d273` | `#35a96c` | 6.08:1 |
+| `warning` | `#ffc857` | `#e7b923` | 9.81:1 |
+| `error` | `#ff5c5c` | `#f0495a` | 5.01:1 |
+
+Every slot clears WCAG AA on ink. `secondary` is `steel` lifted toward `mist`
+until it cleared 4.5:1 — raw `steel` is 1.89:1 and must not be used for
+anything a terminal renders as text.
+
+The functional three are moved to the **desktop's** values rather than keeping
+the TUI's own. They are the same three states, and two surfaces disagreeing
+about what "warning" looks like is the cross-surface divergence this codebase
+keeps getting bitten by.
+
+### Wordmark
+
+`ASCII_LOGO` (`src/file_ferry/tui.py:67-74`) stays figlet — a terminal cannot
+render the mark — but it stops being monochrome. §2 specifies `FILE-` in bone
+and `FERRY` in light steel blue; a terminal can do exactly that with two
+colours, so the ASCII wordmark should carry the same split rather than
+rendering flat.
+
+The figlet currently reads `ferry`. It should read `file-ferry` to match the
+wordmark, regenerated the same way the existing comment documents:
+
+    python -c "import pyfiglet; print(pyfiglet.figlet_format('file-ferry', font='slant'))"
+
+Check the result fits a standard 80-column terminal and degrades sanely at
+narrower widths before adopting it.
+
+`STRAP` and `TAGLINE` are unchanged — §4 keeps them as brand voice.
+
+### Fold in #124 while here
+
+The theme constant is still called `MM_THEME`, a leftover from the pre-rename
+name (issue #124). Renaming it to `FERRY_THEME` belongs in this change; the
+theme's own `name="ferry-studio"` is already correct.
+
+### Acceptance
+
+- No orange or violet remains in the TUI theme
+- Every slot clears AA on the new background
+- Functional colours match the desktop's, not a second set
+- The ASCII wordmark renders `FILE-` and `FERRY` in the two brand colours
+- It fits 80 columns and degrades sanely below that
+- `MM_THEME` renamed; no `MM_` prefixes left in `tui.py`

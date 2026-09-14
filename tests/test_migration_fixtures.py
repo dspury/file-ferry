@@ -187,3 +187,29 @@ def test_v4_database_with_the_superseded_shape_fails_loudly(tmp_path: Path) -> N
     assert "transfer_plans.blocking_count" in message
     assert "cannot be upgraded in place" in message
     assert "export them first" in message, "the message must not imply deleting real records"
+
+
+def test_bootstrap_refuses_a_database_with_the_superseded_shape(tmp_path: Path) -> None:
+    """The guard is wired where a developer will actually hit it."""
+    import importlib
+
+    from file_ferry.application.service import ApplicationService
+    from file_ferry.persistence.connection import open_connection
+
+    v4 = importlib.import_module("file_ferry.persistence.migrations.004_destination_presets")
+
+    db_path = tmp_path / "ferry.db"
+    first = ApplicationService(db_path=db_path, app_data_dir=tmp_path / "app")
+    first.bootstrap()
+    first.close()
+
+    conn = open_connection(db_path)
+    try:
+        conn.execute("ALTER TABLE source_inventories DROP COLUMN heartbeat_at")
+    finally:
+        conn.close()
+
+    stale = ApplicationService(db_path=db_path, app_data_dir=tmp_path / "app")
+    with pytest.raises(v4.IncompatibleDevelopmentSchemaError, match="heartbeat_at"):
+        stale.bootstrap()
+    stale.close()

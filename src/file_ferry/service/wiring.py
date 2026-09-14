@@ -29,10 +29,12 @@ from file_ferry.service.protocol import (
     AdoptSourceResult,
     AppSettings,
     AppStatus,
+    ArchiveDestinationParams,
     ArchiveProjectParams,
     AssetSummary,
     BuildPlanParams,
     CancelJobParams,
+    ConfirmBindingParams,
     CreateIntakeSessionParams,
     CreateJobParams,
     CreateProjectParams,
@@ -46,6 +48,9 @@ from file_ferry.service.protocol import (
     IntakeDestination,
     IntakePlan,
     IntakeSession,
+    InventoryCreateParams,
+    InventoryEntriesParams,
+    InventoryStatusParams,
     JobDetail,
     JobSnapshot,
     JobTransitionParams,
@@ -65,14 +70,25 @@ from file_ferry.service.protocol import (
     OrganizePreview,
     OrganizePreviewParams,
     OrganizeResult,
+    PlanApproveParams,
+    PlanCreateParams,
+    PlanEntriesParams,
+    PlanIdParams,
+    PlanResolveParams,
+    PreflightStartParams,
+    PreflightStatusParams,
+    PresetImportParams,
     ProfilePreviewParams,
     ProjectDetail,
     ProjectManifest,
     ReconcileAssetParams,
     ReconcileProjectParams,
     ReconcileReport,
+    ResolveDestinationParams,
     ResolveImportManifest,
     SafeToFormatEval,
+    SaveDestinationParams,
+    SavePresetRevisionParams,
     SaveProfileParams,
     SourceInspectParams,
     SourceInspectResult,
@@ -287,6 +303,109 @@ def _build_handlers(service: ApplicationService) -> dict[str, Handler]:
         p = _validate(BuildPlanParams, params)
         return service.plan_build(p)
 
+    def destination_save(params: dict[str, Any]) -> Any:
+        p = _validate(SaveDestinationParams, params)
+        return service.destination_save(p)
+
+    def destination_list(params: dict[str, Any]) -> Any:
+        include = bool(params.get("includeArchived", False))
+        return service.destination_list(include_archived=include)
+
+    def destination_get(params: dict[str, Any]) -> Any:
+        dest_id = params.get("id")
+        if not isinstance(dest_id, int):
+            rpc_error("invalid_params", "missing id")
+        return service.destination_get(dest_id)
+
+    def destination_archive(params: dict[str, Any]) -> Any:
+        p = _validate(ArchiveDestinationParams, params)
+        return service.destination_archive(p)
+
+    def destination_resolve(params: dict[str, Any]) -> Any:
+        p = _validate(ResolveDestinationParams, params)
+        return service.destination_resolve(p)
+
+    def destination_discovery(_: dict[str, Any]) -> Any:
+        return service.destination_discovery()
+
+    def transfer_plan_resolve(params: dict[str, Any]) -> Any:
+        p = _validate(PlanResolveParams, params)
+        return service.transfer_plan_resolve(p)
+
+    def transfer_preflight_start(params: dict[str, Any]) -> Any:
+        p = _validate(PreflightStartParams, params)
+        return service.transfer_preflight_start(p)
+
+    def transfer_preflight_status(params: dict[str, Any]) -> Any:
+        p = _validate(PreflightStatusParams, params)
+        return service.transfer_preflight_status(p)
+
+    def destination_confirm_binding(params: dict[str, Any]) -> Any:
+        p = _validate(ConfirmBindingParams, params)
+        return service.destination_confirm_binding(p)
+
+    def profile_save_revision(params: dict[str, Any]) -> Any:
+        p = _validate(SavePresetRevisionParams, params)
+        return service.profile_save_revision(p)
+
+    def profile_list_revisions(params: dict[str, Any]) -> Any:
+        preset_id = params.get("presetId")
+        if not isinstance(preset_id, int):
+            rpc_error("invalid_params", "missing presetId")
+        limit = int(params.get("limit", 50))
+        after = int(params.get("after", 0))
+        return service.profile_list_revisions(preset_id, limit=limit, after_id=after)
+
+    def profile_get_revision(params: dict[str, Any]) -> Any:
+        preset_id = params.get("presetId")
+        if not isinstance(preset_id, int):
+            rpc_error("invalid_params", "missing presetId")
+        revision = params.get("revision")
+        if revision is not None:
+            revision = int(revision)
+        return service.profile_get_revision(preset_id, revision)
+
+    def profile_export(params: dict[str, Any]) -> Any:
+        preset_id = params.get("presetId")
+        if not isinstance(preset_id, int):
+            rpc_error("invalid_params", "missing presetId")
+        revision = params.get("revision")
+        if revision is not None:
+            revision = int(revision)
+        return service.profile_export(preset_id, revision)
+
+    def profile_import(params: dict[str, Any]) -> Any:
+        p = _validate(PresetImportParams, params)
+        return service.profile_import(p)
+
+    def inventory_create(params: dict[str, Any]) -> Any:
+        p = _validate(InventoryCreateParams, params)
+        return service.inventory_create(p)
+
+    def inventory_status(params: dict[str, Any]) -> Any:
+        p = _validate(InventoryStatusParams, params)
+        return service.inventory_status(p)
+
+    def inventory_entries(params: dict[str, Any]) -> Any:
+        p = _validate(InventoryEntriesParams, params)
+        return service.inventory_entries(p)
+
+    def transfer_plan_create(params: dict[str, Any]) -> Any:
+        p = _validate(PlanCreateParams, params)
+        return service.transfer_plan_create(p)
+
+    def transfer_plan_get(params: dict[str, Any]) -> Any:
+        p = _validate(PlanIdParams, params)
+        return service.transfer_plan_get(p)
+
+    def transfer_plan_entries(params: dict[str, Any]) -> Any:
+        p = _validate(PlanEntriesParams, params)
+        return service.transfer_plan_entries(p)
+
+    def transfer_plan_approve(params: dict[str, Any]) -> Any:
+        p = _validate(PlanApproveParams, params)
+        return service.transfer_plan_approve(p)
+
     def receipt_export(params: dict[str, Any]) -> ExportReceiptResult:
         p = _validate(ExportReceiptParams, params)
         return service.receipt_export(p)
@@ -377,6 +496,28 @@ def _build_handlers(service: ApplicationService) -> dict[str, Handler]:
         "app.getStatus": app_get_status,
         "app.getCapabilities": app_get_capabilities,
         "app.doctor": app_doctor,
+        "destination.save": destination_save,
+        "destination.list": destination_list,
+        "destination.get": destination_get,
+        "destination.archive": destination_archive,
+        "destination.resolve": destination_resolve,
+        "destination.discovery": destination_discovery,
+        "destination.confirmBinding": destination_confirm_binding,
+        "profile.saveRevision": profile_save_revision,
+        "profile.listRevisions": profile_list_revisions,
+        "profile.getRevision": profile_get_revision,
+        "profile.export": profile_export,
+        "profile.import": profile_import,
+        "inventory.create": inventory_create,
+        "inventory.status": inventory_status,
+        "inventory.entries": inventory_entries,
+        "transfer.planCreate": transfer_plan_create,
+        "transfer.planGet": transfer_plan_get,
+        "transfer.planEntries": transfer_plan_entries,
+        "transfer.planResolve": transfer_plan_resolve,
+        "transfer.planApprove": transfer_plan_approve,
+        "transfer.preflightStart": transfer_preflight_start,
+        "transfer.preflightStatus": transfer_preflight_status,
         "project.list": project_list,
         "project.create": project_create,
         "project.get": project_get,

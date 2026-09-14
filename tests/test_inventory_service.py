@@ -264,6 +264,53 @@ def test_a_live_owners_scan_is_never_failed_by_another_process(tmp_path: Path) -
     assert svc.get(inv_id).status == "failed"
 
 
+def test_shutdown_stops_in_flight_scans(tmp_path: Path) -> None:
+    """A scan must not outlive the service that owns it.
+
+    A daemon thread still walking after shutdown keeps opening
+    connections to a database its owner believes it has released — while
+    a later migration backs that file up, or while the directory is
+    being removed. It never fails where the bug is; it fails somewhere
+    else, intermittently.
+    """
+    import threading
+
+    from file_ferry.application.service import ApplicationService
+
+    service = ApplicationService(db_path=tmp_path / "ferry.db", app_data_dir=tmp_path / "app")
+    service.bootstrap()
+    try:
+        root = tmp_path / "slow"
+        root.mkdir()
+        released = threading.Event()
+        entered = threading.Event()
+
+        def _slow_walk(_root: Path) -> Iterator[ScanItem]:
+            yield ScanItem(rel="a.mov", size=1, mtime=1.0, entry_type="file")
+            entered.set()
+            released.wait(10)
+            yield ScanItem(rel="b.mov", size=1, mtime=1.0, entry_type="file")
+
+        inventory = service._inventory  # the bootstrapped instance
+        assert inventory is not None
+        inventory._items = _slow_walk  # type: ignore[method-assign]
+        inventory.create(str(root), "slow")
+        assert entered.wait(5), "the scan never started"
+
+        before = {t.name for t in threading.enumerate()}
+        assert any(n.startswith("inventory-scan-") for n in before)
+
+        released.set()
+        service.shutdown()
+        remaining = {t.name for t in threading.enumerate()}
+        assert not any(n.startswith("inventory-scan-") for n in remaining), (
+            f"a scan thread outlived shutdown: {remaining}"
+        )
+    finally:
+        service.shutdown()
+        service.close()
+
+
 def test_shutdown_is_bounded_when_a_scan_cannot_be_interrupted(tmp_path: Path) -> None:
     """Cancellation is cooperative; shutdown must still return.
 

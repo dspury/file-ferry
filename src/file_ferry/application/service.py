@@ -24,14 +24,18 @@ from file_ferry.application.assets import AssetService
 from file_ferry.application.audit import AuditService
 from file_ferry.application.clips import ClipService
 from file_ferry.application.derivatives import DerivativeService
+from file_ferry.application.destinations import DestinationObservation, DestinationService
 from file_ferry.application.dispatcher import JobDispatcher
 from file_ferry.application.intake import IntakeService
+from file_ferry.application.inventory import InventoryService, recover_abandoned_scans
 from file_ferry.application.jobs import JobService
 from file_ferry.application.manifest import ManifestService
 from file_ferry.application.offload import OffloadRunner
 from file_ferry.application.organize import OrganizeService
 from file_ferry.application.plan import IntakePlanner
 from file_ferry.application.policies import StoragePolicy
+from file_ferry.application.preflight import PreflightService, recover_abandoned_preflights
+from file_ferry.application.presets import PresetRevisionService
 from file_ferry.application.profiles import ProfileService
 from file_ferry.application.projects import ProjectService
 from file_ferry.application.proxy_runner import ProxyRunner
@@ -45,6 +49,7 @@ from file_ferry.application.reconcile import ReconcileService
 from file_ferry.application.replicas import ReplicaService
 from file_ferry.application.scheduler import JobScheduler
 from file_ferry.application.sources import SourceService
+from file_ferry.application.transfer_plan import TransferPlanService
 from file_ferry.application.volumes import SystemVolumeAdapter, VolumeChange, VolumeObserver
 from file_ferry.persistence import runner
 from file_ferry.persistence.connection import transaction
@@ -53,27 +58,39 @@ from file_ferry.service.protocol import (
     AcceptChangeParams,
     AddDestinationParams,
     AppSettings,
+    ArchiveDestinationParams,
     ArchiveProjectParams,
     AssetSummary,
     AuditEvent,
     BuildPlanParams,
     CancelJobParams,
+    ConfirmBindingParams,
     CreateIntakeSessionParams,
     CreateJobParams,
     CreateProjectParams,
     DerivativeSummary,
+    DestinationSummary,
     DetectClipsParams,
+    DiscoveryStatus,
     DoctorResult,
     ExportReceiptParams,
     ExportReceiptResult,
     IntakeDestination,
     IntakePlan,
     IntakeSession,
+    InventoryCreateParams,
+    InventoryCreateResult,
+    InventoryEntriesPage,
+    InventoryEntriesParams,
+    InventoryStatus,
+    InventoryStatusParams,
     JobDetail,
     JobSnapshot,
     JobTransitionParams,
     ListAssetsParams,
     ListAuditParams,
+    ListDestinationsResult,
+    ListPresetRevisionsResult,
     LogicalClip,
     MountedVolume,
     OrganizationProfile,
@@ -81,6 +98,19 @@ from file_ferry.service.protocol import (
     OrganizePreview,
     OrganizePreviewParams,
     OrganizeResult,
+    PlanApproveParams,
+    PlanCreateParams,
+    PlanEntriesPage,
+    PlanEntriesParams,
+    PlanIdParams,
+    PlanResolveParams,
+    PreflightStartParams,
+    PreflightStatus,
+    PreflightStatusParams,
+    PresetExportResult,
+    PresetImportParams,
+    PresetRevisionDetail,
+    PresetRevisionSummary,
     ProfilePreviewParams,
     ProjectDetail,
     ProjectManifest,
@@ -89,12 +119,17 @@ from file_ferry.service.protocol import (
     ReconcileProjectParams,
     ReconcileReport,
     ReplicaSummary,
+    ResolveDestinationParams,
+    ResolveDestinationsResult,
     ResolveImportManifest,
     SafeToFormatEval,
+    SaveDestinationParams,
+    SavePresetRevisionParams,
     SaveProfileParams,
     SourceInspectParams,
     SourceInspectResult,
     SourceInventoryEntry,
+    TransferPlanStatusModel,
     UpdateProjectParams,
     UpdateSettingsParams,
     VerifyReplicaParams,
@@ -112,6 +147,28 @@ LOGGER = logging.getLogger(__name__)
 SIDECAR_VERSION = APP_VERSION
 
 METHOD_NAMES: tuple[str, ...] = (
+    "destination.save",
+    "destination.list",
+    "destination.get",
+    "destination.archive",
+    "destination.resolve",
+    "destination.confirmBinding",
+    "profile.saveRevision",
+    "profile.getRevision",
+    "profile.listRevisions",
+    "profile.export",
+    "profile.import",
+    "inventory.create",
+    "inventory.status",
+    "inventory.entries",
+    "transfer.planCreate",
+    "transfer.planGet",
+    "transfer.planEntries",
+    "transfer.planResolve",
+    "transfer.planApprove",
+    "transfer.preflightStart",
+    "transfer.preflightStatus",
+    "destination.discovery",
     "app.getStatus",
     "app.getCapabilities",
     "app.doctor",
@@ -165,6 +222,10 @@ METHOD_NAMES: tuple[str, ...] = (
     "settings.get",
     "settings.update",
 )
+#: An observation older than this is shown as stale rather than current.
+#: Mount tables change when hardware changes, not on a clock, so this is
+#: about honesty in the UI, not a cache expiry (spec §5.2).
+STALE_OBSERVATION_SECONDS = 30.0
 
 EVENT_NAMES: tuple[str, ...] = (
     "job.updated",
@@ -214,6 +275,11 @@ class ApplicationService:
         self._volume_adapter: SystemVolumeAdapter | None = None
         self._volume_observer: VolumeObserver | None = None
         self._dispatcher: JobDispatcher | None = None
+        self._destinations: DestinationService | None = None
+        self._preset_revisions: PresetRevisionService | None = None
+        self._inventory: InventoryService | None = None
+        self._transfer_plans: TransferPlanService | None = None
+        self._preflight: PreflightService | None = None
 
     # ---- lifecycle ----------------------------------------------------
 
@@ -236,6 +302,7 @@ class ApplicationService:
             LOGGER.info(
                 "applied %d migrations; latest schema_version=%d", len(applied), applied[-1].version
             )
+        _assert_schema_shape(self._db_path)
         self._projects = ProjectService(
             self._db_path, self._app_data_dir, protocol_version=PROTOCOL_VERSION
         )
@@ -260,6 +327,33 @@ class ApplicationService:
         self._manifest = ManifestService(self._db_path)
         self._volume_adapter = SystemVolumeAdapter()
         self._volume_observer = VolumeObserver(self._volume_adapter)
+        self._destinations = DestinationService(self._db_path)
+        self._preset_revisions = PresetRevisionService(self._db_path)
+        self._inventory = InventoryService(self._db_path)
+        self._transfer_plans = TransferPlanService(self._db_path)
+        self._preflight = PreflightService(
+            self._db_path,
+            destinations=self._destinations,
+            observations=self._destination_observations,
+        )
+        # Spec §7.3: a scan abandoned by a previous process would stay
+        # ``scanning`` forever, and a planner reading it would treat a
+        # partial entry set as the whole source. Fail those on startup,
+        # keeping their partial entries as evidence.
+        abandoned = recover_abandoned_scans(self._db_path)
+        if abandoned:
+            LOGGER.warning(
+                "marked %d abandoned inventory scan(s) failed: %s",
+                len(abandoned),
+                abandoned,
+            )
+        stale_preflights = recover_abandoned_preflights(self._db_path)
+        if stale_preflights:
+            LOGGER.warning(
+                "marked %d abandoned preflight(s) failed: %s",
+                len(stale_preflights),
+                stale_preflights,
+            )
         self._register_scheduler_runners()
         # Plan §6.4 / §5.1: a sidecar-internal dispatcher picks up
         # jobs that have moved into the queued state. Without this,
@@ -276,10 +370,22 @@ class ApplicationService:
         Called on sidecar shutdown. Idempotent; safe to call multiple
         times. Does NOT close the database connection -- callers that
         want that should follow up with ``close``.
+
+        Stops every background worker, not only the dispatcher: an
+        inventory scan or a preflight that outlives shutdown keeps
+        writing to the database, which surfaces later as an unrelated
+        flake rather than as the lifecycle bug it is.
         """
         if self._dispatcher is not None:
             self._dispatcher.stop()
             self._dispatcher = None
+        # Background scans and preflights hold the database too. Leaving
+        # them running past shutdown means writes continue against a
+        # database the caller believes it has released.
+        if self._inventory is not None:
+            self._inventory.shutdown()
+        if self._preflight is not None:
+            self._preflight.shutdown()
 
     def close(self) -> None:
         """Release any resources held by the service.
@@ -306,6 +412,10 @@ class ApplicationService:
         self._manifest = None
         self._volume_adapter = None
         self._volume_observer = None
+        self._destinations = None
+        self._preset_revisions = None
+        self._inventory = None
+        self._transfer_plans = None
         self._bootstrapped = False
         # Drop the transport and the watch list together: publishing into a
         # torn-down server, or replaying a previous session's subscriptions
@@ -365,6 +475,203 @@ class ApplicationService:
 
     def profile_get(self, profile_id: int) -> OrganizationProfile:
         return self._profile_service().get(profile_id)
+
+    # ---- destination methods ----------------------------------------
+
+    def destination_save(self, params: SaveDestinationParams) -> DestinationSummary:
+        return self._destination_service().save(params)
+
+    def destination_list(self, *, include_archived: bool = False) -> ListDestinationsResult:
+        return self._destination_service().list_destinations(include_archived=include_archived)
+
+    def destination_get(self, destination_id: int) -> DestinationSummary:
+        return self._destination_service().get(destination_id)
+
+    def destination_archive(self, params: ArchiveDestinationParams) -> DestinationSummary:
+        return self._destination_service().archive(params.id)
+
+    def destination_resolve(self, params: ResolveDestinationParams) -> ResolveDestinationsResult:
+        """Match saved destinations against what is actually mounted.
+
+        The observations come from the one volume observer (spec §5.2
+        forbids a second discovery loop). ``refresh=False`` reuses the
+        last observation rather than probing again, which is what a
+        rapidly re-rendering UI should ask for; the observation's age is
+        reported so a stale answer is visibly stale rather than
+        confidently wrong.
+        """
+        observations = self._destination_observations(refresh=params.refresh)
+        return self._destination_service().resolve(
+            destination_id=params.id, observations=observations
+        )
+
+    def _destination_observations(self, *, refresh: bool = True) -> list[DestinationObservation]:
+        """Adapt the current volume observation into resolver inputs."""
+        if self._volume_observer is None:
+            raise RuntimeError("ApplicationService.bootstrap() must be called first")
+        if refresh or not self._volume_observer.initialized:
+            volumes = self._volume_observer.snapshot()
+        else:
+            volumes = self._volume_observer.last_volumes()
+        return [DestinationObservation.from_volume(v) for v in volumes]
+
+    def destination_discovery(self) -> DiscoveryStatus:
+        """What discovery currently knows, and what it could not learn.
+
+        Surfaced so the UI can show a recoverable warning and keep manual
+        folder selection usable, instead of a spinner that never resolves
+        (spec §5.2).
+        """
+        if self._volume_observer is None:
+            raise RuntimeError("ApplicationService.bootstrap() must be called first")
+        observer = self._volume_observer
+        if not observer.initialized:
+            observer.snapshot()
+        age = observer.age_seconds()
+        volumes = observer.last_volumes()
+        # Stale is not only about the clock: a snapshot taken one second
+        # ago that *reused* remembered identity for some mount is stale
+        # in the way that matters, because that evidence is not about
+        # what is mounted now (R10).
+        reused = [v.path for v in volumes if v.identity is not None and v.identity.stale]
+        warnings = list(observer.warnings())
+        if reused:
+            warnings.append(
+                "identity for "
+                + ", ".join(sorted(reused))
+                + " was remembered from an earlier observation, not read now; those "
+                "destinations need explicit confirmation before use"
+            )
+        return DiscoveryStatus(
+            volumes=volumes,
+            observedAt=observer.observed_at,
+            ageSeconds=age,
+            stale=bool(reused) or (age is not None and age > STALE_OBSERVATION_SECONDS),
+            warnings=warnings,
+        )
+
+    def destination_confirm_binding(self, params: ConfirmBindingParams) -> DestinationSummary:
+        """Rebind a destination to a user-chosen location.
+
+        Fresh observations are passed so the service can refuse a
+        path/identity pair that contradicts what is actually mounted
+        there (R11) and derive a consistent mount/subfolder/binding.
+        """
+        return self._destination_service().confirm_binding(
+            params.destination_id,
+            path=params.path,
+            identity=params.identity,
+            observations=self._destination_observations(),
+        )
+
+    # ---- preset revision methods ------------------------------------
+
+    def profile_save_revision(self, params: SavePresetRevisionParams) -> PresetRevisionSummary:
+        return self._preset_revision_service().save_revision(params)
+
+    def profile_get_revision(
+        self, preset_id: int, revision: int | None = None
+    ) -> PresetRevisionDetail:
+        # The pydantic model PresetRevisionDetail returns content too;
+        # the existing typed wrapper keeps the round-trip shape simple.
+
+        row, content = self._preset_revision_service().get_revision(preset_id, revision)
+        return PresetRevisionDetail(
+            presetId=row.preset_id,
+            revision=row.revision,
+            createdAt=row.created_at,
+            contentHash=row.content_hash,
+            content=content,
+            legacySnapshot=row.description is not None
+            and "legacy snapshot" in row.description.lower(),
+        )
+
+    def profile_list_revisions(
+        self, preset_id: int, *, limit: int = 50, after_id: int = 0
+    ) -> ListPresetRevisionsResult:
+        from file_ferry.service.protocol import ListPresetRevisionsResult
+
+        rows, total = self._preset_revision_service().list_revisions(
+            preset_id, limit=limit, after_id=after_id
+        )
+        return ListPresetRevisionsResult(revisions=rows, total=total)
+
+    def profile_export(self, preset_id: int, revision: int | None = None) -> PresetExportResult:
+        return self._preset_revision_service().export_preset(preset_id, revision)
+
+    def profile_import(self, params: PresetImportParams) -> PresetRevisionSummary:
+        return self._preset_revision_service().import_preset(
+            params.payload, new_name=params.new_name
+        )
+
+    # ---- inventory methods ------------------------------------------
+
+    def inventory_create(self, params: InventoryCreateParams) -> InventoryCreateResult:
+        status = self._inventory_service().create(params.path, params.label)
+        return InventoryCreateResult(inventoryId=status.id)
+
+    def inventory_status(self, params: InventoryStatusParams) -> InventoryStatus:
+        return self._inventory_service().get(params.id)
+
+    def inventory_entries(self, params: InventoryEntriesParams) -> InventoryEntriesPage:
+        return self._inventory_service().entries(params.id, limit=params.limit, after=params.after)
+
+    # ---- transfer plan methods --------------------------------------
+
+    def transfer_plan_create(self, params: PlanCreateParams) -> TransferPlanStatusModel:
+        return self._transfer_plan_service().create(
+            destination_id=params.destination_id,
+            inventory_ids=params.inventory_ids,
+            binding_path=params.binding_path,
+            preset_id=params.preset_id,
+            preset_revision=params.preset_revision,
+            project_id=params.project_id,
+            capacity_override_reason=params.capacity_override_reason,
+        )
+
+    def transfer_plan_get(self, params: PlanIdParams) -> TransferPlanStatusModel:
+        return self._transfer_plan_service().get(params.id)
+
+    def transfer_plan_entries(self, params: PlanEntriesParams) -> PlanEntriesPage:
+        return self._transfer_plan_service().entries(
+            params.id, limit=params.limit, after=params.after
+        )
+
+    def transfer_plan_resolve(self, params: PlanResolveParams) -> TransferPlanStatusModel:
+        """Apply reviewed decisions, returning the new plan (spec §8).
+
+        Plans are immutable, so this never edits one: it produces the
+        next revision with the decisions carried in and records which
+        plan it came from. The reviewed original is left exactly as it
+        was.
+        """
+        return self._transfer_plan_service().resolve(
+            params.id,
+            entry_ids=params.entry_ids,
+            decisions=params.decisions,
+            reason=params.reason,
+        )
+
+    def transfer_plan_approve(self, params: PlanApproveParams) -> TransferPlanStatusModel:
+        """Approve a plan, which requires a current passing preflight.
+
+        See :meth:`TransferPlanService.approve`: stored rows cannot tell
+        you that a drive was unplugged, so approval will refuse until a
+        preflight has gone and looked.
+        """
+        return self._transfer_plan_service().approve(params.id, params.fingerprint)
+
+    def transfer_preflight_start(self, params: PreflightStartParams) -> PreflightStatus:
+        """Begin validating a plan against the live filesystem and storage.
+
+        Returns immediately with the run's id; a large plan is hundreds
+        of thousands of stat calls and must not block the IPC handler
+        (spec §12). Poll ``transfer.preflightStatus`` for progress.
+        """
+        return self._preflight_service().start(params.plan_id)
+
+    def transfer_preflight_status(self, params: PreflightStatusParams) -> PreflightStatus:
+        return self._preflight_service().get(params.id)
 
     def profile_preview(self, params: ProfilePreviewParams) -> OrganizePreview:
         """Preview how an organization profile maps a source tree (plan §8.3)."""
@@ -747,6 +1054,31 @@ class ApplicationService:
             raise RuntimeError("ApplicationService.bootstrap() must be called first")
         return self._organize
 
+    def _destination_service(self) -> DestinationService:
+        if self._destinations is None:
+            raise RuntimeError("ApplicationService.bootstrap() must be called first")
+        return self._destinations
+
+    def _preset_revision_service(self) -> PresetRevisionService:
+        if self._preset_revisions is None:
+            raise RuntimeError("ApplicationService.bootstrap() must be called first")
+        return self._preset_revisions
+
+    def _inventory_service(self) -> InventoryService:
+        if self._inventory is None:
+            raise RuntimeError("ApplicationService.bootstrap() must be called first")
+        return self._inventory
+
+    def _preflight_service(self) -> PreflightService:
+        if self._preflight is None:
+            raise RuntimeError("ApplicationService.bootstrap() must be called first")
+        return self._preflight
+
+    def _transfer_plan_service(self) -> TransferPlanService:
+        if self._transfer_plans is None:
+            raise RuntimeError("ApplicationService.bootstrap() must be called first")
+        return self._transfer_plans
+
     def _clips_service(self) -> ClipService:
         if self._clips is None:
             raise RuntimeError("ApplicationService.bootstrap() must be called first")
@@ -959,3 +1291,28 @@ def _normalize_checksum_algo(algo: str) -> str:
     if algo == "xxhash":
         return "xxhash64"
     return algo
+
+
+def _assert_schema_shape(db_path: Path) -> None:
+    """Verify the applied schema matches what this build expects.
+
+    Migrations are keyed by version number alone, so a database stamped
+    with a version whose migration has since been *amended* is skipped
+    silently and then fails somewhere far away. Migration 004 is the one
+    case in this tree (amended before it was ever committed, so only
+    development databases can be affected); the check lives here rather
+    than in the runner because the runner's job is to apply pending
+    migrations, and there are none pending in this situation.
+    """
+    import importlib
+
+    from file_ferry.persistence.connection import open_connection
+
+    # The module name starts with a digit, so it is not importable by
+    # ordinary syntax; the migration runner reaches it the same way.
+    v4 = importlib.import_module("file_ferry.persistence.migrations.004_destination_presets")
+    conn = open_connection(db_path)
+    try:
+        v4.assert_v4_shape(conn)
+    finally:
+        conn.close()

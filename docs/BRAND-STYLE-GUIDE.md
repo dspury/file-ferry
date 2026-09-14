@@ -301,3 +301,66 @@ theme's own `name="ferry-studio"` is already correct.
 - Functional colours match the desktop's, not a second set
 - The ASCII wordmark still reads `ferry`, single colour, tinted with `primary`
 - `MM_THEME` renamed; no `MM_` prefixes left in `tui.py`
+
+## 8. Identity in the product — NOT DONE
+
+The palette migration (§6) shipped without the actual mark. The desktop
+sidebar still renders `IconFerry` from `desktop/renderer/src/components/icons.tsx`
+— a hand-drawn three-path boat glyph from the generic icon set — beside the
+literal strings `ferry` / `Media manager` in `App.tsx:224-232`.
+
+Nothing in §1-§7 ever asked for the real mark to be wired in. That was an
+omission in this guide, not in the implementation: the palette was specified
+exhaustively and the identity not at all.
+
+### Why it could not have been done yet
+
+`assets/brand/` does not exist on `main`. The masters live only on
+`branding/file-ferry-assets`, so no renderer code could reference them. **That
+branch has to land before any of this is possible.**
+
+### What the SVG actually is
+
+`ferry-logo-black.svg` is 2933 bytes, `viewBox="0 0 1033.02 498.39"` — a
+**2.07:1 horizontal lockup** (mark + wordmark), 7 paths in one flat group. The
+mark and the wordmark are *not* separated into named groups, so "just use the
+mark" is not a selector away.
+
+It carries **zero `fill` attributes**, confirming §5: it recolors with a single
+CSS `fill` and must not have colours baked into copies.
+
+### The size problem
+
+§5 sets minimums: **160 px** for the full lockup, **32 px** for the solo mark.
+The sidebar's mark slot renders `IconFerry` at **17 px** — below both. So this
+is not a drop-in replacement; one of three things has to give:
+
+1. **Replace the whole `nav__brand` block** with the lockup at ≥160 px wide,
+   dropping the separate `nav__mark` + `nav__wordmark` text. Fits the sidebar's
+   width; changes the nav's visual weight.
+2. **Export a solo mark** from `file-ferry-icon.ai` as its own square SVG and
+   use it at ≥32 px, keeping the wordmark as text. Needs Illustrator, and needs
+   the nav slot to grow from 17 px.
+3. **Revisit the 32 px minimum** if the mark proves legible smaller. That is a
+   judgement to make by looking, not by rule.
+
+Option 2 is the most faithful and the most work. Option 1 is the cheapest and
+needs no new asset.
+
+### Also not done
+
+- **The macOS app icon.** `file-ferry-icon-macOS-v1.png` is the candidate and
+  `desktop/build/` is already `buildResources`; wiring it belongs to Stage A3
+  of `docs/PACKAGING-HANDOFF.md`, at packaging time.
+- **The TUI banner** is figlet text and stays that way (§7) — a terminal cannot
+  render the mark.
+
+### Acceptance
+
+- `assets/brand/` is on `main`
+- The sidebar shows the real mark, not `IconFerry`
+- Whatever is used respects §5's minimum size, or the minimum is revised
+  deliberately and the guide updated
+- The mark recolors from a token — no baked fill
+- `IconFerry` is deleted if nothing else uses it
+

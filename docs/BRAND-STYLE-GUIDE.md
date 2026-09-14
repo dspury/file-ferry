@@ -91,7 +91,7 @@ current design already ships, so the migration changes hue, not legibility.
 | `--c-border-strong` | `#36465D` | 1.89:1 | `#443b32` |
 | `--c-text` | `#EDEBE6` | 15.22:1 | `#efe7d8` |
 | `--c-text-dim` | `#A6A7A7` | 7.52:1 | `#9e9384` (6.27) |
-| `--c-text-faint` | `#898B8E` | 5.31:1 | `#8f8576` (5.21) |
+| `--c-text-faint` | `#919497` | 5.95:1 ink / **4.86:1 surface-2** | `#8f8576` (5.21) |
 | `--c-accent` | `#75A1C6` | 6.62:1 | `#ff6a2c` (6.62) |
 | `--c-accent-hover` | `#99B9D3` | 8.84:1 | — |
 | `--c-accent-soft` | `#1D2939` | 1.23:1 fill | — |
@@ -99,6 +99,18 @@ current design already ships, so the migration changes hue, not legibility.
 
 Every text tier clears WCAG AA, and the surface ramp is slightly *more*
 separated than the one the app ships today.
+
+**Check foreground tokens against the surface they render on, not just against
+`ink`.** The first version of this table derived `--c-text-faint` from its
+contrast with `ink` alone (5.31:1) and called it AA. It is used for `.table th`
+at `--fs-xs` on `--c-surface-2`, where `#898B8E` is only 4.34:1 — under AA for
+small text. `#919497` clears it at 4.86:1 and stays a visible tier below
+`--c-text-dim` (6.15:1 on the same surface).
+
+The same check does *not* condemn the state colours, which look under-AA
+against `--c-surface-3` on paper: nothing renders them there. `--c-surface-3`
+is only `.btn:hover`, `.seg__item--active` and `.pathpick .btn:hover`, whose
+text is `--c-text` at 11.16:1.
 
 ### Functional colours survive unchanged
 
@@ -212,10 +224,16 @@ That accounts for all 33 `--c-*` tokens in `styles.css`: 14 in §3a, 11 above,
 2 kept by value, 3 kept as functional derivations, and `--c-ok/warn/danger`
 themselves kept per §6.
 
-Non-colour families (`--sp-*`, `--radius-*`, `--tr-*`, `--shadow-*`,
-`--fill-*`, `--ff-*`, `--nav-*`, `--header-*`, `--control-*`, `--glow-*`) are
-untouched by the brand migration, **except `--fs-*`**, which must become
-relative in the same pass — see §3a and issue #101.
+`--glow-accent` **does** move, despite sitting in the decorative tier: it is
+`0 0 10px rgba(255, 106, 44, 0.3)` — the accent colour at 30% — and an accent
+glow that stays orange after the accent turns blue is simply wrong. It becomes
+`0 0 10px rgba(117, 161, 198, 0.3)`. It carries no information, so the change
+is zero-risk.
+
+The remaining non-colour families (`--sp-*`, `--radius-*`, `--tr-*`,
+`--shadow-*`, `--fill-*`, `--ff-*`, `--nav-*`, `--header-*`, `--control-*`,
+`--scrim-blur`) are untouched by the brand migration, **except `--fs-*`**,
+which must become relative in the same pass — see §3a and issue #101.
 
 ## 7. The TUI
 
@@ -250,21 +268,23 @@ the TUI's own. They are the same three states, and two surfaces disagreeing
 about what "warning" looks like is the cross-surface divergence this codebase
 keeps getting bitten by.
 
-### Wordmark
+### Wordmark — stays `ferry`
 
-`ASCII_LOGO` (`src/file_ferry/tui.py:67-74`) stays figlet — a terminal cannot
-render the mark — but it stops being monochrome. §2 specifies `FILE-` in bone
-and `FERRY` in light steel blue; a terminal can do exactly that with two
-colours, so the ASCII wordmark should carry the same split rather than
-rendering flat.
+`ASCII_LOGO` (`src/file_ferry/tui.py:67-74`) keeps reading `ferry`, in a single
+colour.
 
-The figlet currently reads `ferry`. It should read `file-ferry` to match the
-wordmark, regenerated the same way the existing comment documents:
+An earlier draft of this section said it should become a two-colour
+`FILE-FERRY` to match the §2 wordmark. That was wrong — it contradicted SPEC
+§14, which names the two identities and assigns this surface explicitly:
+*"`file-ferry` is the project — PyPI, the import name, the repo, document
+titles — and `ferry` is what you type and see — the command, its config and
+data locations, its environment overrides, the desktop product name, **the TUI
+banner**."*
 
-    python -c "import pyfiglet; print(pyfiglet.figlet_format('file-ferry', font='slant'))"
+The TUI banner is a `ferry` surface by rule. The `FILE-`/`FERRY` two-colour
+split belongs to the graphical wordmark, where both halves exist.
 
-Check the result fits a standard 80-column terminal and degrades sanely at
-narrower widths before adopting it.
+Tint the banner with the theme's `primary` (ferry blue). Do not split it.
 
 `STRAP` and `TAGLINE` are unchanged — §4 keeps them as brand voice.
 
@@ -279,6 +299,5 @@ theme's own `name="ferry-studio"` is already correct.
 - No orange or violet remains in the TUI theme
 - Every slot clears AA on the new background
 - Functional colours match the desktop's, not a second set
-- The ASCII wordmark renders `FILE-` and `FERRY` in the two brand colours
-- It fits 80 columns and degrades sanely below that
+- The ASCII wordmark still reads `ferry`, single colour, tinted with `primary`
 - `MM_THEME` renamed; no `MM_` prefixes left in `tui.py`

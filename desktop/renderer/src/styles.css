@@ -6,11 +6,11 @@
  * bad light. Every value below comes from a token — screens should not
  * hand-roll colours, spacing, or type sizes.
  *
- * The palette is derived from CinePrompt's "rental house" system so the two
- * apps read as siblings: warm matte camera-body blacks, bone-white spec
- * text, restrained borders, and a focus-ring orange for everything
- * interactive. The token *names* are file-ferry's own — they are consumed
- * throughout this sheet and by every screen — so only their values moved.
+ * The palette is the file-ferry brand: ink-navy surfaces, bone/body text,
+ * and a ferry-blue interaction accent (`assets/brand/`,
+ * `docs/BRAND-STYLE-GUIDE.md` §3a/§6). The token *names* are file-ferry's
+ * own — they are consumed throughout this sheet and by every screen — so
+ * only their values moved.
  *
  * Safety-critical states (plan §8.2) get explicit, high-contrast
  * semantics: success/unsafe/attention are never communicated by colour
@@ -19,113 +19,109 @@
 
 :root {
   /* --- surfaces, back to front.
-     CinePrompt's coal / panel / plate / plate-hover family, plus a darker
-     rail behind them for the nav. The relative lightness steps of the old
-     cool-grey palette are preserved in order and roughly in size, so every
-     depth relationship this sheet already relied on still reads. --- */
-  --c-rail: #0d0a08;
-  --c-bg: #14100e; /* coal */
-  --c-surface: #1b1714; /* panel */
-  --c-surface-2: #231e1a; /* plate */
-  --c-surface-3: #2b2420; /* plate-hover */
+     The ink-navy family, recessed to raised: a darker rail behind the nav,
+     the page itself, then panel / plate / plate-hover. The relative
+     lightness steps of the previous palette are preserved in order and
+     roughly in size, so every depth relationship this sheet already relied
+     on still reads. --- */
+  --c-rail: #0A0E16;
+  --c-bg: #0F1622; /* ink */
+  --c-surface: #151E2D;
+  --c-surface-2: #1C283B;
+  --c-surface-3: #223046;
 
   /* --- lines.
      Three tiers, and the third one exists for an accessibility reason
      rather than an aesthetic one.
 
-     `--c-border` and `--c-border-strong` are CinePrompt's `line` and `tick`.
-     They are *delineation*: the edge of a card, the rule between table
-     rows, the hairline under a group of fields. At 1.10-1.80:1 against the
-     surfaces they sit on they are deliberately almost subliminal, which is
-     what makes the sheet feel restrained, and WCAG 1.4.11 does not ask
-     anything of them — a rule that merely groups content is decoration.
+     `--c-border` and `--c-border-strong` are *delineation*: the edge of a
+     card, the rule between table rows, the hairline under a group of
+     fields. At 1.00-2.02:1 against the surfaces they sit on they are
+     deliberately almost subliminal, which is what makes the sheet feel
+     restrained, and WCAG 1.4.11 does not ask anything of them — a rule
+     that merely groups content is decoration. `--c-border-strong` is brand
+     `steel` (1.89:1 on ink): its one legitimate role is a visible edge
+     like this, and it must never carry text, a meaningful boundary, or a
+     focus ring.
 
      `--c-border-indicator` is for the borders that are load-bearing: the
      edge that tells you *this is a control you can type in or press*
      (button, input, select, textarea, path picker, segmented control) and
      the ring on a pending stage marker. Those are exactly the cases 1.4.11
-     covers, so they need 3:1. #7a6c5c is the minimum lift on the same warm
-     ramp as `--c-border-strong` that clears it against every surface a
-     control actually rests on: `--c-bg` 3.72, `--c-surface` 3.50,
-     `--c-surface-2` 3.24, `--c-rail` 3.88. Against `--c-surface-3` it is
-     2.9995 — just under — but no indicator edge ever renders there: every
+     covers, so they need 3:1. #687687 clears it against every surface a
+     control actually rests on: `--c-rail` 4.17, `--c-bg` 3.91,
+     `--c-surface` 3.61, `--c-surface-2` 3.20. Against `--c-surface-3` it is
+     2.87 — under — but no indicator edge ever renders there: every
      `--c-surface-3` background (`.btn:hover`, `.seg__item--active`,
      `.pathpick .btn:hover`) is a hover state whose border is already
      `--c-accent`. Keep that true if you add a `--c-surface-3` control. Going
      lighter would only make the UI noisier for margin the spec does not
      ask for; blanket-applying it to the decorative tiers would wreck the
      restraint the palette is built on. --- */
-  --c-border: #322b25; /* line */
-  --c-border-strong: #443b32; /* tick */
-  --c-border-indicator: #7a6c5c;
+  --c-border: #243042;
+  --c-border-strong: #36465D; /* steel */
+  --c-border-indicator: #687687;
 
   /* --- text.
-     bone / tape straight from CinePrompt. The faintest tier is deliberately
-     lifted well above CinePrompt's `--dim` (#6e6659, only 3.4:1 on coal),
-     because in this app it is not decoration: it carries the stat-tile
-     labels, every table column header, the nav group headings, and the
-     plan/review/execute/verify stage labels. None of those are WCAG "large
-     text" (that needs 24px, or 18.66px bold), so all of them need the full
-     4.5:1 — which this value clears on `--c-bg` (5.21:1), `--c-surface`
-     (4.91:1) and `--c-surface-2` (4.55:1), the three surfaces that host it.
-     It is the *minimum* lift that does so: going lighter would only erode
-     the gap to `--c-text-dim` for margin the spec does not ask for. That
-     gap is 1.25x in luminance, which is tight, but the three tiers are also
-     separated by weight (600 vs 400), casing, and tracking — lightness is
-     not carrying the hierarchy alone. --- */
-  --c-text: #efe7d8; /* bone */
-  --c-text-dim: #9e9384; /* tape */
-  --c-text-faint: #8f8576;
+     `body` is the product text tier; brand `bone` (#F6F5F2) is reserved for
+     the wordmark. In this app `--c-text-faint` is not decoration: it carries
+     the stat-tile labels, every table column header, the nav group headings,
+     and the plan/review/execute/verify stage labels. None of those are WCAG
+     "large text" (that needs 24px, or 18.66px bold), so all of them need the
+     full 4.5:1. It clears that on `--c-bg` (5.31:1), `--c-surface` (4.90:1)
+     and `--c-rail` (5.65:1). On `--c-surface-2` — where the table column
+     heads sit — it measures 4.34:1, a hair under 4.5; that gap is recorded
+     rather than re-valued, because the token values are settled in
+     BRAND-STYLE-GUIDE §3a. The three tiers are also separated by weight
+     (600 vs 400), casing, and tracking, so lightness is not carrying the
+     hierarchy alone. --- */
+  --c-text: #EDEBE6; /* body */
+  --c-text-dim: #A6A7A7;
+  --c-text-faint: #898B8E;
 
   /* --- accent + semantics.
-     Three of these are warm, and two of them are safety-critical, so they
-     are separated on purpose rather than by luck. Measured against the
-     interaction accent: warning sits +28.3° of hue at 1.63x its relative
-     luminance, danger sits -23.7° of hue at 0.76x its relative luminance.
-     So danger is cooler *and* darker than the accent, warning is yellower
-     *and* brighter than both, and the three stay apart in greyscale as well
-     as in hue. Danger stops short of the rose end of that range on purpose:
-     a wider hue gap was available, but past about 350° the colour reads as
-     pink and a "Format card" button that does not read as red is its own
-     safety problem. Colour is only ever the second signal regardless —
-     every state also carries a word.
+     The interaction accent is brand `ferry` blue. The semantic hues below
+     are the ones the product already shipped: the brand artwork defines no
+     success / warning / danger, and they clear AA on the new ink background
+     unchanged (§6). The state hues are the six in BRAND-STYLE-GUIDE §6a,
+     kept mutually distinguishable — in particular `attention` stays violet
+     even though the brand artwork has no violet, because distinguishability
+     outranks brand consistency. Colour is only ever the second signal
+     regardless — every state also carries a word.
 
      Each semantic colour has a `-soft` fill and a `-line` border. The fill
      is an opaque, hue-tinted plate sitting just above `--c-bg` rather than
-     a translucent wash over whatever is behind it. That is CinePrompt's
-     recessed-chip idiom, and it is what lets the foreground stay a deep
-     crimson while still clearing 4.5:1 against its own fill on every
-     surface a chip, banner, or button can land on.
+     a translucent wash over whatever is behind it. That is the recessed-chip
+     idiom, and it is what lets a foreground colour clear 4.5:1 against its
+     own fill on every surface a chip, banner, or button can land on.
 
      The `-line` alphas differ per hue on purpose. They are tuned for equal
-     *visual weight*, not equal opacity: each one lands between 3.1:1 and
-     3.6:1 against every surface a chip or banner sits on, so no state's
-     hairline is louder or fainter than the others. --- */
-  --c-accent: #ff6a2c; /* focus-ring orange */
-  --c-accent-hover: #ff7d47;
-  --c-accent-soft: #1e140d;
-  --c-accent-line: rgba(255, 106, 44, 0.65);
-  /* Foreground for anything filled with the accent. Warm near-black, not
-     the cool near-black the old blue accent used. */
-  --c-on-accent: #1a0d05;
+     *visual weight*, not equal opacity, so no state's hairline is louder or
+     fainter than the others. --- */
+  --c-accent: #75A1C6; /* ferry blue */
+  --c-accent-hover: #99B9D3;
+  --c-accent-soft: #1D2939;
+  --c-accent-line: rgba(117, 161, 198, 0.65);
+  /* Foreground for anything filled with the accent. Ink, so the blue reads
+     as the lit plate (§3a: 6.62:1 against it). */
+  --c-on-accent: #0F1622;
 
-  --c-ok: #35a96c; /* fuji green */
-  --c-ok-soft: #0c1911;
+  --c-ok: #35a96c; /* fuji green (kept) */
+  --c-ok-soft: #14282B;
   --c-ok-line: rgba(53, 169, 108, 0.65);
 
-  --c-warn: #e7b923; /* pushed toward kodak yellow, away from the accent */
-  --c-warn-soft: #1b160a;
+  --c-warn: #e7b923; /* kodak yellow (kept) */
+  --c-warn-soft: #292A22;
   --c-warn-line: rgba(231, 185, 35, 0.5);
 
-  --c-danger: #f0495a; /* pushed cooler and deeper, away from the accent */
-  --c-danger-soft: #241013;
+  --c-danger: #f0495a; /* kept */
+  --c-danger-soft: #2A1C29;
   --c-danger-line: rgba(240, 73, 90, 0.78);
 
-  /* "Needs review" stays off the warm axis entirely: a dusty orchid is the
-     one hue no colour-vision deficiency can collapse into orange, amber, or
-     crimson. */
+  /* "Needs review" is violet by design (§6a): the one hue no colour-vision
+     deficiency can collapse into the accent blue, amber, or crimson. */
   --c-attention: #c391e0;
-  --c-attention-soft: #1a1322;
+  --c-attention-soft: #252539;
   --c-attention-line: rgba(195, 145, 224, 0.6);
 
   /* Cancelled work was stopped by an operator, not by a failure, so it must
@@ -133,13 +129,13 @@
      A near-colourless cool grey is the only tone in this palette that says
      "inert" without claiming a severity. */
   --c-cancelled: #8d94a0;
-  --c-cancelled-soft: #141519;
+  --c-cancelled-soft: #1E2531;
   --c-cancelled-line: rgba(141, 148, 160, 0.65);
 
   /* The plate under a chip that is carrying no signal at all. */
-  --c-neutral-soft: #191512;
+  --c-neutral-soft: #1D2430;
 
-  --c-scrim: rgba(10, 7, 5, 0.66);
+  --c-scrim: rgba(6, 10, 17, 0.66);
 
   /* --- operational states.
      The six states a file-ferry operation can be in, named the way the UI
@@ -171,16 +167,19 @@
   --sp-8: 44px;
 
   /* --- type scale.
-     `--fs-2xs` is CinePrompt's 9-10px engraved-label tier; nothing in this
-     sheet needs it yet, but it exists so the shared primitives do not
-     hand-roll it. --- */
-  --fs-2xs: 10px;
-  --fs-xs: 11px;
-  --fs-sm: 12px;
-  --fs-md: 13px;
-  --fs-lg: 15px;
-  --fs-xl: 19px;
-  --fs-2xl: 26px;
+     Relative (`rem`), not `px`: the root font size follows the OS/browser
+     text setting, so text-only zoom scales the whole UI. Absolute px here
+     is what defeated OS text scaling (#101). Each rem is the size the
+     previous px rendered at the 16px default root.
+     `--fs-2xs` is the engraved-label tier; nothing in this sheet needs it
+     yet, but it exists so the shared primitives do not hand-roll it. --- */
+  --fs-2xs: 0.625rem; /* 10px */
+  --fs-xs: 0.6875rem; /* 11px */
+  --fs-sm: 0.75rem; /* 12px */
+  --fs-md: 0.8125rem; /* 13px */
+  --fs-lg: 0.9375rem; /* 15px */
+  --fs-xl: 1.1875rem; /* 19px */
+  --fs-2xl: 1.625rem; /* 26px */
 
   /* --- tracking. CinePrompt letterspaces uppercase labels hard; `--tr-wide`
      is the mono-eyebrow step, and `--tr-wordmark` is the widest step, used
@@ -379,10 +378,10 @@ code,
 
 /*
  * The mark is a bordered plate with an accent glyph rather than a solid
- * orange tile. Orange is this system's *interaction* colour — a permanently
- * lit 28px block of it in the corner competes with every button on screen
- * for the eye, and on a screen full of nothing to do it was the loudest
- * thing in the window.
+ * accent tile. The accent is this system's *interaction* colour — a
+ * permanently lit 28px block of it in the corner competes with every button
+ * on screen for the eye, and on a screen full of nothing to do it was the
+ * loudest thing in the window.
  */
 .nav__mark {
   width: 30px;
@@ -924,8 +923,8 @@ code,
  * The button edge is on `--c-border-indicator`, not the decorative tier: it
  * is the only thing that says "this rectangle is pressable" before you
  * hover it, which is the case WCAG 1.4.11 is written for. Hover then moves
- * the edge to the accent — CinePrompt's whole interaction language is "the
- * orange line follows your cursor", and it means hover is legible without
+ * the edge to the accent — the system's whole interaction language is "the
+ * accent line follows your cursor", and it means hover is legible without
  * a fill change loud enough to be mistaken for a selected state.
  */
 .btn {
@@ -1759,13 +1758,13 @@ textarea:focus-visible {
  * It used to be a transparent circle whose only edge was `--c-border-strong`
  * at 1.63:1 on `--c-surface`. That edge was doing two jobs at once: it was
  * the marker's *shape* and, for a pending stage, the marker's *state* —
- * "pending" was a ring, "done" was a green ring, "active" was an orange
+ * "pending" was a ring, "done" was a green ring, "active" was a lit accent
  * disc. A 1.63:1 outline is not a state indicator anyone can rely on.
  *
  * It is fixed on both axes rather than one:
  *
- *  - the resting edge moves to `--c-border-indicator`, which is 3.50:1 on
- *    `--c-surface` (the rail's own fill) and 3.24:1 on `--c-surface-2` (the
+ *  - the resting edge moves to `--c-border-indicator`, which is 3.61:1 on
+ *    `--c-surface` (the rail's own fill) and 3.20:1 on `--c-surface-2` (the
  *    plate inside it), so the marker clears 3:1 in both directions;
  *  - the marker no longer relies on its edge to say which state it is in.
  *    A pending stage shows its number; a completed one shows a check glyph
@@ -1799,7 +1798,7 @@ textarea:focus-visible {
  * The active stage is the only enclosed one.
  *
  * Before this the current stage differed from a pending one by text colour
- * and weight plus an orange marker -- two hue signals and a weight bump,
+ * and weight plus an accent marker -- two hue signals and a weight bump,
  * across six stages that were otherwise identical rectangles of text. Giving
  * it a plate of its own makes "where am I in this flow" a *shape* difference
  * you can read without resolving the labels at all, which is what "at a

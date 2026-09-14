@@ -171,8 +171,12 @@ bridge namespace list includes `destination`, `inventory`, `transfer`.
 
 ### B3. UI screens
 
-**Gated on BRAND landing** — see that section. Building these against tokens
-that are about to be re-valued means building them twice.
+**The §6 decision is made: migrate** (operator, 2026-09-14). The token
+migration is fully specified — §3a, §6a and §6b of the style guide cover every
+colour token in `styles.css`, contrast-checked, with no guesswork left.
+
+B3 is now gated only on: the token migration having landed, and #122 render
+tests existing.
 
 Destination manager, preset editor, inventory/scan view, plan review with the
 conflict and exclusion workflow, preflight status, approval, transfer progress,

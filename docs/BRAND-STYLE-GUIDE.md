@@ -143,26 +143,79 @@ Keep them as they are.
 - Don'ts: no recoloring, no rotation/skew, no drop shadows, no busy or
   photographic backgrounds, no pairing with the legacy orange accent.
 
-## 6. Open decision: migrating the product theme
+## 6. Decision: migrate the product theme — DECIDED, migrate
 
-> **Values are settled** (§3, §3a) — a full product token mapping exists,
-> contrast-checked and calibrated against the current design. What remains is
-> purely the directional call below: whether to migrate at all, and what
-> happens to the TUI theme.
+**Decided by the operator, 2026-09-14: migrate.** Both the desktop renderer
+and the TUI move to the brand palette. This section is a decision record, not
+an open question.
 
-The new brand diverges from the current in-app themes — this branch changes
-**no code**, but the next step needs a call:
+What that means:
 
-- TUI `ferry-studio` theme (`src/file_ferry/tui.py:51-63`) leads with
-  orange primary `#ff7a45`, violet `#a970ff`, cyan `#35c5f0`.
-- Desktop renderer (`desktop/renderer/src/styles.css:26-140`) leads with
-  orange accent `#ff6a2c` on coal `#14100e` with bone text `#efe7d8`.
-- The brand artwork contains **no orange**; its lead accent is ferry blue
-  on ink navy.
+- **Desktop** — `desktop/renderer/src/styles.css` moves to the tokens in §3a
+  and §3b. The outgoing `--c-accent: #ff6a2c` on `--c-bg: #14100e` goes.
+- **TUI** — §7, including the ASCII wordmark and the `MM_THEME` rename.
+- **Functional colours stay.** The brand artwork defines no success / warning /
+  danger, and the existing ramps clear AA on the new background unchanged.
+- **Brand voice stays.** `STRAP` and `TAGLINE` are unchanged (§4).
 
-Proposed direction: migrate primary/accent tokens to the `ferry`/`steel`
-family on `ink`, keep bone text and the existing ok/warn/danger ramps.
-See §7 — the TUI is rebranded too, not left on the old theme.
+The migration changes hue, not legibility: every value in §3a and §3b was
+calibrated against the separations the app already ships, and every text tier
+clears WCAG AA.
+
+Contrast was *not* a reason for this decision either way — ferry blue on ink is
+6.62:1, exactly parity with the outgoing orange on coal.
+
+## 6a. State colours keep their hues
+
+The six state hues must stay mutually distinguishable; that constraint
+outranks brand consistency, so `attention` stays violet even though the brand
+artwork has no violet. All six clear AA on the new background:
+
+| State | Value | On ink |
+|---|---|---|
+| active | `#75A1C6` (ferry) | 6.62:1 |
+| success | `#35a96c` | 6.08:1 |
+| warning | `#e7b923` | 9.81:1 |
+| failure | `#f0495a` | 5.01:1 |
+| attention | `#c391e0` | 7.29:1 |
+| cancelled | `#8d94a0` | 5.94:1 |
+
+Six distinct hues — blue, green, yellow, red, violet, grey — none of which
+collide after the accent moves from orange to blue.
+
+## 6b. Complete token migration
+
+§3a covers the base tokens. These are the remainder, so the migration needs no
+guesswork. The `-soft` fills are ink tinted 12% toward their hue, replacing
+warm-tinted originals.
+
+| Token | From | To | vs ink |
+|---|---|---|---|
+| `--c-neutral-soft` | `#191512` | `#1D2430` | 1.16:1 |
+| `--c-ok-soft` | `#0c1911` | `#14282B` | 1.18:1 |
+| `--c-warn-soft` | `#1b160a` | `#292A22` | 1.25:1 |
+| `--c-danger-soft` | `#241013` | `#2A1C29` | 1.12:1 |
+| `--c-attention-soft` | `#1a1322` | `#252539` | 1.21:1 |
+| `--c-cancelled-soft` | `#141519` | `#1E2531` | 1.18:1 |
+| `--c-border-indicator` | `#7a6c5c` | `#687687` | 3.91:1 |
+| `--c-accent-line` | `rgba(255,106,44,.65)` | `rgba(117,161,198,.65)` | — |
+| `--c-scrim` | `rgba(10,7,5,.66)` | `rgba(6,10,17,.66)` | — |
+| `--c-attention-line` | `rgba(195,145,224,.6)` | unchanged | — |
+| `--c-cancelled-line` | `rgba(141,148,160,.65)` | unchanged | — |
+
+`--c-attention` `#c391e0` and `--c-cancelled` `#8d94a0` keep their values —
+both already read correctly on navy. `--c-ok-line`, `--c-warn-line` and
+`--c-danger-line` are rgba derivations of the functional colours, which do not
+move, so they are unchanged too.
+
+That accounts for all 33 `--c-*` tokens in `styles.css`: 14 in §3a, 11 above,
+2 kept by value, 3 kept as functional derivations, and `--c-ok/warn/danger`
+themselves kept per §6.
+
+Non-colour families (`--sp-*`, `--radius-*`, `--tr-*`, `--shadow-*`,
+`--fill-*`, `--ff-*`, `--nav-*`, `--header-*`, `--control-*`, `--glow-*`) are
+untouched by the brand migration, **except `--fs-*`**, which must become
+relative in the same pass — see §3a and issue #101.
 
 ## 7. The TUI
 

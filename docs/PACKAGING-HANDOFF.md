@@ -11,7 +11,20 @@ ruff clean, desktop format/lint/typecheck/259 tests/build all pass.
 
 ---
 
-## The decision this plan forks on
+## Scope decision — made, do not re-litigate
+
+**The operator has chosen Stage A + Stage B: the new transfer engine.** The
+packaged app must be able to drive destination -> plan -> preflight -> approve
+-> verified transfer -> receipt against real sample files. Stage A still ships
+first, because it is cheap and proves the pipeline, but it is not the
+destination.
+
+Execute in this order: **A -> #120 -> B1 -> B2 -> B3.**
+
+The reasoning behind that choice is below; it is recorded so the constraint is
+understood, not so it can be reopened.
+
+## The fork, and why it mattered
 
 A packaged app built from `main` today presents these screens:
 
@@ -33,9 +46,10 @@ That produces two possible readings of "test on sample files":
 | **Stage A only** | The legacy offload / organize / proxy flows | Small — the pipeline already works |
 | **Stage A + B** | The new destination -> plan -> approve -> transfer -> receipt flow | Substantial — this is P6 |
 
-**Do Stage A first regardless.** It is cheap, it proves the packaging pipeline
-against current `main`, and it gives the operator something to launch while
-Stage B proceeds. Do not skip it in order to start Stage B.
+**Stage A first, then Stage B.** Stage A is cheap, proves the packaging
+pipeline against current `main`, and gives the operator something to launch
+while Stage B proceeds. Do not skip it in order to start Stage B, and do not
+stop at it — Stage B is the agreed goal.
 
 ---
 
@@ -115,8 +129,10 @@ code meets real files rather than byte-sized fixtures.
 
 ## Stage B — make the P2–P5 engine reachable (P6)
 
-Ordered cheapest-first. **B1 is the highest value per unit of work**: it makes
-the new engine drivable against real sample files without building any UI.
+This is the agreed destination, not an optional extension. Ordered
+cheapest-first. **B1 is the highest value per unit of work**: it makes the new
+engine drivable against real sample files without building any UI, so the
+operator can start testing the real pipeline before B3 lands.
 
 ### B1. CLI parity
 

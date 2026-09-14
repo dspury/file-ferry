@@ -3,7 +3,7 @@
 # Validate a packaged build (plan §10 Pkg9 step 4, §11.3 release gates).
 #
 # Checks that the packaged .app:
-#   - contains the frozen sidecar at Contents/Resources/sidecar/{arch}/
+#   - contains the frozen sidecar at Contents/Resources/sidecar/
 #   - the frozen sidecar launches and serves the JSON-RPC protocol
 #   - app resources are present outside app.asar where required
 #

@@ -10,6 +10,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../shared/preload-api.js';
+import type { JobDetail, TransferPlanStatus } from '../shared/ipc-methods.js';
 import type { JsonObject } from '../shared/ipc-schema.js';
 import { Destinations } from '../renderer/src/screens/Destinations.js';
 import { Presets } from '../renderer/src/screens/Presets.js';
@@ -60,6 +61,25 @@ const PROFILE = {
   createdAt: '2026-09-14T00:00:00Z',
   updatedAt: '2026-09-14T00:00:00Z',
 };
+
+// A finished scan: row status used by pipeline tests. SAFETY: checked
+// against InventoryStatus by tsc.
+const INVENTORY_COMPLETE = {
+  id: 1,
+  rootPath: '/Users/dspury/Projects/card-a',
+  label: 'card-a',
+  status: 'complete' as const,
+  error: null,
+  fileCount: 2,
+  dirCount: 1,
+  totalBytes: 100,
+  errorCount: 0,
+  excludedCount: 0,
+  manifestHash: 'mh',
+  startedAt: '2026-09-14T00:00:00Z',
+  finishedAt: '2026-09-14T00:00:01Z',
+};
+void 0;
 
 describe('Destinations', () => {
   it('renders the availability of each saved destination, in words', async () => {
@@ -200,5 +220,255 @@ describe('Transfers (pipeline shell)', () => {
     render(<Transfers />);
     const scanButton = screen.getByRole('button', { name: 'Scan source' });
     expect(scanButton.hasAttribute('disabled')).toBe(true);
+  });
+});
+
+// ---- the approval gate drives, not just renders -----------------------------
+
+/**
+ * The bug a render test let through: Start went straight to
+ * `transfer.start`, which the server refuses for an unapproved plan, and
+ * nothing on the screen ever called `transfer.planApprove`. This test
+ * walks the three stages and asserts both wire calls carry the exact
+ * fingerprint of the plan in view.
+ */
+describe('Transfers (approve gate)', () => {
+  const FINGERPRINT = 'fp-current-0123456789abcdef';
+
+  function planFixture(status: 'draft' | 'approved'): TransferPlanStatus {
+    return {
+      id: 'plan-1',
+      destinationId: 1,
+      destinationBindingPath: '/Volumes/NAS/projects',
+      fingerprint: FINGERPRINT,
+      status,
+      approvedFingerprint: status === 'approved' ? FINGERPRINT : null,
+      capacityOk: true,
+      capacityUnknown: false,
+      neededBytes: 100,
+      totalBytes: 100,
+      totalFiles: 2,
+      conflictCount: 0,
+      exclusionCount: 0,
+      ruleExclusionCount: 0,
+      blockingCount: 0,
+      presetReviewRequired: [],
+      freeSpaceReserve: 0,
+      conflictPolicy: 'keep_both',
+      checksumAlgo: 'xxhash64',
+      inventoryIds: [1],
+      decisions: [],
+      categoryMapVersion: 1,
+      warnings: [],
+      createdAt: '2026-09-14T00:00:00Z',
+      approvedAt: null,
+    };
+  }
+
+  function jobFixture(): JobDetail {
+    return {
+      id: 'job-1',
+      projectId: null,
+      sessionId: null,
+      command: 'transfer_plan',
+      argsFingerprint: FINGERPRINT,
+      state: 'succeeded',
+      currentStep: null,
+      totalSteps: 1,
+      startedAt: '2026-09-14T00:00:02Z',
+      updatedAt: '2026-09-14T00:00:03Z',
+      finishedAt: '2026-09-14T00:00:03Z',
+      error: null,
+      resumable: false,
+    };
+  }
+
+  it('drives preflight -> approve -> start, and start stays locked until approval', async () => {
+    let plan = planFixture('draft');
+    const preflightStart = vi.fn(() =>
+      Promise.resolve({
+        id: 5,
+        planId: 'plan-1',
+        fingerprint: FINGERPRINT,
+        status: 'passed' as const,
+        findings: [],
+        checkedEntries: 2,
+        totalEntries: 2,
+        startedAt: '2026-09-14T00:00:00Z',
+        finishedAt: '2026-09-14T00:00:01Z',
+      }),
+    );
+    const planApprove = vi.fn(() => {
+      plan = planFixture('approved');
+      return Promise.resolve(plan);
+    });
+    const start = vi.fn(() => Promise.resolve({ job: jobFixture(), executionId: 'exec-1' }));
+
+    stub({
+      inventory: {
+        ...api.inventory,
+        status: () => Promise.resolve(INVENTORY_COMPLETE),
+      },
+      destination: {
+        ...api.destination,
+        list: () => Promise.resolve({ destinations: [SAVED_DESTINATION] }),
+        resolve: () =>
+          Promise.resolve({
+            resolutions: [
+              {
+                destinationId: 1,
+                name: 'Editing NAS',
+                status: 'available',
+                reason: 'mounted',
+                candidatePaths: [],
+                bindingPath: '/Volumes/NAS/projects',
+              },
+            ],
+          }),
+        discovery: () =>
+          Promise.resolve({
+            volumes: [],
+            observedAt: null,
+            ageSeconds: null,
+            stale: false,
+            warnings: [],
+          }),
+      },
+      transfer: {
+        ...api.transfer,
+        planGet: vi.fn(() => Promise.resolve(plan)),
+        planEntries: () => Promise.resolve({ entries: [], total: 0, nextCursor: null }),
+        preflightStart,
+        preflightStatus: () =>
+          Promise.resolve({
+            id: 5,
+            planId: 'plan-1',
+            fingerprint: FINGERPRINT,
+            status: 'passed' as const,
+            findings: [],
+            checkedEntries: 2,
+            totalEntries: 2,
+            startedAt: '2026-09-14T00:00:00Z',
+            finishedAt: '2026-09-14T00:00:01Z',
+          }),
+        planApprove,
+        start,
+      },
+      job: {
+        ...api.job,
+        get: () => Promise.resolve(jobFixture()),
+      },
+    });
+
+    window.location.hash = '#/transfers?inv=1&plan=plan-1';
+    render(<Transfers />);
+
+    // The screen loads the plan (draft) and both gates are closed.
+    await screen.findByText('draft');
+    const approveButton = screen.getByRole('button', { name: 'Approve plan' });
+    expect(approveButton.hasAttribute('disabled')).toBe(true);
+    expect(
+      screen.getByRole('button', { name: 'Start verified transfer' }).hasAttribute('disabled'),
+    ).toBe(true);
+
+    // Preflight passes; Approve arms, Start stays locked on approval.
+    fireEvent.click(screen.getByRole('button', { name: 'Run preflight' }));
+    // The banner text spans elements; match on its content, not its label.
+    await screen.findByText(/Checked 2 entries against the live filesystem/);
+    expect(
+      screen.getByRole('button', { name: 'Start verified transfer' }).hasAttribute('disabled'),
+    ).toBe(true);
+
+    const armed = screen.getByRole('button', { name: 'Approve plan' });
+    expect(armed.hasAttribute('disabled')).toBe(false);
+    fireEvent.click(armed);
+
+    await screen.findByText(/This exact revision is approved and ready to start/);
+    expect(planApprove).toHaveBeenCalledWith('plan-1', FINGERPRINT);
+
+    // Start is now unlocked and goes to the server with the exact
+    // fingerprint it was approved under.
+    fireEvent.click(screen.getByRole('button', { name: 'Start verified transfer' }));
+    // The job chip appears once the execution started; the Progress label
+    // is split across elements, so assert on state text.
+    await screen.findByText('succeeded');
+    expect(start).toHaveBeenCalledWith('plan-1', FINGERPRINT);
+    expect(start).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps Approve locked while preflight failed, stating so on the button', async () => {
+    const plan = planFixture('draft');
+    stub({
+      inventory: { ...api.inventory, status: () => Promise.resolve(INVENTORY_COMPLETE) },
+      destination: {
+        ...api.destination,
+        list: () => Promise.resolve({ destinations: [SAVED_DESTINATION] }),
+        resolve: () =>
+          Promise.resolve({
+            resolutions: [
+              {
+                destinationId: 1,
+                name: 'Editing NAS',
+                status: 'available',
+                reason: 'mounted',
+                candidatePaths: [],
+                bindingPath: '/Volumes/NAS/projects',
+              },
+            ],
+          }),
+        discovery: () =>
+          Promise.resolve({
+            volumes: [],
+            observedAt: null,
+            ageSeconds: null,
+            stale: false,
+            warnings: [],
+          }),
+      },
+      transfer: {
+        ...api.transfer,
+        planGet: vi.fn(() => Promise.resolve(plan)),
+        planEntries: () => Promise.resolve({ entries: [], total: 0, nextCursor: null }),
+        preflightStart: vi.fn(() =>
+          Promise.resolve({
+            id: 5,
+            planId: 'plan-1',
+            fingerprint: FINGERPRINT,
+            status: 'failed' as const,
+            findings: ['destination unwritable'],
+            checkedEntries: 0,
+            totalEntries: 2,
+            startedAt: '2026-09-14T00:00:00Z',
+            finishedAt: '2026-09-14T00:00:01Z',
+          }),
+        ),
+        preflightStatus: vi.fn(() =>
+          Promise.resolve({
+            id: 5,
+            planId: 'plan-1',
+            fingerprint: FINGERPRINT,
+            status: 'failed' as const,
+            findings: ['destination unwritable'],
+            checkedEntries: 0,
+            totalEntries: 2,
+            startedAt: '2026-09-14T00:00:00Z',
+            finishedAt: '2026-09-14T00:00:01Z',
+          }),
+        ),
+        planApprove: vi.fn(),
+      },
+      job: { ...api.job, get: () => Promise.resolve(jobFixture()) },
+    });
+    window.location.hash = '#/transfers?inv=1&plan=plan-1';
+    render(<Transfers />);
+    // Wait for the plan to load: the pipeline sections mount asynchronously.
+    await screen.findByText('draft');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run preflight' }));
+    await screen.findByText('destination unwritable');
+    // A failed preflight leaves Approve unarmed; the screen says why
+    // before the click instead of waiting for the server to refuse.
+    const approve = screen.getByRole('button', { name: 'Approve plan' });
+    expect(approve.hasAttribute('disabled')).toBe(true);
   });
 });

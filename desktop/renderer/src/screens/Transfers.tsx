@@ -390,14 +390,52 @@ function PlanPipeline({
   if (plan.data === null) {
     return <ScreenError message="The plan could not be read." onRetry={plan.reload} />;
   }
-  const planStatus = plan.data;
+  // The inner component exists so the preflight hook below has a stable
+  // hook order: the checks above return before any hook beyond `useAsync`
+  // runs, and an early return after hooks would change that.
+  return (
+    <PlanBody
+      planId={planId}
+      jobId={jobId}
+      setParam={setParam}
+      onSuperseded={onSuperseded}
+      planStatus={plan.data}
+      reloadPlan={plan.reload}
+    />
+  );
+}
+
+function PlanBody({
+  planId,
+  jobId,
+  setParam,
+  onSuperseded,
+  planStatus,
+  reloadPlan,
+}: {
+  planId: string;
+  jobId: string | null;
+  setParam: SetParam;
+  onSuperseded: (note: string, nextPlanId: string) => void;
+  planStatus: TransferPlanStatus;
+  reloadPlan: () => void;
+}): JSX.Element {
   const gate = startGate(planStatus);
   const executed = planStatus.status === 'executed';
+  // Preflight state must be readable by the approve stage too: approval
+  // requires a current passing preflight for the exact fingerprint. The
+  // server refuses without one and hands over the reason; the disabled
+  // button here exists so the UI says so *before* the click, not instead
+  // of the server's answer.
+  const preflight = usePreflight(planId, planStatus.fingerprint);
   return (
     <>
       <PlanPanel plan={planStatus} />
       {!executed && <EntriesPanel planId={planId} onSuperseded={onSuperseded} />}
-      {!executed && <PreflightPanel planId={planId} planFingerprint={planStatus.fingerprint} />}
+      {!executed && <PreflightPanel preflight={preflight} />}
+      {!executed && (
+        <ApprovalPanel plan={planStatus} preflight={preflight} onApproved={reloadPlan} />
+      )}
       {!executed && (
         <ExecutionPanel
           planId={planId}
@@ -623,15 +661,20 @@ function entryTone(action: string): 'neutral' | 'ok' | 'attention' | 'danger' {
   }
 }
 
-// ---- preflight -------------------------------------------------------------
+// ---- preflight + approval ---------------------------------------------------
 
-function PreflightPanel({
-  planId,
-  planFingerprint,
-}: {
-  planId: string;
-  planFingerprint: string;
-}): JSX.Element {
+/** Preflight state for one plan, shared by the preflight and approve stages. */
+interface PreflightState {
+  readonly hasRun: boolean;
+  readonly passed: boolean;
+  readonly stale: boolean;
+  readonly status: PreflightStatus | null;
+  readonly starting: boolean;
+  readonly run: () => void;
+  readonly error: string | null;
+}
+
+function usePreflight(planId: string, planFingerprint: string): PreflightState {
   const [startedId, setStartedId] = useState<number | null>(null);
   const status = useAsync<PreflightStatus | null>(
     async () => (startedId === null ? null : window.ferry.transfer.preflightStatus(startedId)),
@@ -658,15 +701,27 @@ function PreflightPanel({
   const current = s !== null && s.planId === planId;
   const stale = current && s.fingerprint !== planFingerprint;
   const passed = current && !stale && s.status === 'passed';
+  return {
+    hasRun: current,
+    passed,
+    stale,
+    status: current ? s : null,
+    starting,
+    run: () => void run(),
+    error,
+  };
+}
 
+function PreflightPanel({ preflight }: { preflight: PreflightState }): JSX.Element {
+  const s = preflight.status;
   return (
     <Panel
       title="Preflight"
       description="Validates the plan against the live filesystem and the mounted destination."
-      actions={current ? <Chip tone={preflightStatusTone(s.status)}>{s.status}</Chip> : null}
+      actions={s !== null ? <Chip tone={preflightStatusTone(s.status)}>{s.status}</Chip> : null}
     >
       <div className="stack">
-        {s === null || !current ? (
+        {s === null ? (
           <p className="muted">No preflight has run for this plan yet.</p>
         ) : (
           <>
@@ -678,7 +733,7 @@ function PreflightPanel({
                 label="Preflight checks"
               />
             )}
-            {stale && (
+            {preflight.stale && (
               <Banner tone="attention" label="Preflight is stale">
                 It ran against a different plan revision. Run it again before approving.
               </Banner>
@@ -692,7 +747,7 @@ function PreflightPanel({
                 </ul>
               </Banner>
             )}
-            {passed && (
+            {preflight.passed && (
               <Banner tone="ok" label="Preflight passed">
                 {`Checked ${s.totalEntries} entries against the live filesystem.`}
               </Banner>
@@ -700,15 +755,106 @@ function PreflightPanel({
           </>
         )}
         <div className="row">
-          <button type="button" className="btn" onClick={run} disabled={starting}>
-            {starting
+          <button
+            type="button"
+            className="btn"
+            onClick={preflight.run}
+            disabled={preflight.starting}
+          >
+            {preflight.starting
               ? 'Starting…'
-              : s === null || !current
+              : s === null
                 ? 'Run preflight'
                 : 'Run preflight again'}
           </button>
         </div>
-        {error !== null && <Banner tone="danger">{error}</Banner>}
+        {preflight.error !== null && <Banner tone="danger">{preflight.error}</Banner>}
+      </div>
+    </Panel>
+  );
+}
+
+/**
+ * The approve stage. The server owns the rule — a current passing
+ * preflight for this exact fingerprint is part of `TransferPlanService.approve`
+ * — so this panel does not reimplement it. It arms the control once
+ * preflight has passed (saying so before the click), sends the plan's exact
+ * fingerprint, and surfaces the server's refusal reason when one comes back.
+ * Because a decision supersedes a plan and un-approves it, the control
+ * re-arms automatically: the new revision renders with its own approval.
+ */
+function ApprovalPanel({
+  plan,
+  preflight,
+  onApproved,
+}: {
+  plan: TransferPlanStatus;
+  preflight: PreflightState;
+  onApproved: () => void;
+}): JSX.Element {
+  const [approving, setApproving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const approvalCurrent = plan.approvedFingerprint === plan.fingerprint;
+  const alreadyApproved = plan.status === 'approved' && approvalCurrent;
+  const approvalStale = plan.status === 'approved' && !approvalCurrent;
+  const armed = preflight.passed;
+  const canApprove = armed && !alreadyApproved && !approving;
+
+  const approve = async (): Promise<void> => {
+    setApproving(true);
+    setError(null);
+    try {
+      // The exact fingerprint of the plan in view — a past approval or a
+      // newer revision's fingerprint is refused server-side either way.
+      await window.ferry.transfer.planApprove(plan.id, plan.fingerprint);
+      onApproved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setApproving(false);
+    }
+  };
+
+  return (
+    <Panel
+      title="Approve"
+      description="Approval is recorded for the exact plan fingerprint shown above; a decision supersedes it."
+      actions={alreadyApproved ? <Chip tone="ok">approved</Chip> : null}
+    >
+      <div className="stack">
+        {alreadyApproved && (
+          <Banner tone="ok" label="Approved">
+            This exact revision is approved and ready to start.
+          </Banner>
+        )}
+        {approvalStale && (
+          <Banner tone="attention" label="Approval is stale">
+            {`An approval exists for fingerprint ${plan.approvedFingerprint?.slice(0, 16)}…, not this revision. Approve again after preflight.`}
+          </Banner>
+        )}
+        {!armed && !alreadyApproved && (
+          <p className="muted">Approve arms once preflight passes for this revision.</p>
+        )}
+        {approvalStale && !armed && (
+          <p className="muted">Run preflight again for the new revision, then approve.</p>
+        )}
+        <div className="row">
+          <button
+            type="button"
+            className="btn btn--primary"
+            disabled={!canApprove}
+            title={armed ? undefined : 'Run preflight for this plan first'}
+            onClick={() => void approve()}
+          >
+            {approving ? 'Approving…' : 'Approve plan'}
+          </button>
+        </div>
+        {error !== null && (
+          <Banner tone="attention" label="Cannot approve">
+            {error}
+          </Banner>
+        )}
       </div>
     </Panel>
   );

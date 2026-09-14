@@ -28,21 +28,90 @@ A starboard-bow ferry in motion, built from three ideas:
 
 ## 3. Palette
 
-> Sampled from the raster masters (4-bit quantization of downscaled BMP
-> conversions). Approximate — confirm exact values against
-> `file-ferry-icon.ai` before hard-coding tokens.
+Measured from `file-ferry-icon-macOS-v1.png` (1024x1024, RGBA) by
+area-weighted k-means over every opaque pixel, cross-checked against
+`file-ferry-logo-gen.png`. Neither PNG carries an ICC profile, so the values
+are sRGB as written.
 
-| Token | Approx. hex | Role |
-|---|---|---|
-| `ink` | `#0E1219` | Primary field / app background |
-| `ink-raise` | `#171C26` | Surfaces, cards, panels on ink |
-| `bone` | `#F0ECE3` | Primary text, `FILE-` half of wordmark |
-| `ferry` | `#7AA6C8` | Lead accent, `FERRY` half, wake lines |
-| `steel` | `#33475E` | Secondary elements, cargo bars (dark end) |
-| `mist` | `#D4DEE7` | Hull highlight, dividers on ink |
+The `.ai` master is **not** a usable source for this: it stores only
+`AIPrivateData` with no PDF vector content and no image XObjects, and its
+swatch panel holds Illustrator's 57 default swatches, not the artwork's
+colours. The raster master is the authoritative machine-readable source.
 
-Functional colors (success/warn/danger) are not defined by the brand
-artwork — keep the existing ramps until §6 is decided.
+The artwork is gradient throughout — there are no flat regions, so each value
+below is the area-weighted mean of its cluster, not a sampled pixel.
+
+| Token | Hex | Role | On `ink` |
+|---|---|---|---|
+| `ink` | `#0F1622` | app background | — |
+| `ink-raise` | `#1C283B` | raised surface | 1.22:1 |
+| `bone` | `#F6F5F2` | wordmark, brand marks | 16.63:1 |
+| `body` | `#EDEBE6` | product body text | 15.22:1 |
+| `ferry` | `#75A1C6` | lead accent | 6.62:1 |
+| `mist` | `#DCE5EA` | highlights, dividers | 14.19:1 |
+| `steel` | `#36465D` | **decoration only** — see below | 1.89:1 |
+
+`bone` and `body` are both measured: `bone` is the icon master's value, used
+for the wordmark; `body` is the logo master's slightly softer value, which is
+the better choice for long-form product text on a dark field.
+
+### `steel` is decoration only
+
+At **1.89:1 on `ink`** it fails every WCAG level. It is the cargo-bar / hull
+colour and reads as form, not information. Never use it for text, for a control
+boundary that carries meaning, or for a focus ring. Its one legitimate product
+role is `--c-border-strong`, where it is a visible edge rather than a
+conveyed value.
+
+### Where the earlier estimates were off
+
+The first pass of this guide eyeballed these from downscaled 4-bit BMPs. That
+held up better than expected — `ferry` was within 5/255 per channel and `steel`
+within 3. Two were further out and are corrected above: `ink-raise` was off by
+21 (it is markedly bluer and lighter than estimated) and `bone` by 15.
+
+One correction that matters to a decision rather than a value: ferry blue on
+`ink` is **6.62:1**, which is *parity* with the outgoing orange on coal
+(6.62:1), not an improvement. Contrast is not an argument for the migration.
+It is also not an argument against it.
+
+## 3a. Product token mapping
+
+Derived from the palette above and calibrated against the separations the
+current design already ships, so the migration changes hue, not legibility.
+
+| Product token | Value | Ratio | Current equivalent |
+|---|---|---|---|
+| `--c-rail` | `#0A0E16` | 1.07:1 recessed | `#0d0a08` |
+| `--c-bg` | `#0F1622` | — | `#14100e` |
+| `--c-surface` | `#151E2D` | 1.08:1 | `#1b1714` (1.06) |
+| `--c-surface-2` | `#1C283B` | 1.22:1 | `#231e1a` (1.14) |
+| `--c-surface-3` | `#223046` | 1.36:1 | `#2b2420` (1.25) |
+| `--c-border` | `#243042` | 1.36:1 | `#322b25` (1.36) |
+| `--c-border-strong` | `#36465D` | 1.89:1 | `#443b32` |
+| `--c-text` | `#EDEBE6` | 15.22:1 | `#efe7d8` |
+| `--c-text-dim` | `#A6A7A7` | 7.52:1 | `#9e9384` (6.27) |
+| `--c-text-faint` | `#898B8E` | 5.31:1 | `#8f8576` (5.21) |
+| `--c-accent` | `#75A1C6` | 6.62:1 | `#ff6a2c` (6.62) |
+| `--c-accent-hover` | `#99B9D3` | 8.84:1 | — |
+| `--c-accent-soft` | `#1D2939` | 1.23:1 fill | — |
+| `--c-on-accent` | `#0F1622` | 6.62:1 on ferry | — |
+
+Every text tier clears WCAG AA, and the surface ramp is slightly *more*
+separated than the one the app ships today.
+
+### Functional colours survive unchanged
+
+The brand artwork defines no success/warn/danger, and the existing ramps do not
+need to move — checked against the new background:
+
+| | on new `ink` | on old coal | verdict |
+|---|---|---|---|
+| `--c-ok` `#35a96c` | 6.08:1 | 6.34:1 | AA text |
+| `--c-warn` `#e7b923` | 9.81:1 | 10.23:1 | AA text |
+| `--c-danger` `#f0495a` | 5.01:1 | 5.23:1 | AA text |
+
+Keep them as they are.
 
 ## 4. Typography
 
@@ -75,6 +144,11 @@ artwork — keep the existing ramps until §6 is decided.
   photographic backgrounds, no pairing with the legacy orange accent.
 
 ## 6. Open decision: migrating the product theme
+
+> **Values are settled** (§3, §3a) — a full product token mapping exists,
+> contrast-checked and calibrated against the current design. What remains is
+> purely the directional call below: whether to migrate at all, and what
+> happens to the TUI theme.
 
 The new brand diverges from the current in-app themes — this branch changes
 **no code**, but the next step needs a call:

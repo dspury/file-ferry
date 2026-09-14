@@ -115,23 +115,9 @@ def main(ctx: click.Context, db: Path | None, config_path: Path | None, no_tui: 
 # These share the ApplicationService the sidecar uses, so CLI and
 # desktop are behaviorally identical. The legacy verbs above are
 # untouched.
-from file_ferry.cli_vnext import (  # noqa: E402  (after group def)
-    intake_group,
-    jobs_group,
-    project_group,
-    receipt_group,
-    reconcile_group,
-    source_group,
-)
+from file_ferry.cli_vnext import ALL_VNEXT_GROUPS  # noqa: E402  (after group def)
 
-for _g in (
-    project_group,
-    source_group,
-    intake_group,
-    jobs_group,
-    receipt_group,
-    reconcile_group,
-):
+for _g in ALL_VNEXT_GROUPS:
     main.add_command(_g)
 
 

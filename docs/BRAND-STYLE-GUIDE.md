@@ -1,0 +1,376 @@
+# File-Ferry Brand Style Guide
+
+Branch: `branding/file-ferry-assets` · Masters live in `assets/brand/`.
+
+## 1. Asset inventory
+
+| File | Size | Dimensions | Use |
+|---|---|---|---|
+| `assets/brand/file-ferry-logo-gen.png` | 2048 × 2048 | Full lockup: mark + `FILE-FERRY` wordmark on ink field | Hero, README, marketing, about screens |
+| `assets/brand/file-ferry-icon-gen.png` | 2048 × 2048 | Mark on navy squircle, shown on a light-grey surround | Source presentation only — see §5 |
+| `assets/brand/file-ferry-icon-macOS-v1.png` | 1024 × 1024 | Mark in macOS squircle, transparent corners | macOS app icon candidate |
+| `assets/brand/file-ferry-icon.ai` | Illustrator master (PDF-1.6 compatible) | Vector source of the mark | Canonical source for all exports and exact color values |
+| `assets/brand/ferry-logo-black.svg` | Vector, viewBox `1033 × 498` (2.9 KB) | Mono black mark, no wordmark, unstyled paths | Single-color use: light backgrounds, favicons, print, engraving; recolor via `fill` |
+
+Excluded: `media-mate-old/` (superseded explorations, intentionally not imported).
+
+## 2. The mark
+
+A starboard-bow ferry in motion, built from three ideas:
+
+- **Hull** — white-to-pale-blue gradient, pointing right (forward = progress, delivery).
+- **Wake** — three steel-blue speed lines trailing to port (throughput, offload speed).
+- **Cargo** — three ascending rounded bars in steel blue plus one white
+  file/document shape with a dark slot (media files, rising volume, ingest).
+
+**Wordmark** — uppercase geometric sans, wide letter-spacing:
+`FILE-` in bone off-white, `FERRY` in light steel blue.
+
+## 3. Palette
+
+Measured from `file-ferry-icon-macOS-v1.png` (1024x1024, RGBA) by
+area-weighted k-means over every opaque pixel, cross-checked against
+`file-ferry-logo-gen.png`. Neither PNG carries an ICC profile, so the values
+are sRGB as written.
+
+The `.ai` master is **not** a usable source for this: it stores only
+`AIPrivateData` with no PDF vector content and no image XObjects, and its
+swatch panel holds Illustrator's 57 default swatches, not the artwork's
+colours. The raster master is the authoritative machine-readable source.
+
+The artwork is gradient throughout — there are no flat regions, so each value
+below is the area-weighted mean of its cluster, not a sampled pixel.
+
+| Token | Hex | Role | On `ink` |
+|---|---|---|---|
+| `ink` | `#0F1622` | app background | — |
+| `ink-raise` | `#1C283B` | raised surface | 1.22:1 |
+| `bone` | `#F6F5F2` | wordmark, brand marks | 16.63:1 |
+| `body` | `#EDEBE6` | product body text | 15.22:1 |
+| `ferry` | `#75A1C6` | lead accent | 6.62:1 |
+| `mist` | `#DCE5EA` | highlights, dividers | 14.19:1 |
+| `steel` | `#36465D` | **decoration only** — see below | 1.89:1 |
+
+`bone` and `body` are both measured: `bone` is the icon master's value, used
+for the wordmark; `body` is the logo master's slightly softer value, which is
+the better choice for long-form product text on a dark field.
+
+### `steel` is decoration only
+
+At **1.89:1 on `ink`** it fails every WCAG level. It is the cargo-bar / hull
+colour and reads as form, not information. Never use it for text, for a control
+boundary that carries meaning, or for a focus ring. Its one legitimate product
+role is `--c-border-strong`, where it is a visible edge rather than a
+conveyed value.
+
+### Where the earlier estimates were off
+
+The first pass of this guide eyeballed these from downscaled 4-bit BMPs. That
+held up better than expected — `ferry` was within 5/255 per channel and `steel`
+within 3. Two were further out and are corrected above: `ink-raise` was off by
+21 (it is markedly bluer and lighter than estimated) and `bone` by 15.
+
+One correction that matters to a decision rather than a value: ferry blue on
+`ink` is **6.62:1**, which is *parity* with the outgoing orange on coal
+(6.62:1), not an improvement. Contrast is not an argument for the migration.
+It is also not an argument against it.
+
+## 3a. Product token mapping
+
+Derived from the palette above and calibrated against the separations the
+current design already ships, so the migration changes hue, not legibility.
+
+| Product token | Value | Ratio | Current equivalent |
+|---|---|---|---|
+| `--c-rail` | `#0A0E16` | 1.07:1 recessed | `#0d0a08` |
+| `--c-bg` | `#0F1622` | — | `#14100e` |
+| `--c-surface` | `#151E2D` | 1.08:1 | `#1b1714` (1.06) |
+| `--c-surface-2` | `#1C283B` | 1.22:1 | `#231e1a` (1.14) |
+| `--c-surface-3` | `#223046` | 1.36:1 | `#2b2420` (1.25) |
+| `--c-border` | `#243042` | 1.36:1 | `#322b25` (1.36) |
+| `--c-border-strong` | `#36465D` | 1.89:1 | `#443b32` |
+| `--c-text` | `#EDEBE6` | 15.22:1 | `#efe7d8` |
+| `--c-text-dim` | `#A6A7A7` | 7.52:1 | `#9e9384` (6.27) |
+| `--c-text-faint` | `#919497` | 5.95:1 ink / **4.86:1 surface-2** | `#8f8576` (5.21) |
+| `--c-accent` | `#75A1C6` | 6.62:1 | `#ff6a2c` (6.62) |
+| `--c-accent-hover` | `#99B9D3` | 8.84:1 | — |
+| `--c-accent-soft` | `#1D2939` | 1.23:1 fill | — |
+| `--c-on-accent` | `#0F1622` | 6.62:1 on ferry | — |
+
+Every text tier clears WCAG AA, and the surface ramp is slightly *more*
+separated than the one the app ships today.
+
+**Check foreground tokens against the surface they render on, not just against
+`ink`.** The first version of this table derived `--c-text-faint` from its
+contrast with `ink` alone (5.31:1) and called it AA. It is used for `.table th`
+at `--fs-xs` on `--c-surface-2`, where `#898B8E` is only 4.34:1 — under AA for
+small text. `#919497` clears it at 4.86:1 and stays a visible tier below
+`--c-text-dim` (6.15:1 on the same surface).
+
+The same check does *not* condemn the state colours, which look under-AA
+against `--c-surface-3` on paper: nothing renders them there. `--c-surface-3`
+is only `.btn:hover`, `.seg__item--active` and `.pathpick .btn:hover`, whose
+text is `--c-text` at 11.16:1.
+
+### Functional colours survive unchanged
+
+The brand artwork defines no success/warn/danger, and the existing ramps do not
+need to move — checked against the new background:
+
+| | on new `ink` | on old coal | verdict |
+|---|---|---|---|
+| `--c-ok` `#35a96c` | 6.08:1 | 6.34:1 | AA text |
+| `--c-warn` `#e7b923` | 9.81:1 | 10.23:1 | AA text |
+| `--c-danger` `#f0495a` | 5.01:1 | 5.23:1 | AA text |
+
+Keep them as they are.
+
+## 4. Typography
+
+- **Brand voice** — the existing lines stand: `INGEST · ORGANIZE · PROXY ·
+  RESOLVE · VERIFY` and “Zero-cost post-production media ops · every step
+  audited” (`src/file_ferry/tui.py:76-77`).
+- **Wordmark style** — uppercase, geometric/grotesque sans, generous
+  tracking. The in-repo match is **Archivo** (the desktop shell already
+  ships `@fontsource-variable/archivo`): use Archivo SemiBold/Bold with
+  wide letter-spacing for brand headings.
+- **Data/code** — keep **IBM Plex Mono** (already in the desktop shell).
+
+## 5. Usage rules
+
+- Dark-first: the full-color lockup is designed for ink backgrounds. On
+  light backgrounds use the mono `ferry-logo-black.svg` mark (or a white
+  export from the `.ai`).
+- The SVG paths carry no fill attributes, so it recolors cleanly with a
+  single CSS `fill` — that is its purpose; do not bake new colors into copies.
+- `file-ferry-icon-gen.png` has a **baked light-grey surround** — do not
+  use it directly in-app. Crop it or, preferably, export a clean squircle
+  from the `.ai` master.
+- `file-ferry-icon-macOS-v1.png` (transparent corners) is the current
+  candidate for mac packaging (`desktop/build/` is `buildResources` per
+  `desktop/build/electron-builder.yml:5-7`; wiring the icon in is
+  follow-up work, not done on this branch).
+- Clear space: at least the cap-height of the wordmark's `F` on all sides.
+  Minimum width: 160 px digital for the full lockup, 32 px for the solo mark.
+- Don'ts: no recoloring, no rotation/skew, no drop shadows, no busy or
+  photographic backgrounds, no pairing with the legacy orange accent.
+
+## 6. Decision: migrate the product theme — DECIDED, migrate
+
+**Decided by the operator, 2026-09-14: migrate.** Both the desktop renderer
+and the TUI move to the brand palette. This section is a decision record, not
+an open question.
+
+What that means:
+
+- **Desktop** — `desktop/renderer/src/styles.css` moves to the tokens in §3a
+  and §3b. The outgoing `--c-accent: #ff6a2c` on `--c-bg: #14100e` goes.
+- **TUI** — §7, including the ASCII wordmark and the `MM_THEME` rename.
+- **Functional colours stay.** The brand artwork defines no success / warning /
+  danger, and the existing ramps clear AA on the new background unchanged.
+- **Brand voice stays.** `STRAP` and `TAGLINE` are unchanged (§4).
+
+The migration changes hue, not legibility: every value in §3a and §3b was
+calibrated against the separations the app already ships, and every text tier
+clears WCAG AA.
+
+Contrast was *not* a reason for this decision either way — ferry blue on ink is
+6.62:1, exactly parity with the outgoing orange on coal.
+
+## 6a. State colours keep their hues
+
+The six state hues must stay mutually distinguishable; that constraint
+outranks brand consistency, so `attention` stays violet even though the brand
+artwork has no violet. All six clear AA on the new background:
+
+| State | Value | On ink |
+|---|---|---|
+| active | `#75A1C6` (ferry) | 6.62:1 |
+| success | `#35a96c` | 6.08:1 |
+| warning | `#e7b923` | 9.81:1 |
+| failure | `#f0495a` | 5.01:1 |
+| attention | `#c391e0` | 7.29:1 |
+| cancelled | `#8d94a0` | 5.94:1 |
+
+Six distinct hues — blue, green, yellow, red, violet, grey — none of which
+collide after the accent moves from orange to blue.
+
+## 6b. Complete token migration
+
+§3a covers the base tokens. These are the remainder, so the migration needs no
+guesswork. The `-soft` fills are ink tinted 12% toward their hue, replacing
+warm-tinted originals.
+
+| Token | From | To | vs ink |
+|---|---|---|---|
+| `--c-neutral-soft` | `#191512` | `#1D2430` | 1.16:1 |
+| `--c-ok-soft` | `#0c1911` | `#14282B` | 1.18:1 |
+| `--c-warn-soft` | `#1b160a` | `#292A22` | 1.25:1 |
+| `--c-danger-soft` | `#241013` | `#2A1C29` | 1.12:1 |
+| `--c-attention-soft` | `#1a1322` | `#252539` | 1.21:1 |
+| `--c-cancelled-soft` | `#141519` | `#1E2531` | 1.18:1 |
+| `--c-border-indicator` | `#7a6c5c` | `#687687` | 3.91:1 |
+| `--c-accent-line` | `rgba(255,106,44,.65)` | `rgba(117,161,198,.65)` | — |
+| `--c-scrim` | `rgba(10,7,5,.66)` | `rgba(6,10,17,.66)` | — |
+| `--c-attention-line` | `rgba(195,145,224,.6)` | unchanged | — |
+| `--c-cancelled-line` | `rgba(141,148,160,.65)` | unchanged | — |
+
+`--c-attention` `#c391e0` and `--c-cancelled` `#8d94a0` keep their values —
+both already read correctly on navy. `--c-ok-line`, `--c-warn-line` and
+`--c-danger-line` are rgba derivations of the functional colours, which do not
+move, so they are unchanged too.
+
+That accounts for all 33 `--c-*` tokens in `styles.css`: 14 in §3a, 11 above,
+2 kept by value, 3 kept as functional derivations, and `--c-ok/warn/danger`
+themselves kept per §6.
+
+`--glow-accent` **does** move, despite sitting in the decorative tier: it is
+`0 0 10px rgba(255, 106, 44, 0.3)` — the accent colour at 30% — and an accent
+glow that stays orange after the accent turns blue is simply wrong. It becomes
+`0 0 10px rgba(117, 161, 198, 0.3)`. It carries no information, so the change
+is zero-risk.
+
+The remaining non-colour families (`--sp-*`, `--radius-*`, `--tr-*`,
+`--shadow-*`, `--fill-*`, `--ff-*`, `--nav-*`, `--header-*`, `--control-*`,
+`--scrim-blur`) are untouched by the brand migration, **except `--fs-*`**,
+which must become relative in the same pass — see §3a and issue #101.
+
+## 7. The TUI
+
+The terminal UI is rebranded with the rest of the product, not left behind as a
+legacy surface. It cannot show the raster masters, so it carries the brand
+through palette and wordmark instead.
+
+### Theme
+
+`MM_THEME` in `src/file_ferry/tui.py:51-63`. Its background `#0d0f14` is
+already close to brand `ink`, so this is mostly an accent migration rather than
+a reskin.
+
+| Textual slot | From | To | On ink |
+|---|---|---|---|
+| `background` | `#0d0f14` | `#0F1622` (ink) | — |
+| `surface` | `#171922` | `#151E2D` | 1.08:1 |
+| `panel` | `#20232f` | `#1C283B` | 1.22:1 |
+| `primary` | `#ff7a45` | `#75A1C6` (ferry) | 6.62:1 |
+| `secondary` | `#a970ff` | `#5F87A8` | 4.76:1 |
+| `accent` | `#35c5f0` | `#A3C0D7` | 9.57:1 |
+| `success` | `#52d273` | `#35a96c` | 6.08:1 |
+| `warning` | `#ffc857` | `#e7b923` | 9.81:1 |
+| `error` | `#ff5c5c` | `#f0495a` | 5.01:1 |
+
+Every slot clears WCAG AA on ink. `secondary` is `steel` lifted toward `mist`
+until it cleared 4.5:1 — raw `steel` is 1.89:1 and must not be used for
+anything a terminal renders as text.
+
+The functional three are moved to the **desktop's** values rather than keeping
+the TUI's own. They are the same three states, and two surfaces disagreeing
+about what "warning" looks like is the cross-surface divergence this codebase
+keeps getting bitten by.
+
+### Wordmark — stays `ferry`
+
+`ASCII_LOGO` (`src/file_ferry/tui.py:67-74`) keeps reading `ferry`, in a single
+colour.
+
+An earlier draft of this section said it should become a two-colour
+`FILE-FERRY` to match the §2 wordmark. That was wrong — it contradicted SPEC
+§14, which names the two identities and assigns this surface explicitly:
+*"`file-ferry` is the project — PyPI, the import name, the repo, document
+titles — and `ferry` is what you type and see — the command, its config and
+data locations, its environment overrides, the desktop product name, **the TUI
+banner**."*
+
+The TUI banner is a `ferry` surface by rule. The `FILE-`/`FERRY` two-colour
+split belongs to the graphical wordmark, where both halves exist.
+
+Tint the banner with the theme's `primary` (ferry blue). Do not split it.
+
+`STRAP` and `TAGLINE` are unchanged — §4 keeps them as brand voice.
+
+### Fold in #124 while here
+
+The theme constant is still called `MM_THEME`, a leftover from the pre-rename
+name (issue #124). Renaming it to `FERRY_THEME` belongs in this change; the
+theme's own `name="ferry-studio"` is already correct.
+
+### Acceptance
+
+- No orange or violet remains in the TUI theme
+- Every slot clears AA on the new background
+- Functional colours match the desktop's, not a second set
+- The ASCII wordmark still reads `ferry`, single colour, tinted with `primary`
+- `MM_THEME` renamed; no `MM_` prefixes left in `tui.py`
+
+## 8. Identity in the product — NOT DONE
+
+The palette migration (§6) shipped without the actual mark. The desktop
+sidebar still renders `IconFerry` from `desktop/renderer/src/components/icons.tsx`
+— a hand-drawn three-path boat glyph from the generic icon set — beside the
+literal strings `ferry` / `Media manager` in `App.tsx:224-232`.
+
+Nothing in §1-§7 ever asked for the real mark to be wired in. That was an
+omission in this guide, not in the implementation: the palette was specified
+exhaustively and the identity not at all.
+
+### Why it could not have been done yet
+
+`assets/brand/` does not exist on `main`. The masters live only on
+`branding/file-ferry-assets`, so no renderer code could reference them. **That
+branch has to land before any of this is possible.**
+
+### What the SVG actually is
+
+`ferry-logo-black.svg` is **the solo mark** — §1 says so: *"Mono black mark, no
+wordmark, unstyled paths."* It is directly usable. No Illustrator export is
+needed, and nothing has to be separated out of it.
+
+An earlier draft of this section claimed it was a mark-plus-wordmark lockup
+that would need re-exporting. That was wrong — inferred from its 2.07:1 aspect
+ratio without reading §1. Its seven paths decompose exactly as §2 describes the
+mark, and contain no lettering:
+
+| Path | Role |
+|---|---|
+| `[0]` | hull — wide band across the base |
+| `[4]` | wake line |
+| `[3]` `[2]` `[1]` | the three ascending cargo bars (heights 164 → 205 → 240) |
+| `[6]` | the file/document shape |
+| `[5]` | the trailing wake sweep |
+
+It carries **zero `fill` attributes**, so it takes its colour from a single CSS
+`fill` — exactly the single-colour use §5 describes.
+
+### The one real constraint: it is wide, and the slot is small
+
+The mark is **2.07:1**, not square, and §5 sets a **32 px minimum width** for
+the solo mark. The sidebar renders `IconFerry` in a **17 px square** slot.
+
+So the slot is the thing that has to change, not the asset:
+
+1. Widen `nav__mark` to a 2.07:1 box at **≥32 px wide** (~15 px tall at that
+   ratio) and drop the SVG in, keeping the wordmark as text. This is the
+   straightforward path and needs no new asset.
+2. Give it more room — ~48-64 px wide reads better for a mark this detailed,
+   if the nav can spare the height.
+
+Use `currentColor` or a token for `fill` so it inherits the theme. Being the
+mono mark, it is one colour; the two-tone treatment in §2 belongs to the
+full-colour masters, not to this file.
+
+### Also not done
+
+- **The macOS app icon.** `file-ferry-icon-macOS-v1.png` is the candidate and
+  `desktop/build/` is already `buildResources`; wiring it belongs to Stage A3
+  of `docs/PACKAGING-HANDOFF.md`, at packaging time.
+- **The TUI banner** is figlet text and stays that way (§7) — a terminal cannot
+  render the mark.
+
+### Acceptance
+
+- `assets/brand/` is on `main`
+- The sidebar shows the real mark, not `IconFerry`
+- The mark is at least 32 px wide (§5), in a slot matching its 2.07:1 ratio
+- The mark recolors from a token — no baked fill
+- `IconFerry` is deleted if nothing else uses it
+

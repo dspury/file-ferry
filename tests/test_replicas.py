@@ -139,6 +139,16 @@ def test_compute_checksum_unknown_algo(tmp_path: Path) -> None:
         compute_checksum(f, "md5")
 
 
+def test_compute_checksum_accepts_legacy_xxhash_label(tmp_path: Path) -> None:
+    """The legacy config enum spelling must not raise (issue #120)."""
+    f = tmp_path / "a.bin"
+    f.write_bytes(b"hello world")
+    import xxhash
+
+    assert compute_checksum(f, "xxhash") == xxhash.xxh64(b"hello world").hexdigest()
+    assert compute_checksum(f, "xxhash") == compute_checksum(f, "xxhash64")
+
+
 # ---- replica verify --------------------------------------------------
 
 

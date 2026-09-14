@@ -34,6 +34,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from file_ferry.checksum import normalize_checksum_algo
+
 CHUNK_BYTES = 1024 * 1024
 
 # The suffix for job-owned temporary siblings. Publication code owns
@@ -85,7 +87,7 @@ class CopyVerification:
 
 
 def _hasher_for(algo: str) -> Any:
-    lower = algo.lower()
+    lower = normalize_checksum_algo(algo)
     if lower == "sha256":
         return hashlib.sha256()
     if lower == "xxhash64":
@@ -221,6 +223,7 @@ def copy_file_verified(
     """
     source = Path(source)
     dest = Path(dest)
+    algo = normalize_checksum_algo(algo)
     before = source.stat()
     if not os.path.isfile(source):
         raise UnsafeDestinationError(f"source is not a regular file: {source}")

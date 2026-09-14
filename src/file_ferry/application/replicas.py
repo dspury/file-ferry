@@ -20,6 +20,7 @@ from typing import Any, cast
 
 from file_ferry.application.audit import record_event
 from file_ferry.application.policies import StoragePolicy
+from file_ferry.checksum import normalize_checksum_algo
 from file_ferry.persistence.connection import transaction
 from file_ferry.persistence.repositories import replicas as replica_repo
 from file_ferry.service.protocol import ReplicaSummary, VerifyReplicaResult
@@ -35,7 +36,7 @@ class ReplicaNotFoundError(KeyError):
 
 def compute_checksum(path: Path, algo: str) -> str:
     """Compute a full-file checksum with the configured algorithm."""
-    algo_lower = algo.lower()
+    algo_lower = normalize_checksum_algo(algo)
     h: Any
     if algo_lower == "sha256":
         h = hashlib.sha256()

@@ -61,8 +61,10 @@ describe('narrow preload surface (ADR-0001)', () => {
       'audit',
       'clips',
       'derivatives',
+      'destination',
       'dialog',
       'intake',
+      'inventory',
       'job',
       'manifest',
       'organize',
@@ -75,6 +77,7 @@ describe('narrow preload surface (ADR-0001)', () => {
       'settings',
       'sidecarEvents',
       'source',
+      'transfer',
     ]);
   });
 

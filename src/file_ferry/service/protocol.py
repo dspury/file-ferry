@@ -784,14 +784,17 @@ class ResolveImportManifest(FrozenModel):
 class SourceInventoryEntry(FrozenModel):
     """One file found by a read-only source scan.
 
-    ``entry_type`` flags non-regular findings (``symlink``, ``other``);
-    regular files keep the default and old payloads stay valid.
+    ``entry_type`` flags non-regular findings (``dir``, ``symlink``,
+    ``other``); regular files keep the default and old payloads stay
+    valid.
     """
 
     path: str
     size: int
     mtime: float
-    entry_type: Literal["file", "symlink", "other"] = Field(default="file", alias="entryType")
+    entry_type: Literal["file", "dir", "symlink", "other"] = Field(
+        default="file", alias="entryType"
+    )
 
 
 class SourceInspectParams(FrozenModel):
@@ -827,6 +830,7 @@ class SourceInspectResult(FrozenModel):
     error_count: int = Field(default=0, alias="errorCount")
     scan_errors: list[str] = Field(default_factory=list, alias="scanErrors")
     non_files: list[SourceInventoryEntry] = Field(default_factory=list, alias="nonFiles")
+    dir_count: int = Field(default=0, alias="dirCount")
 
 
 class JobSnapshot(FrozenModel):
@@ -868,20 +872,505 @@ class JobEvent(FrozenModel):
     snapshot: JobSnapshot
 
 
+class DestinationIdentity(FrozenModel):
+    """Identity evidence for saved storage (spec §5.1).
+
+    ``value`` is normalized and never contains credentials. Confidence
+    levels: strong identity may authorize rebinding; weak evidence must
+    not (a label, st_dev, size, or mount path alone is weak).
+    """
+
+    kind: Literal["volume_uuid", "disk_uuid", "server_share", "path_only"]
+    value: str
+    confidence: Literal["strong", "medium", "weak"]
+    provenance: str
+    # When this evidence was actually observed, and whether it was
+    # re-observed on the latest pass. Stale evidence is kept for display
+    # — "this looked like your Backup drive" is useful — but it is never
+    # recognition authority: a drive can be swapped between two
+    # observations, so not having witnessed an unmount proves nothing
+    # about continuity (spec §5.1).
+    observed_at: str | None = Field(default=None, alias="observedAt")
+    stale: bool = False
+
+
 class MountedVolume(FrozenModel):
-    """One volume on the host filesystem."""
+    """One volume on the host filesystem.
+
+    ``identity`` is the best evidence the platform could provide within
+    its probe budget; ``None`` means not probed. It is evidence, not a
+    promise — a weak or stale identity must never authorize rebinding.
+    ``device_id`` is the filesystem's ``st_dev``: useless as identity
+    (it is reassigned across boots) but exactly right for answering "is
+    this path still on the volume we matched?".
+    """
 
     path: str
     label: str
     total_bytes: int = Field(alias="totalBytes")
     free_bytes: int = Field(alias="freeBytes")
     filesystem: str
+    identity: DestinationIdentity | None = None
+    device_id: int | None = Field(default=None, alias="deviceId")
 
 
 class ListVolumesResult(FrozenModel):
     """The result of ``source.listVolumes``."""
 
     volumes: list[MountedVolume]
+
+
+# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# presets — immutable revisions (destination-presets spec §4.2)
+# ---------------------------------------------------------------------------
+
+
+class PresetMatchConditions(FrozenModel):
+    path_glob: str | None = Field(default=None, alias="pathGlob")
+    extensions: list[str] | None = None
+    categories: list[str] | None = None
+    source_label: str | None = Field(default=None, alias="sourceLabel")
+
+
+class PresetRule(FrozenModel):
+    id: str
+    match: PresetMatchConditions
+    destination: str
+
+
+class PresetGroup(FrozenModel):
+    id: str
+    match: PresetMatchConditions
+    destination: str
+
+
+class PresetExclusion(FrozenModel):
+    id: str
+    reason: str
+    match: PresetMatchConditions
+
+
+class PresetContent(FrozenModel):
+    name: str = ""
+    description: str | None = None
+    rules: list[PresetRule] = Field(default_factory=list)
+    groups: list[PresetGroup] = Field(default_factory=list)
+    fallback_template: str = Field(alias="fallbackTemplate")
+    conflict_policy: Literal["keep_both", "skip_identical", "needs_review"] = Field(
+        default="keep_both", alias="conflictPolicy"
+    )
+    exclusions: list[PresetExclusion] = Field(default_factory=list)
+    # Content that still needs a human decision before this revision may
+    # be transferred with — unknown legacy template keys, legacy conflict
+    # policies with no safe equivalent. Non-empty blocks plan approval
+    # (spec §4.2: unsupported legacy keys are never silently ignored).
+    review_required: list[str] = Field(default_factory=list, alias="reviewRequired")
+
+
+class SavePresetRevisionParams(FrozenModel):
+    name: str
+    content: PresetContent
+
+
+class PresetRevisionSummary(FrozenModel):
+    preset_id: int = Field(alias="presetId")
+    revision: int
+    content_hash: str = Field(alias="contentHash")
+    created_at: str = Field(alias="createdAt")
+    # The repo row id used for pagination cursors (newest-first id > ?).
+    id: int
+
+
+class ListPresetRevisionsResult(FrozenModel):
+    revisions: list[PresetRevisionSummary]
+    total: int
+
+
+class PresetExportResult(FrozenModel):
+    preset_id: int = Field(alias="presetId")
+    revision: int
+    payload: str
+
+
+class PresetImportParams(FrozenModel):
+    payload: str
+    new_name: str | None = Field(default=None, alias="newName")
+
+
+class PresetRevisionDetail(FrozenModel):
+    preset_id: int = Field(alias="presetId")
+    revision: int
+    created_at: str = Field(alias="createdAt")
+    content_hash: str = Field(alias="contentHash")
+    content: PresetContent
+    legacy_snapshot: bool = Field(default=False, alias="legacySnapshot")
+    # The legacy profile template this revision was converted from, kept
+    # verbatim so a conversion can always be audited against its input.
+    legacy_template: dict[str, Any] | None = Field(default=None, alias="legacyTemplate")
+
+
+# ---------------------------------------------------------------------------
+# inventories (spec §4.3)
+# ---------------------------------------------------------------------------
+
+
+class InventoryEntry(FrozenModel):
+    """One inventory entry (spec §4.3).
+
+    ``entry_type`` is the kind of filesystem object; ``scan_status`` is
+    orthogonal. A read failure is ``scan_status="error"`` carrying the
+    diagnostic in ``error`` — with ``entry_type="unknown"`` when the
+    object could not be stat'd at all, rather than a fifth object type
+    the schema does not model.
+    """
+
+    id: int
+    rel_path: str = Field(alias="relPath")
+    entry_type: Literal["file", "dir", "symlink", "other", "unknown"] = Field(alias="entryType")
+    size: int
+    mtime: float | None = None
+    scan_status: Literal["ok", "error"] = Field(default="ok", alias="scanStatus")
+    error: str | None = None
+
+
+class InventoryStatus(FrozenModel):
+    id: int
+    root_path: str = Field(alias="rootPath")
+    label: str | None = None
+    status: Literal["scanning", "complete", "failed"]
+    # Why a scan failed. A failed inventory keeps the partial counts it
+    # actually reached; this says what stopped it (spec §4.3).
+    error: str | None = None
+    file_count: int = Field(alias="fileCount")
+    dir_count: int = Field(alias="dirCount")
+    total_bytes: int = Field(alias="totalBytes")
+    error_count: int = Field(alias="errorCount")
+    excluded_count: int = Field(alias="excludedCount")
+    manifest_hash: str | None = Field(default=None, alias="manifestHash")
+    started_at: str = Field(alias="startedAt")
+    finished_at: str | None = Field(default=None, alias="finishedAt")
+
+
+class InventoryCreateParams(FrozenModel):
+    path: str
+    label: str | None = None
+
+
+class InventoryCreateResult(FrozenModel):
+    inventory_id: int = Field(alias="inventoryId")
+
+
+class InventoryEntriesParams(FrozenModel):
+    id: int
+    limit: int = Field(default=200, ge=1, le=1000)
+    after: int = Field(default=0, ge=0)
+
+
+class InventoryStatusParams(FrozenModel):
+    id: int
+
+
+class InventoryEntriesPage(FrozenModel):
+    entries: list[InventoryEntry]
+    total: int
+    next_cursor: int | None = Field(default=None, alias="nextCursor")
+
+
+# ---------------------------------------------------------------------------
+# saved destinations (spec §4.1)
+# ---------------------------------------------------------------------------
+
+
+class SaveDestinationParams(FrozenModel):
+    name: str
+    path: str
+    subfolder_path: str | None = Field(default=None, alias="subfolderPath")
+    location_kind: Literal["local_folder", "volume_folder", "mounted_share_folder"] | None = Field(
+        default=None, alias="locationKind"
+    )
+    default_preset_id: int | None = Field(default=None, alias="defaultPresetId")
+    # The preset revision this destination is pinned to. Omitted on a
+    # save that names a preset, the *current* revision is resolved and
+    # pinned — a later revision of the same preset never re-routes this
+    # destination on its own (spec §4.2).
+    pinned_revision: int | None = Field(default=None, alias="pinnedRevision")
+    conflict_policy: Literal["keep_both", "skip_identical", "needs_review"] = Field(
+        default="keep_both", alias="conflictPolicy"
+    )
+    checksum_algo: Literal["xxhash64", "sha256"] = Field(default="xxhash64", alias="checksumAlgo")
+    free_space_reserve: int = Field(default=0, ge=0, alias="freeSpaceReserve")
+
+
+class DestinationSummary(FrozenModel):
+    id: int
+    name: str
+    location_kind: str = Field(alias="locationKind")
+    last_root_path: str = Field(alias="lastRootPath")
+    subfolder_path: str | None = Field(default=None, alias="subfolderPath")
+    identity: DestinationIdentity | None = None
+    default_preset_id: int | None = Field(default=None, alias="defaultPresetId")
+    pinned_revision: int | None = Field(default=None, alias="pinnedRevision")
+    conflict_policy: str = Field(alias="conflictPolicy")
+    checksum_algo: str = Field(alias="checksumAlgo")
+    free_space_reserve: int = Field(default=0, alias="freeSpaceReserve")
+    last_binding_path: str | None = Field(default=None, alias="lastBindingPath")
+    last_seen_at: str | None = Field(default=None, alias="lastSeenAt")
+    created_at: str = Field(alias="createdAt")
+    updated_at: str = Field(alias="updatedAt")
+    archived_at: str | None = Field(default=None, alias="archivedAt")
+
+
+class ListDestinationsResult(FrozenModel):
+    destinations: list[DestinationSummary]
+
+
+DestinationAvailability = Literal[
+    "available",
+    "offline",
+    "needs_confirmation",
+    "ambiguous",
+    "unwritable",
+]
+
+
+class DestinationResolution(FrozenModel):
+    destination_id: int = Field(alias="destinationId")
+    name: str
+    status: DestinationAvailability
+    reason: str
+    candidate_paths: list[str] = Field(default_factory=list, alias="candidatePaths")
+    binding_path: str | None = Field(default=None, alias="bindingPath")
+
+
+class ResolveDestinationsResult(FrozenModel):
+    resolutions: list[DestinationResolution]
+
+
+class ResolveDestinationParams(FrozenModel):
+    id: int | None = None
+    # Re-probe the platform, or reuse the last observation. A UI that
+    # re-renders often should pass false and read ``discovery.status``
+    # for the observation's age (spec §5.2: do not block on slow mount
+    # metadata calls).
+    refresh: bool = True
+
+
+class DiscoveryStatus(FrozenModel):
+    """What storage discovery currently knows (spec §5.2).
+
+    ``stale`` and ``warnings`` exist so a degraded probe shows as a
+    recoverable warning with manual folder selection still usable,
+    rather than as confident but wrong availability. ``observed_at`` of
+    ``None`` means discovery has not run — which is not the same as
+    having observed nothing.
+    """
+
+    volumes: list[MountedVolume]
+    observed_at: str | None = Field(default=None, alias="observedAt")
+    age_seconds: float | None = Field(default=None, alias="ageSeconds")
+    stale: bool = False
+    warnings: list[str] = Field(default_factory=list)
+
+
+class ConfirmBindingParams(FrozenModel):
+    destination_id: int = Field(alias="destinationId")
+    path: str
+    identity: DestinationIdentity | None = None
+
+
+class ArchiveDestinationParams(FrozenModel):
+    id: int
+
+
+# ---------------------------------------------------------------------------
+# transfer plans (spec §4.3, §7.1)
+# ---------------------------------------------------------------------------
+
+
+class PlanCreateParams(FrozenModel):
+    """Params for ``transfer.planCreate``.
+
+    ``preset_revision`` is a deliberate per-transfer override. Without
+    it the plan uses the destination's *pinned* revision — never
+    whatever revision happens to be newest (spec §4.2).
+    """
+
+    destination_id: int = Field(alias="destinationId")
+    inventory_ids: list[int] = Field(alias="inventoryIds")
+    preset_id: int | None = Field(default=None, alias="presetId")
+    preset_revision: int | None = Field(default=None, alias="presetRevision")
+    project_id: str | None = Field(default=None, alias="projectId")
+    binding_path: str | None = Field(default=None, alias="bindingPath")
+    capacity_override_reason: str | None = Field(default=None, alias="capacityOverrideReason")
+
+
+class TransferPlanStatusModel(FrozenModel):
+    id: str
+    destination_id: int | None = Field(default=None, alias="destinationId")
+    destination_binding_path: str = Field(alias="destinationBindingPath")
+    preset_id: int | None = Field(default=None, alias="presetId")
+    preset_revision: int | None = Field(default=None, alias="presetRevision")
+    preset_content_hash: str | None = Field(default=None, alias="presetContentHash")
+    project_id: str | None = Field(default=None, alias="projectId")
+    fingerprint: str
+    status: Literal["draft", "approved", "invalidated", "executing", "executed"]
+    approved_fingerprint: str | None = Field(default=None, alias="approvedFingerprint")
+    capacity_ok: bool = Field(alias="capacityOk")
+    capacity_unknown: bool = Field(alias="capacityUnknown")
+    capacity_override_reason: str | None = Field(default=None, alias="capacityOverrideReason")
+    needed_bytes: int = Field(alias="neededBytes")
+    total_bytes: int = Field(alias="totalBytes")
+    total_files: int = Field(alias="totalFiles")
+    conflict_count: int = Field(alias="conflictCount")
+    exclusion_count: int = Field(alias="exclusionCount")
+    # How many of ``exclusion_count`` came from the preset's own
+    # exclusion rules rather than a decision this reviewer made. Both are
+    # explicit; §7.3 needs a receipt to tell them apart.
+    rule_exclusion_count: int = Field(default=0, alias="ruleExclusionCount")
+    # Entries that still need a human decision. Non-zero means approval
+    # is refused (spec §7.1) — distinct from ``conflict_count``, which
+    # counts findings whether or not they still block.
+    blocking_count: int = Field(default=0, alias="blockingCount")
+    # Review evidence carried by the pinned preset revision. Non-empty
+    # blocks approval (spec §4.2): the revision contains something Ferry
+    # could not convert safely, and warning about it while approving
+    # anyway is the silent ignore the spec forbids.
+    preset_review_required: list[str] = Field(default_factory=list, alias="presetReviewRequired")
+    free_bytes: int | None = Field(default=None, alias="freeBytes")
+    free_space_reserve: int = Field(default=0, alias="freeSpaceReserve")
+    conflict_policy: str = Field(default="keep_both", alias="conflictPolicy")
+    checksum_algo: str = Field(default="xxhash64", alias="checksumAlgo")
+    inventory_ids: list[int] = Field(default_factory=list, alias="inventoryIds")
+    # The plan this one was derived from by resolving decisions, and the
+    # decisions carried into it.
+    derived_from: str | None = Field(default=None, alias="derivedFrom")
+    # The plan that superseded this one. Resolving a finding produces a
+    # new plan and invalidates its parent, so an approved plan can never
+    # coexist with the revision that replaced it (spec §8).
+    superseded_by: str | None = Field(default=None, alias="supersededBy")
+    decisions: list[PlanDecision] = Field(default_factory=list)
+    category_map_version: int = Field(default=1, alias="categoryMapVersion")
+    warnings: list[str] = Field(default_factory=list)
+    created_at: str = Field(alias="createdAt")
+    approved_at: str | None = Field(default=None, alias="approvedAt")
+
+
+class TransferPlanEntryModel(FrozenModel):
+    """One planned mapping (spec §4.3, §6.4).
+
+    The source is identified by ``inventory_id`` + ``inventory_entry_id``
+    — never by ``rel_path`` alone, which two different sources can share.
+    ``excluded_by_user`` distinguishes a decision somebody made from a
+    finding that merely has not been decided yet.
+    """
+
+    id: int
+    inventory_id: int | None = Field(default=None, alias="inventoryId")
+    inventory_entry_id: int | None = Field(default=None, alias="inventoryEntryId")
+    source_path: str = Field(alias="sourcePath")
+    rel_path: str = Field(default="", alias="relPath")
+    entry_type: str = Field(default="file", alias="entryType")
+    dest_rel_path: str = Field(alias="destRelPath")
+    matched_rule: str | None = Field(default=None, alias="matchedRule")
+    size: int
+    mtime: float | None = None
+    action: Literal["copy", "skip_identical", "exclude", "needs_review", "dir"]
+    conflict: str | None = None
+    exclusion_reason: str | None = Field(default=None, alias="exclusionReason")
+    excluded_by_user: bool = Field(default=False, alias="excludedByUser")
+    # Set when keep-both moved this copy off its natural name. The review
+    # screen shows the rename rather than letting it be discovered in the
+    # receipt afterwards (spec §6.4).
+    renamed_from: str | None = Field(default=None, alias="renamedFrom")
+    # The keep-together group that claimed this entry. A group's
+    # collision is resolved at its root, never by renaming a member, so
+    # review has to be able to show the containment (spec §6.3).
+    group_id: str | None = Field(default=None, alias="groupId")
+
+
+class PlanEntriesParams(FrozenModel):
+    id: str
+    limit: int = Field(default=200, ge=1, le=1000)
+    after: int = Field(default=0, ge=0)
+
+
+class PlanEntriesPage(FrozenModel):
+    entries: list[TransferPlanEntryModel]
+    total: int
+    next_cursor: int | None = Field(default=None, alias="nextCursor")
+
+
+class PlanDecision(FrozenModel):
+    """One reviewed decision about a plan finding (spec §6.4, §8).
+
+    Keyed by ``(inventory_id, rel_path)`` rather than a plan entry id:
+    resolving decisions produces a *new* plan, which reassigns entry
+    ids, and a decision that did not survive that would have to be made
+    again every round.
+    """
+
+    inventory_id: int = Field(alias="inventoryId")
+    rel_path: str = Field(alias="relPath")
+    # Only exclusion is decidable in this increment. ``keep_both`` is
+    # already the automatic default, and ``skip_identical`` needs the
+    # checksum proof the P5 runner produces (spec §6.4).
+    action: Literal["exclude"] = "exclude"
+    reason: str | None = None
+
+
+class PlanResolveParams(FrozenModel):
+    """Params for ``transfer.planResolve``.
+
+    ``entry_ids`` is what a review screen has to hand; the service
+    translates them to the stable ``(inventory, relPath)`` key. Decisions
+    accumulate across rounds — resolving one finding does not discard
+    the decisions already made about others.
+    """
+
+    id: str
+    entry_ids: list[int] = Field(default_factory=list, alias="entryIds")
+    decisions: list[PlanDecision] = Field(default_factory=list)
+    reason: str | None = None
+
+
+class PreflightStatus(FrozenModel):
+    """A preflight run's state and findings (spec §7.1).
+
+    ``findings`` is empty exactly when the run passed. Each entry is a
+    sentence an operator can act on, because a refusal that does not say
+    what changed is indistinguishable from a bug.
+    """
+
+    id: int
+    plan_id: str = Field(alias="planId")
+    fingerprint: str
+    status: Literal["running", "passed", "failed"]
+    findings: list[str] = Field(default_factory=list)
+    checked_entries: int = Field(default=0, alias="checkedEntries")
+    total_entries: int = Field(default=0, alias="totalEntries")
+    resolved_binding_path: str | None = Field(default=None, alias="resolvedBindingPath")
+    destination_status: str | None = Field(default=None, alias="destinationStatus")
+    free_bytes: int | None = Field(default=None, alias="freeBytes")
+    started_at: str = Field(alias="startedAt")
+    finished_at: str | None = Field(default=None, alias="finishedAt")
+
+
+class PreflightStartParams(FrozenModel):
+    plan_id: str = Field(alias="planId")
+
+
+class PreflightStatusParams(FrozenModel):
+    id: int
+
+
+class PlanApproveParams(FrozenModel):
+    id: str
+    fingerprint: str
+
+
+class PlanIdParams(FrozenModel):
+    id: str
 
 
 # ---------------------------------------------------------------------------
@@ -1000,6 +1489,7 @@ __all__ = [
     "AdoptSourceResult",
     "AppSettings",
     "AppStatus",
+    "ArchiveDestinationParams",
     "ArchiveProjectParams",
     "AssetSummary",
     "AuditEvent",
@@ -1007,11 +1497,16 @@ __all__ = [
     "CancelJobParams",
     "ClipMember",
     "CollisionIssue",
+    "ConfirmBindingParams",
     "CreateIntakeSessionParams",
     "CreateJobParams",
     "CreateProjectParams",
     "CreateProjectResult",
     "DerivativeSummary",
+    "DestinationAvailability",
+    "DestinationIdentity",
+    "DestinationResolution",
+    "DestinationSummary",
     "DetectClipsParams",
     "DoctorResult",
     "ErrorFrame",
@@ -1024,6 +1519,12 @@ __all__ = [
     "IntakeDestination",
     "IntakePlan",
     "IntakeSession",
+    "InventoryCreateParams",
+    "InventoryCreateResult",
+    "InventoryEntriesPage",
+    "InventoryEntriesParams",
+    "InventoryEntry",
+    "InventoryStatus",
     "JobDetail",
     "JobEvent",
     "JobSnapshot",
@@ -1032,8 +1533,10 @@ __all__ = [
     "ListAssetsResult",
     "ListAuditParams",
     "ListAuditResult",
+    "ListDestinationsResult",
     "ListJobsParams",
     "ListJobsResult",
+    "ListPresetRevisionsResult",
     "ListProfilesResult",
     "ListProjectsResult",
     "ListReplicasResult",
@@ -1049,8 +1552,22 @@ __all__ = [
     "OrganizePreview",
     "OrganizePreviewParams",
     "OrganizeResult",
+    "PlanApproveParams",
+    "PlanCreateParams",
     "PlanDestination",
+    "PlanEntriesPage",
+    "PlanEntriesParams",
     "PlanEntry",
+    "PlanIdParams",
+    "PresetContent",
+    "PresetExclusion",
+    "PresetExportResult",
+    "PresetGroup",
+    "PresetImportParams",
+    "PresetMatchConditions",
+    "PresetRevisionDetail",
+    "PresetRevisionSummary",
+    "PresetRule",
     "ProfilePreviewParams",
     "ProjectDetail",
     "ProjectManifest",
@@ -1062,17 +1579,23 @@ __all__ = [
     "ReplicaSummary",
     "RequestFrame",
     "ResolveClip",
+    "ResolveDestinationParams",
+    "ResolveDestinationsResult",
     "ResolveImportManifest",
     "ResponseFrame",
     "RpcError",
     "RpcErrorCode",
     "SafeToFormatEval",
+    "SaveDestinationParams",
+    "SavePresetRevisionParams",
     "SaveProfileParams",
     "SourceInspectParams",
     "SourceInspectResult",
     "SourceInventoryEntry",
     "StoragePolicy",
     "ToolCheck",
+    "TransferPlanEntryModel",
+    "TransferPlanStatusModel",
     "UpdateProjectParams",
     "UpdateSettingsParams",
     "VerifyReplicaParams",

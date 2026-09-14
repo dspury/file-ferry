@@ -301,3 +301,56 @@ def test_bootstrap_creates_legacy_schema(tmp_path: Path) -> None:
         assert _table_exists(conn, "probes")
         assert _table_exists(conn, "legacy_resolve_projects")
         assert _table_exists(conn, "verification_baselines")
+
+
+def test_backup_failure_names_both_databases_and_their_state(tmp_path: Path) -> None:
+    """R13: "unable to open database file" must say which file.
+
+    SQLite reports backup failures with a bare message that names
+    neither end, and in WAL mode the file it could not open is often a
+    `-wal`/`-shm` sidecar or the journal beside the target rather than
+    either database the caller passed. Without that context a recurring
+    failure cannot be diagnosed from a log — which is exactly the
+    position this defect left us in.
+    """
+    import sqlite3 as sqlite
+
+    from file_ferry.persistence import backup
+
+    db = tmp_path / "ferry.db"
+    conn = sqlite.connect(str(db))
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("CREATE TABLE t (id INTEGER)")
+    conn.close()
+    backups = tmp_path / "backups"
+
+    real_connect = sqlite.connect
+
+    class Failing:
+        def backup(self, _other: object) -> None:
+            raise sqlite.OperationalError("unable to open database file")
+
+        def close(self) -> None:
+            return None
+
+    def fake_connect(path: object, **kwargs: object) -> object:
+        if str(path) == str(db):
+            return Failing()
+        return real_connect(str(path), **kwargs)  # type: ignore[arg-type]
+
+    sqlite.connect = fake_connect  # type: ignore[assignment]
+    try:
+        with pytest.raises(sqlite.OperationalError) as caught:
+            backup.write_backup(db, backups, 4)
+    finally:
+        sqlite.connect = real_connect  # type: ignore[assignment]
+
+    message = str(caught.value)
+    assert "unable to open database file" in message, "the original cause is preserved"
+    assert str(db) in message, "the source database is named"
+    assert str(backups) in message, "the target is named"
+    assert "sqlite=" in message, "the SQLite version is recorded"
+    assert "writable=True" in message, "the target directory's state is recorded"
+    assert "sidecars=" in message, "WAL/journal sidecars are reported"
+    # Diagnostics must not leak database contents into logs or reports.
+    assert "CREATE TABLE" not in message

@@ -162,9 +162,10 @@ def apply_pending(
     order. The function is single-threaded; callers must serialize it.
 
     ``target_version`` defaults to the maximum version in the migrations
-    list. Pass it explicitly to rollback to a version that is not in
-    the list (e.g., rollback from version 2 to version 1 by passing
-    the full migration list with ``target_version=1``).
+    list, and bounds the run in either direction: pass it to stop an
+    upgrade at a particular version (e.g. to reproduce a pre-change
+    database from the full migration list), or to roll back to a version
+    that is not in the list.
     """
     if not database_exists(db_path):
         raise FileNotFoundError(f"database not found: {db_path}")
@@ -198,7 +199,12 @@ def apply_pending(
             )
         if current == target:
             return []
-        pending = [m for m in migrations_list if m.version > current]
+        # ``target`` bounds the upgrade as well as a rollback. Without the
+        # upper bound an explicit ``target_version`` was accepted and then
+        # ignored, so asking for "bring this database to version 3" ran
+        # every later migration too — which is exactly how a fixture meant
+        # to reproduce a pre-change database ends up at head instead.
+        pending = [m for m in migrations_list if current < m.version <= target]
         return _upgrade(conn, db_path, pending, current, backups_dir)
     finally:
         conn.close()

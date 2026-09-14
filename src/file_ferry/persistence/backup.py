@@ -70,11 +70,78 @@ def write_backup(db_path: Path, backups_dir: Path, version: int) -> Path:
             raise sqlite3.OperationalError(f"backup target {target}: {exc}") from exc
         try:
             source.backup(dest)
+        except sqlite3.Error as exc:
+            raise _backup_failure(exc, db_path, target) from exc
         finally:
             dest.close()
     finally:
         source.close()
     return target
+
+
+def _backup_failure(exc: sqlite3.Error, db_path: Path, target: Path) -> sqlite3.Error:
+    """Re-raise a backup failure with enough context to diagnose it.
+
+    ``source.backup(dest)`` reports failures with SQLite's bare message —
+    "unable to open database file" names neither file, and in WAL mode
+    the file that could not be opened is frequently the ``-wal`` or
+    ``-shm`` sidecar, or the journal SQLite tried to create next to the
+    target, rather than either database the caller passed.
+
+    So the context is collected here: both paths, whether each exists and
+    is writable, which sidecars are present, the directory state, and the
+    SQLite version. No database *content* is read or included — only file
+    metadata (spec §12: keep private data out of committed artifacts, and
+    this text reaches logs and reports).
+    """
+    detail = "; ".join(
+        [
+            f"source={_path_state(db_path)}",
+            f"target={_path_state(target)}",
+            f"target_dir={_dir_state(target.parent)}",
+            f"sqlite={sqlite3.sqlite_version}",
+        ]
+    )
+    message = f"{exc} (backup failed: {detail})"
+    failure = type(exc)(message)
+    return failure
+
+
+def _path_state(path: Path) -> str:
+    """A compact description of one database file and its sidecars."""
+    parts: list[str] = [str(path)]
+    try:
+        stat = path.stat()
+    except OSError as exc:
+        parts.append(f"stat-failed:{exc.errno}")
+    else:
+        parts.append(f"{stat.st_size}B")
+        parts.append(f"mode={stat.st_mode & 0o777:o}")
+    sidecars = [
+        suffix
+        for suffix in ("-wal", "-shm", "-journal")
+        if path.with_name(path.name + suffix).exists()
+    ]
+    parts.append(f"sidecars={','.join(sidecars) if sidecars else 'none'}")
+    return "[" + " ".join(parts) + "]"
+
+
+def _dir_state(directory: Path) -> str:
+    """Whether the directory a backup is being written into is usable."""
+    import os
+
+    try:
+        exists = directory.is_dir()
+    except OSError as exc:
+        return f"[{directory} stat-failed:{exc.errno}]"
+    if not exists:
+        return f"[{directory} missing]"
+    writable = os.access(directory, os.W_OK | os.X_OK)
+    try:
+        entries = len(list(directory.iterdir()))
+    except OSError:
+        entries = -1
+    return f"[{directory} writable={writable} entries={entries}]"
 
 
 def write_checksum(backup_path: Path) -> Path:

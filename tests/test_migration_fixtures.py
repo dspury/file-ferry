@@ -54,10 +54,10 @@ def test_upgrade_from_legacy_shape_preserves_data(tmp_path: Path) -> None:
         )
         conn.commit()
 
-    # Upgrade to the current head (version 3 after the
-    # safe-to-format fingerprint migration landed).
+    # Upgrade to the current head (version 4 after the destination-presets
+    # migration landed).
     applied = runner.apply_pending(db, discovered, backups)
-    assert applied and applied[-1].version == 3
+    assert applied and applied[-1].version == 4
 
     with sqlite3.connect(db) as conn:
         conn.row_factory = sqlite3.Row
@@ -65,11 +65,27 @@ def test_upgrade_from_legacy_shape_preserves_data(tmp_path: Path) -> None:
             assert name in _tables(db), f"legacy table {name} lost"
         for name in VNEXT_TABLES:
             assert name in _tables(db), f"vNext table {name} missing"
+        # The destination-presets migration added new tables.
+        for name in (
+            "saved_destinations",
+            "organization_profile_revisions",
+            "source_inventories",
+            "source_inventory_entries",
+            "transfer_plans",
+            "transfer_plan_entries",
+        ):
+            assert name in _tables(db), f"v4 table {name} missing"
         # The fingerprint column landed on intake_sessions.
         cols = {
             row["name"] for row in conn.execute("PRAGMA table_info(intake_sessions)").fetchall()
         }
         assert "volume_fingerprint_at_scan" in cols
+        # jobs.project_id is now nullable (general transfers don't require
+        # a project — spec §4.1).
+        proj = next(
+            row for row in conn.execute("PRAGMA table_info(jobs)") if row[1] == "project_id"
+        )
+        assert proj[3] == 0  # notnull = 0
         # Legacy data survived the migration.
         row = conn.execute("SELECT command FROM runs WHERE command = 'probe'").fetchone()
         assert row is not None
@@ -135,3 +151,39 @@ def test_interrupted_migration_restores_prior_state(tmp_path: Path) -> None:
     finally:
         sys.path.remove(str(tmp_path))
         sys.modules.pop(pkg.name, None)
+
+
+def test_v4_database_with_the_superseded_shape_fails_loudly(tmp_path: Path) -> None:
+    """Migration 004 was amended in place; a stale v4 database must say so.
+
+    The runner keys migrations by version, and 004's DDL is
+    ``CREATE TABLE IF NOT EXISTS``, so a database already stamped v4
+    skips it forever and keeps the old columns. Without a guard that
+    surfaces as ``no such column: review_json`` somewhere deep in a
+    service. No released database can be in this state — only a
+    development one — but that is exactly who needs the message.
+    """
+    import importlib
+
+    from file_ferry.persistence.connection import open_connection
+
+    v4 = importlib.import_module("file_ferry.persistence.migrations.004_destination_presets")
+
+    db = _fresh_db(tmp_path)
+    _apply(db, tmp_path / "backups")
+
+    conn = open_connection(db)
+    try:
+        v4.assert_v4_shape(conn)  # the freshly migrated shape is fine
+        conn.execute("ALTER TABLE organization_profile_revisions DROP COLUMN review_json")
+        conn.execute("ALTER TABLE transfer_plans DROP COLUMN blocking_count")
+        with pytest.raises(v4.IncompatibleDevelopmentSchemaError) as caught:
+            v4.assert_v4_shape(conn)
+    finally:
+        conn.close()
+
+    message = str(caught.value)
+    assert "organization_profile_revisions.review_json" in message
+    assert "transfer_plans.blocking_count" in message
+    assert "cannot be upgraded in place" in message
+    assert "export them first" in message, "the message must not imply deleting real records"

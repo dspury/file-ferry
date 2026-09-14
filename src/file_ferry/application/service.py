@@ -50,6 +50,7 @@ from file_ferry.application.replicas import ReplicaService
 from file_ferry.application.scheduler import JobScheduler
 from file_ferry.application.sources import SourceService
 from file_ferry.application.transfer_plan import TransferPlanService
+from file_ferry.application.transfer_runner import TRANSFER_COMMAND, TransferRunner
 from file_ferry.application.volumes import SystemVolumeAdapter, VolumeChange, VolumeObserver
 from file_ferry.persistence import runner
 from file_ferry.persistence.connection import transaction
@@ -130,6 +131,10 @@ from file_ferry.service.protocol import (
     SourceInspectResult,
     SourceInventoryEntry,
     TransferPlanStatusModel,
+    TransferReceiptParams,
+    TransferReceiptStatus,
+    TransferStartParams,
+    TransferStartResult,
     UpdateProjectParams,
     UpdateSettingsParams,
     VerifyReplicaParams,
@@ -168,6 +173,9 @@ METHOD_NAMES: tuple[str, ...] = (
     "transfer.planApprove",
     "transfer.preflightStart",
     "transfer.preflightStatus",
+    "transfer.start",
+    "transfer.receipt",
+    "transfer.receiptExport",
     "destination.discovery",
     "app.getStatus",
     "app.getCapabilities",
@@ -279,6 +287,7 @@ class ApplicationService:
         self._preset_revisions: PresetRevisionService | None = None
         self._inventory: InventoryService | None = None
         self._transfer_plans: TransferPlanService | None = None
+        self._transfer_runner: TransferRunner | None = None
         self._preflight: PreflightService | None = None
 
     # ---- lifecycle ----------------------------------------------------
@@ -416,6 +425,7 @@ class ApplicationService:
         self._preset_revisions = None
         self._inventory = None
         self._transfer_plans = None
+        self._transfer_runner = None
         self._bootstrapped = False
         # Drop the transport and the watch list together: publishing into a
         # torn-down server, or replaying a previous session's subscriptions
@@ -673,6 +683,25 @@ class ApplicationService:
     def transfer_preflight_status(self, params: PreflightStatusParams) -> PreflightStatus:
         return self._preflight_service().get(params.id)
 
+    def transfer_start(self, params: TransferStartParams) -> TransferStartResult:
+        """Queue an approved plan for execution (spec §7.2).
+
+        Returns as soon as the durable job and execution exist; the
+        dispatcher runs the copy. A kick is needed because nothing else
+        wakes the dispatcher for a job queued outside ``job.create``.
+        """
+        result = self._transfer_runner_service().start(params)
+        self._dispatcher_service().kick()
+        return result
+
+    def transfer_receipt(self, params: TransferReceiptParams) -> TransferReceiptStatus:
+        """The durable receipt of a plan's latest execution (spec §7.3)."""
+        return self._transfer_runner_service().receipt(params)
+
+    def transfer_receipt_export(self, params: TransferReceiptParams) -> TransferReceiptStatus:
+        """Re-attempt the JSON export of a receipt and report the outcome."""
+        return self._transfer_runner_service().export_receipt(params)
+
     def profile_preview(self, params: ProfilePreviewParams) -> OrganizePreview:
         """Preview how an organization profile maps a source tree (plan §8.3)."""
         from file_ferry.service.protocol import OrganizePreviewParams
@@ -841,6 +870,15 @@ class ApplicationService:
     def job_recover(self) -> list[str]:
         """Mark jobs interrupted by a restart as needs_attention."""
         recovered = self._scheduler_service().recover()
+        # Executions are a separate ledger from jobs, and a crash leaves
+        # path reservations held by a job that will never run again. The
+        # job ids are the wire contract here, so the released executions
+        # are logged rather than mixed into the returned list (A21).
+        released = self._transfer_runner_service().recover_executions()
+        if released:
+            LOGGER.warning(
+                "reconciled %d abandoned transfer execution(s): %s", len(released), released
+            )
         # Recovering a job does not put it back in queued; the operator
         # must explicitly ``resume`` it. No kick here on purpose.
         return recovered
@@ -920,7 +958,7 @@ class ApplicationService:
     # ---- scheduler wiring --------------------------------------------
 
     def _register_scheduler_runners(self) -> None:
-        """Wire the durable runners (offload, proxy) into the scheduler."""
+        """Wire the durable runners (offload, proxy, transfer) into the scheduler."""
         offload = OffloadRunner(
             self._planner_service(),
             self._intake_service(),
@@ -939,6 +977,22 @@ class ApplicationService:
             receipt_writer=self._write_job_receipt,
         )
         self._scheduler_service().register_runner("proxy", proxy)
+        # The transfer runner needs the live volume observations to prove a
+        # destination is still the bound one before it publishes anything,
+        # so it takes the same observation seam the resolver uses rather
+        # than opening a second discovery loop (spec §5.2).
+        transfer = TransferRunner(
+            self._db_path,
+            self._job_service(),
+            self._destination_service(),
+            self._destination_observations,
+            app_data_dir=self._app_data_dir,
+        )
+        self._transfer_runner = transfer
+        self._scheduler_service().register_runner(TRANSFER_COMMAND, transfer)
+        # Per-destination serialization: two transfers writing the same
+        # volume at once would race on path reservations and on capacity.
+        self._scheduler_service().register_volume(TRANSFER_COMMAND, transfer.volume_of)
 
     def _write_job_receipt(self, receipt: OperationReceipt) -> None:
         """Persist a runner's receipt, superseding a previous attempt's.
@@ -1078,6 +1132,11 @@ class ApplicationService:
         if self._transfer_plans is None:
             raise RuntimeError("ApplicationService.bootstrap() must be called first")
         return self._transfer_plans
+
+    def _transfer_runner_service(self) -> TransferRunner:
+        if self._transfer_runner is None:
+            raise RuntimeError("ApplicationService.bootstrap() must be called first")
+        return self._transfer_runner
 
     def _clips_service(self) -> ClipService:
         if self._clips is None:

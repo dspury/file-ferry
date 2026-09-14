@@ -301,3 +301,13 @@ def count_entries_with_action(conn: sqlite3.Connection, plan_id: str, action: st
             (plan_id, action),
         ).fetchone()[0]
     )
+
+
+def get_plan_entry(
+    conn: sqlite3.Connection, plan_id: str, entry_id: int
+) -> TransferPlanEntryRow | None:
+    row = conn.execute(
+        f"SELECT {_ENTRY_COLUMNS} FROM transfer_plan_entries WHERE plan_id = ? AND id = ?",
+        (plan_id, entry_id),
+    ).fetchone()
+    return TransferPlanEntryRow.from_row(row) if row is not None else None

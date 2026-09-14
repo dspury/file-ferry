@@ -27,6 +27,7 @@ function job(over: Partial<JobDetail> = {}): JobDetail {
     projectId: 'p1',
     sessionId: null,
     command: 'offload',
+    argsFingerprint: null,
     state: 'running',
     currentStep: 'copy',
     totalSteps: 4,

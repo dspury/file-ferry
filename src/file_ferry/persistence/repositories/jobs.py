@@ -11,7 +11,10 @@ class JobRow:
     """One row from the ``jobs`` table."""
 
     id: str
-    project_id: str
+    # Nullable since migration 004: a general transfer need not belong to
+    # a project (spec §4.1), and this is a foreign key, so the empty
+    # string is not a usable stand-in for "none".
+    project_id: str | None
     session_id: str | None
     command: str
     args_fingerprint: str | None

@@ -398,9 +398,17 @@ class JobDetail(FrozenModel):
     """A durable job row."""
 
     id: str
-    project_id: str = Field(alias="projectId")
+    # Nullable since migration 004 made ``jobs.project_id`` nullable: a
+    # general transfer is not part of a project (spec §4.1). The column
+    # is a foreign key, so the empty string is not a stand-in for "none".
+    project_id: str | None = Field(default=None, alias="projectId")
     session_id: str | None = Field(alias="sessionId")
     command: str
+    # The plan fingerprint the job was created against. A retry creates a
+    # new job row for the same fingerprint, and that is the only handle a
+    # runner has for adopting the prior attempt's execution ledger, so the
+    # read model has to carry it and not just ``CreateJobParams``.
+    args_fingerprint: str | None = Field(default=None, alias="argsFingerprint")
     state: str
     current_step: str | None = Field(alias="currentStep")
     total_steps: int = Field(alias="totalSteps")
@@ -414,7 +422,7 @@ class JobDetail(FrozenModel):
 class CreateJobParams(FrozenModel):
     """The params for ``job.create``."""
 
-    project_id: str = Field(alias="projectId")
+    project_id: str | None = Field(default=None, alias="projectId")
     command: str
     args_fingerprint: str | None = Field(default=None, alias="argsFingerprint")
     session_id: str | None = Field(default=None, alias="sessionId")
@@ -1312,10 +1320,13 @@ class PlanDecision(FrozenModel):
 
     inventory_id: int = Field(alias="inventoryId")
     rel_path: str = Field(alias="relPath")
-    # Only exclusion is decidable in this increment. ``keep_both`` is
-    # already the automatic default, and ``skip_identical`` needs the
-    # checksum proof the P5 runner produces (spec §6.4).
-    action: Literal["exclude"] = "exclude"
+    # Exclusion removes an entry from the transfer outright.
+    # ``skip_identical`` resolves an existing-destination conflict by
+    # asking the runner to prove full content equality at execution
+    # time (spec §6.4): if the checksums disagree the item fails
+    # visibly and needs a new decision — never an overwrite, never a
+    # silent skip.
+    action: Literal["exclude", "skip_identical"] = "exclude"
     reason: str | None = None
 
 
@@ -1371,6 +1382,64 @@ class PlanApproveParams(FrozenModel):
 
 class PlanIdParams(FrozenModel):
     id: str
+
+
+# ---------------------------------------------------------------------------
+# transfer execution (spec §7.2/§7.3 — the P5 runner)
+# ---------------------------------------------------------------------------
+
+
+class TransferStartParams(FrozenModel):
+    """Params for ``transfer.start``.
+
+    Takes the approved plan id **and** the fingerprint it was approved
+    under (spec §8): starting a plan whose substance moved is refused,
+    and a caller never supplies paths — the plan is the only source of
+    what gets written.
+    """
+
+    id: str
+    fingerprint: str
+
+
+class TransferStartResult(FrozenModel):
+    """The result of ``transfer.start``.
+
+    Returns the durable job promptly (spec §8): creation never waits
+    for the copy. Starting the same approved plan twice returns the
+    same execution.
+    """
+
+    job: JobDetail
+    execution_id: str = Field(alias="executionId")
+
+
+class TransferReceiptParams(FrozenModel):
+    """Params for ``transfer.receipt`` / ``transfer.receiptExport``.
+
+    Keyed by plan: a plan's receipt is its latest execution's. The
+    execution id is returned so a lineage can be followed.
+    """
+
+    plan_id: str = Field(alias="planId")
+
+
+class TransferReceiptStatus(FrozenModel):
+    """The durable receipt of a transfer, and its export state.
+
+    ``exportError`` non-empty means the JSON export failed and is
+    retriable; the database receipt itself is the audit record and was
+    written first (spec §7.3).
+    """
+
+    execution_id: str = Field(alias="executionId")
+    plan_id: str = Field(alias="planId")
+    fingerprint: str
+    final_state: str = Field(alias="finalState")
+    written_at: str = Field(alias="writtenAt")
+    exported_path: str | None = Field(default=None, alias="exportedPath")
+    export_error: str | None = Field(default=None, alias="exportError")
+    receipt: dict[str, Any]
 
 
 # ---------------------------------------------------------------------------

@@ -197,6 +197,7 @@ def copy_file_verified(
     algo: str = "xxhash64",
     on_progress: Callable[[int], None] | None = None,
     cancel_check: Callable[[], bool] | None = None,
+    tmp_path: Path | None = None,
 ) -> CopyVerification:
     """Copy ``source`` to ``dest`` verified and without replacing content.
 
@@ -211,6 +212,12 @@ def copy_file_verified(
     Cancellation is checked at least once per chunk. A cancellation (or
     any other failure) leaves the source untouched, publishes nothing,
     and removes the temporary sibling.
+
+    ``tmp_path`` lets a durable caller (the transfer runner) choose the
+    temporary name so it can record it *before* the copy and reconcile
+    the written-but-unpublished crash window on resume. It is created
+    with ``O_CREAT | O_EXCL`` — a leftover temp at that exact name is the
+    caller's to remove first, never something the copier overwrites.
     """
     source = Path(source)
     dest = Path(dest)
@@ -219,8 +226,14 @@ def copy_file_verified(
         raise UnsafeDestinationError(f"source is not a regular file: {source}")
 
     dest.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_name = tempfile.mkstemp(prefix=f".{dest.name}.", suffix=TEMP_SUFFIX, dir=dest.parent)
-    tmp = Path(tmp_name)
+    if tmp_path is None:
+        fd, tmp_name = tempfile.mkstemp(
+            prefix=f".{dest.name}.", suffix=TEMP_SUFFIX, dir=dest.parent
+        )
+        tmp = Path(tmp_name)
+    else:
+        tmp = Path(tmp_path)
+        fd = os.open(tmp, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
     try:
         read_hash = _hasher_for(algo)
         with os.fdopen(fd, "wb") as out:

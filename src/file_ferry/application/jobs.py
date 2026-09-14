@@ -294,6 +294,7 @@ class JobService:
             projectId=row.project_id,
             sessionId=row.session_id,
             command=row.command,
+            argsFingerprint=row.args_fingerprint,
             state=row.state,
             currentStep=row.current_step,
             totalSteps=row.total_steps,

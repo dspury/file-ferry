@@ -134,11 +134,16 @@ class JobScheduler:
     def _finish(self, job_id: str, job: JobDetail, outcome: str) -> JobDetail:
         # ``failed`` is only reachable from ``verifying`` in the §6.4 machine,
         # so a hard runner failure passes through verifying (no success claim).
+        # ``needs_attention`` is a runner saying "stop, an operator must look
+        # at this" — a recoverable error (ENOSPC, a conflict that appeared at
+        # publication, a source that changed mid-copy), not a dead attempt.
         if outcome == "succeeded":
             result = self._transition(job_id, "running", "verifying")
             result = self._transition(job_id, "verifying", "succeeded")
         elif outcome == "cancelled":
             result = self._transition(job_id, "running", "cancelled")
+        elif outcome == "needs_attention":
+            result = self._transition(job_id, "running", "needs_attention")
         else:
             self._transition(job_id, "running", "verifying")
             result = self._transition(job_id, "verifying", "failed")

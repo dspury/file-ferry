@@ -27,6 +27,7 @@ function job(id: string, state: string): JobDetail {
     projectId: 'proj-1',
     sessionId: null,
     command: 'copy',
+    argsFingerprint: null,
     state,
     currentStep: null,
     totalSteps: 1,

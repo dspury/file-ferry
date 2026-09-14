@@ -92,6 +92,8 @@ from file_ferry.service.protocol import (
     SaveProfileParams,
     SourceInspectParams,
     SourceInspectResult,
+    TransferReceiptParams,
+    TransferStartParams,
     UpdateProjectParams,
     UpdateSettingsParams,
     VerifyReplicaParams,
@@ -340,6 +342,18 @@ def _build_handlers(service: ApplicationService) -> dict[str, Handler]:
         p = _validate(PreflightStatusParams, params)
         return service.transfer_preflight_status(p)
 
+    def transfer_start(params: dict[str, Any]) -> Any:
+        p = _validate(TransferStartParams, params)
+        return service.transfer_start(p)
+
+    def transfer_receipt(params: dict[str, Any]) -> Any:
+        p = _validate(TransferReceiptParams, params)
+        return service.transfer_receipt(p)
+
+    def transfer_receipt_export(params: dict[str, Any]) -> Any:
+        p = _validate(TransferReceiptParams, params)
+        return service.transfer_receipt_export(p)
+
     def destination_confirm_binding(params: dict[str, Any]) -> Any:
         p = _validate(ConfirmBindingParams, params)
         return service.destination_confirm_binding(p)
@@ -518,6 +532,9 @@ def _build_handlers(service: ApplicationService) -> dict[str, Handler]:
         "transfer.planApprove": transfer_plan_approve,
         "transfer.preflightStart": transfer_preflight_start,
         "transfer.preflightStatus": transfer_preflight_status,
+        "transfer.start": transfer_start,
+        "transfer.receipt": transfer_receipt,
+        "transfer.receiptExport": transfer_receipt_export,
         "project.list": project_list,
         "project.create": project_create,
         "project.get": project_get,

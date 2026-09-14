@@ -68,6 +68,7 @@ function job(id: string, state: string, totalSteps = 2): JobDetail {
     projectId: 'p1',
     sessionId: null,
     command: 'copy',
+    argsFingerprint: null,
     state,
     currentStep: state === 'running' ? 'copy' : null,
     totalSteps,

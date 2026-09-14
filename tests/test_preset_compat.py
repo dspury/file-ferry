@@ -189,8 +189,9 @@ def test_upgrade_converts_awkward_legacy_profiles_without_losing_anything(
             ("TokenRoot", {"root": "{year}/{month}"}, "overwrite"),
         ],
     )
-    applied = runner.apply_pending(db, runner.discover_migrations(), tmp_path / "backups")
-    assert applied and applied[-1].version == 4
+    discovered = runner.discover_migrations()
+    applied = runner.apply_pending(db, discovered, tmp_path / "backups")
+    assert applied and applied[-1].version == discovered[-1].version
 
     with transaction(db) as conn:
         rows = {

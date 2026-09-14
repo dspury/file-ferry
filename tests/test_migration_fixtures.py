@@ -54,10 +54,12 @@ def test_upgrade_from_legacy_shape_preserves_data(tmp_path: Path) -> None:
         )
         conn.commit()
 
-    # Upgrade to the current head (version 4 after the destination-presets
-    # migration landed).
+    # Upgrade to the current head. Derived from the discovered set rather
+    # than hard-coded: every new migration otherwise fails this test for a
+    # reason that has nothing to do with what it is proving.
+    head = discovered[-1].version
     applied = runner.apply_pending(db, discovered, backups)
-    assert applied and applied[-1].version == 4
+    assert applied and applied[-1].version == head
 
     with sqlite3.connect(db) as conn:
         conn.row_factory = sqlite3.Row
@@ -75,6 +77,14 @@ def test_upgrade_from_legacy_shape_preserves_data(tmp_path: Path) -> None:
             "transfer_plan_entries",
         ):
             assert name in _tables(db), f"v4 table {name} missing"
+        # The transfer-execution migration added the run-time ledger.
+        for name in (
+            "transfer_executions",
+            "transfer_execution_items",
+            "transfer_path_reservations",
+            "transfer_receipts",
+        ):
+            assert name in _tables(db), f"v5 table {name} missing"
         # The fingerprint column landed on intake_sessions.
         cols = {
             row["name"] for row in conn.execute("PRAGMA table_info(intake_sessions)").fetchall()

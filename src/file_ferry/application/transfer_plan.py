@@ -47,8 +47,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import sqlite3
+import stat as stat_module
 import uuid
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
@@ -716,6 +718,7 @@ def _build_plan(
             )
 
     _cascade_directory_exclusions(drafts)
+    warnings.extend(_apply_skip_identical_decisions(drafts, decision_by_key, destination_root))
     warnings.extend(_allocate_destinations(drafts, destination_root, dest_row.conflict_policy))
     drafts = _drop_implied_directories(drafts)
 
@@ -1065,6 +1068,62 @@ def _cascade_directory_exclusions(drafts: list[_Draft]) -> None:
                 if draft.entry_type == "dir":
                     draft.size = 0
                 break
+
+
+def _apply_skip_identical_decisions(
+    drafts: list[_Draft],
+    decision_by_key: dict[tuple[int, str], PlanDecision],
+    destination_root: Path,
+) -> list[str]:
+    """Turn reviewed skip-identical decisions into planned skips (§6.4).
+
+    Applied **before** allocation: a skipped entry claims no new name,
+    so nothing else can be pushed to a suffixed one, and its planned
+    path keeps pointing at the existing file the decision is about.
+    The plan records the *intent*; the proof is the runner's — a full
+    content checksum at execution time, after which the entry is either
+    skipped with evidence or fails visibly for a new decision. Name or
+    size equality is never the basis (R03).
+
+    A decision that does not apply — the entry is not a clean copy, or
+    no ordinary existing file sits at its planned path — is an error,
+    not a silently inert field (the R15 lesson).
+    """
+    warnings: list[str] = []
+    by_key = {(d.inventory_id, d.rel_path): d for d in drafts}
+    for (inv_id, rel), decision in decision_by_key.items():
+        if decision.action != "skip_identical":
+            continue
+        draft = by_key.get((inv_id, rel))
+        if draft is None:
+            raise TransferPlanError(
+                f"a skip-identical decision names {rel!r}, which is not part of this plan"
+            )
+        if draft.action != "copy" or draft.entry_type != "file":
+            raise TransferPlanError(
+                f"a skip-identical decision names {rel!r}, but that entry is not a plain "
+                f"planned copy (action {draft.action!r}, type {draft.entry_type!r}); "
+                "exclude it instead or replan"
+            )
+        target = destination_root.joinpath(*PurePosixPath(draft.dest_rel_path).parts)
+        try:
+            st = os.lstat(target)
+        except OSError:
+            raise TransferPlanError(
+                f"a skip-identical decision names {rel!r}, but nothing exists at its "
+                f"planned destination {draft.dest_rel_path} to prove identical; replan"
+            ) from None
+        if not stat_module.S_ISREG(st.st_mode):
+            raise TransferPlanError(
+                f"a skip-identical decision names {rel!r}, but its planned destination "
+                f"{draft.dest_rel_path} is not an ordinary file; exclude it or replan"
+            )
+        draft.action = "skip_identical"
+        warnings.append(
+            f"{rel}: will be skipped only after a full checksum proves it identical to "
+            f"{draft.dest_rel_path} (reviewed decision)"
+        )
+    return warnings
 
 
 def _allocate_destinations(drafts: list[_Draft], destination_root: Path, policy: str) -> list[str]:

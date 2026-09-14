@@ -83,7 +83,7 @@ export function searchJobs(jobs: readonly JobDetail[], query: string): JobDetail
   return jobs.filter((j) => {
     return (
       j.command.toLowerCase().includes(q) ||
-      j.projectId.toLowerCase().includes(q) ||
+      (j.projectId ?? '').toLowerCase().includes(q) ||
       j.state.toLowerCase().includes(q) ||
       (j.error ?? '').toLowerCase().includes(q)
     );

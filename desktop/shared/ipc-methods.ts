@@ -520,11 +520,13 @@ export interface PlanDecision {
   readonly inventoryId: number;
   readonly relPath: string;
   /**
-   * Only exclusion is decidable in this increment. `keep_both` is already
-   * the automatic default, and `skip_identical` needs the checksum proof
-   * the transfer runner produces.
+   * Exclusion removes an entry from the transfer outright.
+   * `skip_identical` resolves an existing-destination conflict by asking
+   * the runner to prove full content equality at execution time: if the
+   * checksums disagree the item fails visibly and needs a new decision —
+   * never an overwrite, never a silent skip.
    */
-  readonly action?: 'exclude';
+  readonly action?: 'exclude' | 'skip_identical';
   readonly reason?: string | null;
 }
 
@@ -721,11 +723,58 @@ export interface AdoptSourceResult {
   readonly assetIds: readonly string[];
 }
 
+/**
+ * Params for `transfer.start`. Takes the approved plan id **and** the
+ * fingerprint it was approved under: starting a plan whose substance
+ * moved is refused, and a caller never supplies paths — the plan is the
+ * only source of what gets written.
+ */
+export interface TransferStartParams {
+  readonly id: string;
+  readonly fingerprint: string;
+}
+
+/**
+ * The result of `transfer.start`. Returns the durable job promptly:
+ * creation never waits for the copy. Starting the same approved plan
+ * twice returns the same execution.
+ */
+export interface TransferStartResult {
+  readonly job: JobDetail;
+  readonly executionId: string;
+}
+
+/**
+ * Params for `transfer.receipt` / `transfer.receiptExport`. Keyed by
+ * plan: a plan's receipt is its latest execution's.
+ */
+export interface TransferReceiptParams {
+  readonly planId: string;
+}
+
+/**
+ * The durable receipt of a transfer, and its export state. A non-empty
+ * `exportError` means the JSON export failed and is retriable; the
+ * database receipt itself is the audit record and was written first.
+ */
+export interface TransferReceiptStatus {
+  readonly executionId: string;
+  readonly planId: string;
+  readonly fingerprint: string;
+  readonly finalState: string;
+  readonly writtenAt: string;
+  readonly exportedPath: string | null;
+  readonly exportError: string | null;
+  readonly receipt: JsonObject;
+}
+
 export interface JobDetail {
   readonly id: string;
-  readonly projectId: string;
+  /** Null for a general transfer, which need not belong to a project. */
+  readonly projectId: string | null;
   readonly sessionId: string | null;
   readonly command: string;
+  readonly argsFingerprint: string | null;
   readonly state: string;
   readonly currentStep: string | null;
   readonly totalSteps: number;
@@ -737,7 +786,8 @@ export interface JobDetail {
 }
 
 export interface CreateJobParams {
-  readonly projectId: string;
+  /** Omit for a general transfer, which need not belong to a project. */
+  readonly projectId?: string | null;
   readonly command: string;
   readonly argsFingerprint?: string | null;
   readonly sessionId?: string | null;
@@ -1125,6 +1175,9 @@ export interface MethodCatalog {
   'transfer.planApprove': { params: PlanApproveParams; result: TransferPlanStatus };
   'transfer.preflightStart': { params: PreflightStartParams; result: PreflightStatus };
   'transfer.preflightStatus': { params: PreflightStatusParams; result: PreflightStatus };
+  'transfer.start': { params: TransferStartParams; result: TransferStartResult };
+  'transfer.receipt': { params: TransferReceiptParams; result: TransferReceiptStatus };
+  'transfer.receiptExport': { params: TransferReceiptParams; result: TransferReceiptStatus };
   'project.list': { params: Record<string, never>; result: ListProjectsResult };
   'project.create': { params: CreateProjectParams; result: CreateProjectResult };
   'project.get': { params: { projectId: string }; result: ProjectDetail };

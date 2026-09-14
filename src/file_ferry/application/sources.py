@@ -61,13 +61,24 @@ class SourceNotFoundError(KeyError):
 
 @dataclass(frozen=True)
 class ScanItem:
-    """One raw scan finding, before filtering."""
+    """One raw scan finding, before filtering.
+
+    ``entry_type`` is the *kind of filesystem object* observed —
+    ``file``, ``dir``, ``symlink``, ``other``, or ``unknown`` when the
+    object could not be stat'd at all. ``scan_status`` is orthogonal:
+    ``error`` means this finding is a read failure carrying diagnostic
+    text in ``error``, and the path in ``rel`` is the source-relative
+    location the failure happened at (spec §4.3 — an inventory entry
+    needs a relative path, a type, and a scan status/error; a read
+    failure is not a fifth object type).
+    """
 
     rel: str
     size: int
     mtime: float
-    entry_type: str  # file | symlink | other | error
+    entry_type: str  # file | dir | symlink | other | unknown
     error: str | None = None
+    scan_status: str = "ok"  # ok | error
 
 
 @dataclass(frozen=True)
@@ -76,11 +87,14 @@ class DetailedScan:
 
     ``scan_errors`` carries the findings for entries that could not be
     stat/read; ``non_files`` carries symlinks and unsupported objects
-    that must be flagged rather than silently skipped (spec §6.3).
+    that must be flagged rather than silently skipped (spec §6.3);
+    ``dirs`` carries every ordinary directory so empty directories can
+    be preserved (spec §4.3, §6.3).
     """
 
     files: list[SourceInventoryEntry] = field(default_factory=list)
     non_files: list[SourceInventoryEntry] = field(default_factory=list)
+    dirs: list[SourceInventoryEntry] = field(default_factory=list)
     scan_errors: list[str] = field(default_factory=list)
 
 
@@ -144,6 +158,7 @@ class SourceService:
             errorCount=len(detailed.scan_errors),
             scanErrors=detailed.scan_errors[:50],
             nonFiles=detailed.non_files,
+            dirCount=len(detailed.dirs),
         )
 
     def get(self, source_id: int) -> SourceRow:
@@ -200,21 +215,92 @@ class SourceService:
 def _walk(root: Path) -> Iterator[ScanItem]:
     """Yield scan items under ``root``, recording failures instead of hiding them.
 
-    A file that cannot be stat/read is yielded as an *error* item rather
-    than silently skipped: a scan whose result cannot account for every
-    entry must not present itself as complete (spec §2 confirmed defect;
-    §7.1 blocks approval on unexplained scan errors). The walker installs
-    an ``onerror`` callback so a permission-denied descent is surfaced
-    as an error finding rather than vanishing silently.
+    Every object the walk observes is yielded exactly once: ordinary
+    directories (so empty directories can be preserved — spec §4.3,
+    §6.3), regular files, symlinks (to files *and* to directories,
+    which ``os.walk`` lists but never descends), and unsupported
+    objects. An entry that cannot be stat'd is yielded as an
+    ``unknown``-type item with ``scan_status="error"`` and the failure
+    text, at the source-relative path it happened at: a scan whose
+    result cannot account for every entry must not present itself as
+    complete (spec §2 confirmed defect; §7.1 blocks approval on
+    unexplained scan errors). The walker installs an ``onerror``
+    callback so a permission-denied descent is surfaced as an error
+    finding carrying the directory it failed on, rather than vanishing.
     """
-    walk_errors: list[str] = []
+    walk_errors: list[ScanItem] = []
+
+    def _rel_of(raw: object) -> str:
+        """Source-relative path for a failure, falling back to the raw text."""
+        if not raw:
+            return "."
+        try:
+            return str(Path(str(raw)).relative_to(root))
+        except ValueError:
+            return str(raw)
 
     def _onerror(exc: OSError) -> None:
-        walk_errors.append(f"{getattr(exc, 'filename', '')}: {exc}")
+        walk_errors.append(
+            ScanItem(
+                rel=_rel_of(getattr(exc, "filename", None)),
+                size=0,
+                mtime=0.0,
+                entry_type="unknown",
+                error=f"directory scan failed: {exc}",
+                scan_status="error",
+            )
+        )
 
     for dirpath, dirnames, filenames in os.walk(root, onerror=_onerror):
         dirnames[:] = [d for d in dirnames if not _is_skip_dir(d)]
         base = Path(dirpath)
+        # The root itself is the inventory's anchor, not an entry.
+        if base != root:
+            try:
+                st = base.stat()
+                mtime = st.st_mtime
+            except OSError as exc:
+                yield ScanItem(
+                    rel=str(base.relative_to(root)),
+                    size=0,
+                    mtime=0.0,
+                    entry_type="dir",
+                    error=f"stat failed: {exc}",
+                    scan_status="error",
+                )
+            else:
+                yield ScanItem(
+                    rel=str(base.relative_to(root)),
+                    size=0,
+                    mtime=mtime,
+                    entry_type="dir",
+                    error=None,
+                )
+        # ``os.walk`` lists symlinked directories in ``dirnames`` but
+        # never descends into them (followlinks=False), so they would
+        # otherwise be inventoried nowhere at all.
+        for name in dirnames:
+            full = base / name
+            try:
+                if not full.is_symlink():
+                    continue
+            except OSError as exc:  # pragma: no cover - defensive
+                yield ScanItem(
+                    rel=str(full.relative_to(root)),
+                    size=0,
+                    mtime=0.0,
+                    entry_type="unknown",
+                    error=f"lstat failed: {exc}",
+                    scan_status="error",
+                )
+                continue
+            yield ScanItem(
+                rel=str(full.relative_to(root)),
+                size=0,
+                mtime=0.0,
+                entry_type="symlink",
+                error=None,
+            )
         for name in filenames:
             if _is_skip_file(name):
                 continue
@@ -226,8 +312,9 @@ def _walk(root: Path) -> Iterator[ScanItem]:
                     rel=str(full.relative_to(root)),
                     size=0,
                     mtime=0.0,
-                    entry_type="error",
+                    entry_type="unknown",
                     error=f"lstat failed: {exc}",
+                    scan_status="error",
                 )
                 continue
             if not stat.S_ISREG(st.st_mode):
@@ -244,36 +331,25 @@ def _walk(root: Path) -> Iterator[ScanItem]:
             yield ScanItem(
                 rel=rel, size=int(st.st_size), mtime=st.st_mtime, entry_type="file", error=None
             )
-    for err in walk_errors:
-        yield ScanItem(rel=err, size=0, mtime=0.0, entry_type="error", error="walk failed")
-
-
-def scan_inventory(root: Path) -> list[SourceInventoryEntry]:
-    """Return the read-only inventory of ``root`` (files only, no errors).
-
-    Applies the same system-artifact exclusions as
-    :meth:`SourceService.inspect` so a planner that re-scans a source at
-    plan time agrees with the source scan that created the manifest.
-    Error and non-file findings are excluded here; callers that need the
-    full accounting use :func:`scan_inventory_detailed`.
-    """
-    entries = [item for item in _walk(root) if item.entry_type == "file"]
-    entries.sort(key=lambda e: e.rel)
-    return [SourceInventoryEntry(path=e.rel, size=e.size, mtime=e.mtime) for e in entries]
+    yield from walk_errors
 
 
 def scan_inventory_detailed(root: Path) -> DetailedScan:
     """Scan ``root`` keeping every finding, including errors.
 
-    Returns files, non-file objects (symlinks and unsupported objects,
-    flagged per spec §6.3), and the bounded error list with a total
-    count. The manifest hash covers only regular files so it remains
-    comparable with historical manifests.
+    Returns files, ordinary directories (empty-directory preservation,
+    spec §4.3), non-file objects (symlinks and unsupported objects,
+    flagged per spec §6.3), and the bounded error list. A finding is an
+    error when its ``scan_status`` says so, whatever object type the
+    walker managed to determine. The manifest hash covers only regular
+    files so it remains comparable with historical manifests.
     """
     items = sorted(_walk(root), key=lambda e: e.rel)
-    files = [e for e in items if e.entry_type == "file"]
-    others = [e for e in items if e.entry_type in ("symlink", "other")]
-    errors = [e for e in items if e.entry_type == "error"]
+    errors = [e for e in items if e.scan_status == "error"]
+    ok = [e for e in items if e.scan_status != "error"]
+    files = [e for e in ok if e.entry_type == "file"]
+    dirs = [e for e in ok if e.entry_type == "dir"]
+    others = [e for e in ok if e.entry_type in ("symlink", "other")]
     return DetailedScan(
         files=[SourceInventoryEntry(path=e.rel, size=e.size, mtime=e.mtime) for e in files],
         non_files=[
@@ -284,6 +360,10 @@ def scan_inventory_detailed(root: Path) -> DetailedScan:
                 entryType="symlink" if e.entry_type == "symlink" else "other",
             )
             for e in others
+        ],
+        dirs=[
+            SourceInventoryEntry(path=e.rel, size=e.size, mtime=e.mtime, entryType="dir")
+            for e in dirs
         ],
         scan_errors=[f"{e.rel}: {e.error}" for e in errors],
     )

@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Protocol
 
 from file_ferry.application.policies import StoragePolicy
-from file_ferry.application.sources import scan_inventory
+from file_ferry.application.sources import DetailedScan, scan_inventory_detailed
 from file_ferry.persistence.connection import transaction
 from file_ferry.persistence.repositories import projects as project_repo
 from file_ferry.persistence.repositories import sources as source_repo
@@ -66,7 +66,13 @@ class IntakePlanner:
         source_root = Path(source.root_path)
         if not source_root.is_dir():
             raise PlanError(f"source root is not a readable directory: {source_root}")
-        entries = scan_inventory(source_root)
+        # Files-only scanning hid read failures and unsupported objects
+        # from the plan, so an incomplete source produced a plan that
+        # executed and reported success (spec §7.1, A07; R08). Account
+        # for every finding and refuse to plan an unaccounted source.
+        scan = scan_inventory_detailed(source_root)
+        _assert_source_accounted(source_root, scan)
+        entries = scan.files
         total_bytes = sum(e.size for e in entries)
 
         dests = list(params.destinations)
@@ -216,3 +222,56 @@ def _free_space(path: Path) -> int | None:
         return int(shutil.disk_usage(path).free)
     except OSError:
         return None
+
+
+def _assert_source_accounted(source_root: Path, scan: DetailedScan) -> None:
+    """Block planning when the source scan cannot account for everything.
+
+    An intake plan is the evidence a later offload runs against; a plan
+    built from a silently partial scan turns into a transfer that
+    reports every file it knew about as copied while never learning
+    about the rest. Until entries can be explicitly excluded (P4), an
+    unreadable entry or an object this pipeline will not copy stops the
+    plan, naming the paths responsible.
+    """
+    from file_ferry.application.organize import _finding_block
+
+    problems: list[str] = []
+    if scan.scan_errors:
+        problems.append(
+            _finding_block(
+                f"{len(scan.scan_errors)} entr"
+                f"{'y' if len(scan.scan_errors) == 1 else 'ies'} could not be read",
+                scan.scan_errors,
+            )
+        )
+    symlinks = [e.path for e in scan.non_files if e.entry_type == "symlink"]
+    others = [e.path for e in scan.non_files if e.entry_type != "symlink"]
+    if symlinks:
+        problems.append(
+            _finding_block(
+                f"{len(symlinks)} symlink{'' if len(symlinks) == 1 else 's'} inside the source "
+                "tree. Symlinks are never followed and never recreated, so planning past "
+                "them would silently drop whatever they point at. This is about links "
+                "*within* the tree — a source path that is itself an alias for a mount "
+                "point is fine and is not what stopped this",
+                [f"{source_root / path}" for path in symlinks],
+            )
+        )
+    if others:
+        problems.append(
+            _finding_block(
+                f"{len(others)} object{'' if len(others) == 1 else 's'} that are not regular "
+                "files (device, socket, fifo, or similar) and are never copied",
+                [f"{source_root / path}" for path in others],
+            )
+        )
+    if not problems:
+        return
+    detail = "\n".join(problems)
+    raise PlanError(
+        f"source {source_root} could not be fully accounted for, so planning it would "
+        f"silently leave data behind.\n{detail}\n"
+        "Make the listed paths readable, or select a source subtree that does not "
+        "contain them (docs/DESTINATION-PRESETS-PRODUCTION-SPEC.md §6.3, §7.1)."
+    )

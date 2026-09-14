@@ -142,14 +142,18 @@ def test_scan_records_unreadable_subtree(tmp_path: Path) -> None:
     locked.mkdir()
     (locked / "inside.mov").write_bytes(b"deep")
     locked.chmod(0o000)
-    svc = _svc(tmp_path)
-    result = svc.inspect(SourceInspectParams(path=str(root)))
-    # The accessible file is still inventoried; the inaccessible subtree
-    # contributes at least one error finding (file count, not strictly
-    # errorCount, because chmod only denies descent in some configurations).
-    assert result.file_count == 1
-    assert result.error_count >= 1
     try:
+        svc = _svc(tmp_path)
+        result = svc.inspect(SourceInspectParams(path=str(root)))
+        # The accessible file is still inventoried; the inaccessible subtree
+        # contributes at least one error finding (file count, not strictly
+        # errorCount, because chmod only denies descent in some configurations).
+        assert result.file_count == 1
+        assert result.error_count >= 1
         assert any("locked" in s for s in result.scan_errors)
     finally:
+        # Restoring must cover *every* assertion, not just the last one.
+        # A failure before the old try-block left the directory
+        # unreadable, so pytest could not clean up its temp root and each
+        # run accumulated another undeletable copy.
         locked.chmod(0o755)

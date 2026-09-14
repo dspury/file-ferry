@@ -11,7 +11,7 @@
  * otherwise `python3` from PATH; `FERRY_PYTHON` overrides both.
  *
  * Packaged builds run a platform-matched frozen executable placed at
- * `resources/sidecar/{arch}/ferry-service` by electron-builder
+ * `resources/sidecar/ferry-service` by electron-builder
  * (see `desktop/build/electron-builder.yml` extraResources).
  */
 

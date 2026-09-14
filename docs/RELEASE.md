@@ -28,7 +28,7 @@ scripts/verify-packaged.sh release/mac-arm64/ferry.app
 ```
 
 `scripts/verify-packaged.sh` asserts:
-- the frozen sidecar exists at `Contents/Resources/sidecar/{arch}/`
+- the frozen sidecar exists at `Contents/Resources/sidecar/`
   (the resource that must live **outside** `app.asar`),
 - the frozen sidecar launches and serves the JSON-RPC protocol
   (`app.getCapabilities` round-trip),
@@ -96,7 +96,7 @@ development.
 | Legacy config + audit db | `~/.ferry/` |
 | Electron userData (receipts, logs, vNext db) | `~/Library/Application Support/ferry/` (macOS) |
 | Diagnostic logs | `~/Library/Application Support/ferry/logs/` |
-| Sidecar frozen binary (packaged) | `Contents/Resources/sidecar/{arch}/ferry-service` |
+| Sidecar frozen binary (packaged) | `Contents/Resources/sidecar/ferry-service` |
 
 ## Release / update policy (plan §10 Pkg9 step 4)
 

@@ -7,9 +7,9 @@
 #   desktop/sidecar/{arch}/ferry-service        (macOS/Linux)
 #   desktop/sidecar/{arch}/ferry-service.exe    (Windows)
 #
-# electron-builder's extraResources copies `sidecar/{arch}` to
-# `Contents/Resources/sidecar/{arch}` in the packaged app, which is
-# exactly where electron/sidecar-command.ts looks for it.
+# electron-builder's extraResources copies the contents of `sidecar/{arch}`
+# to `Contents/Resources/sidecar/` in the packaged app (no arch subdirectory),
+# which is exactly where electron/sidecar-command.ts looks for it.
 #
 # Requires a virtualenv with the package installed (`pip install -e .`)
 # and PyInstaller. Usage:  scripts/build-sidecar.sh [arch]

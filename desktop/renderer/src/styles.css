@@ -68,16 +68,17 @@
      the stat-tile labels, every table column header, the nav group headings,
      and the plan/review/execute/verify stage labels. None of those are WCAG
      "large text" (that needs 24px, or 18.66px bold), so all of them need the
-     full 4.5:1. It clears that on `--c-bg` (5.31:1), `--c-surface` (4.90:1)
-     and `--c-rail` (5.65:1). On `--c-surface-2` — where the table column
-     heads sit — it measures 4.34:1, a hair under 4.5; that gap is recorded
-     rather than re-valued, because the token values are settled in
-     BRAND-STYLE-GUIDE §3a. The three tiers are also separated by weight
-     (600 vs 400), casing, and tracking, so lightness is not carrying the
-     hierarchy alone. --- */
+     full 4.5:1. Check a foreground token against the surface it renders on,
+     not just against ink: `--c-text-faint` clears it on `--c-bg` (5.95:1),
+     `--c-surface` (5.49:1), `--c-rail` (6.33:1) and — where the table column
+     heads sit — `--c-surface-2` (4.86:1). `--c-surface-3` looks under-AA for
+     it on paper, but nothing renders text-faint there: every surface-3
+     background is a hover state whose text is `--c-text`. The three tiers
+     are also separated by weight (600 vs 400), casing, and tracking, so
+     lightness is not carrying the hierarchy alone. --- */
   --c-text: #EDEBE6; /* body */
   --c-text-dim: #A6A7A7;
-  --c-text-faint: #898B8E;
+  --c-text-faint: #919497;
 
   /* --- accent + semantics.
      The interaction accent is brand `ferry` blue. The semantic hues below
@@ -219,7 +220,7 @@
      so the dialog reads as the only live surface. None of them carry
      information — every one can be removed without changing what a screen
      says. --- */
-  --glow-accent: 0 0 10px rgba(255, 106, 44, 0.3);
+  --glow-accent: 0 0 10px rgba(117, 161, 198, 0.3);
 
   /*
    * The "this did not happen" hatch, ruled across the empty part of a meter

@@ -321,31 +321,42 @@ branch has to land before any of this is possible.**
 
 ### What the SVG actually is
 
-`ferry-logo-black.svg` is 2933 bytes, `viewBox="0 0 1033.02 498.39"` — a
-**2.07:1 horizontal lockup** (mark + wordmark), 7 paths in one flat group. The
-mark and the wordmark are *not* separated into named groups, so "just use the
-mark" is not a selector away.
+`ferry-logo-black.svg` is **the solo mark** — §1 says so: *"Mono black mark, no
+wordmark, unstyled paths."* It is directly usable. No Illustrator export is
+needed, and nothing has to be separated out of it.
 
-It carries **zero `fill` attributes**, confirming §5: it recolors with a single
-CSS `fill` and must not have colours baked into copies.
+An earlier draft of this section claimed it was a mark-plus-wordmark lockup
+that would need re-exporting. That was wrong — inferred from its 2.07:1 aspect
+ratio without reading §1. Its seven paths decompose exactly as §2 describes the
+mark, and contain no lettering:
 
-### The size problem
+| Path | Role |
+|---|---|
+| `[0]` | hull — wide band across the base |
+| `[4]` | wake line |
+| `[3]` `[2]` `[1]` | the three ascending cargo bars (heights 164 → 205 → 240) |
+| `[6]` | the file/document shape |
+| `[5]` | the trailing wake sweep |
 
-§5 sets minimums: **160 px** for the full lockup, **32 px** for the solo mark.
-The sidebar's mark slot renders `IconFerry` at **17 px** — below both. So this
-is not a drop-in replacement; one of three things has to give:
+It carries **zero `fill` attributes**, so it takes its colour from a single CSS
+`fill` — exactly the single-colour use §5 describes.
 
-1. **Replace the whole `nav__brand` block** with the lockup at ≥160 px wide,
-   dropping the separate `nav__mark` + `nav__wordmark` text. Fits the sidebar's
-   width; changes the nav's visual weight.
-2. **Export a solo mark** from `file-ferry-icon.ai` as its own square SVG and
-   use it at ≥32 px, keeping the wordmark as text. Needs Illustrator, and needs
-   the nav slot to grow from 17 px.
-3. **Revisit the 32 px minimum** if the mark proves legible smaller. That is a
-   judgement to make by looking, not by rule.
+### The one real constraint: it is wide, and the slot is small
 
-Option 2 is the most faithful and the most work. Option 1 is the cheapest and
-needs no new asset.
+The mark is **2.07:1**, not square, and §5 sets a **32 px minimum width** for
+the solo mark. The sidebar renders `IconFerry` in a **17 px square** slot.
+
+So the slot is the thing that has to change, not the asset:
+
+1. Widen `nav__mark` to a 2.07:1 box at **≥32 px wide** (~15 px tall at that
+   ratio) and drop the SVG in, keeping the wordmark as text. This is the
+   straightforward path and needs no new asset.
+2. Give it more room — ~48-64 px wide reads better for a mark this detailed,
+   if the nav can spare the height.
+
+Use `currentColor` or a token for `fill` so it inherits the theme. Being the
+mono mark, it is one colour; the two-tone treatment in §2 belongs to the
+full-colour masters, not to this file.
 
 ### Also not done
 
@@ -359,8 +370,7 @@ needs no new asset.
 
 - `assets/brand/` is on `main`
 - The sidebar shows the real mark, not `IconFerry`
-- Whatever is used respects §5's minimum size, or the minimum is revised
-  deliberately and the guide updated
+- The mark is at least 32 px wide (§5), in a slot matching its 2.07:1 ratio
 - The mark recolors from a token — no baked fill
 - `IconFerry` is deleted if nothing else uses it
 

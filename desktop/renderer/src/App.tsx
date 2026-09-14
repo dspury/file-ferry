@@ -11,13 +11,16 @@ import { viewIndex, moveIndex, keyToAction } from './lib/nav.js';
 import {
   IconActivity,
   IconDashboard,
+  IconDestination,
   IconEnvironment,
   IconFerry,
   IconMedia,
   IconOffload,
   IconOrganize,
+  IconPreset,
   IconProjects,
   IconSettings,
+  IconTransfer,
 } from './components/icons.js';
 import { StatusReadout } from './components/ui.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
@@ -29,6 +32,9 @@ import { Organize } from './screens/Organize.js';
 import { Activity } from './screens/Activity.js';
 import { AssetDetail } from './screens/AssetDetail.js';
 import { Settings } from './screens/Settings.js';
+import { Destinations } from './screens/Destinations.js';
+import { Presets } from './screens/Presets.js';
+import { Transfers } from './screens/Transfers.js';
 
 declare global {
   interface Window {
@@ -67,6 +73,27 @@ const NAV_GROUPS: readonly NavGroup[] = [
     id: 'transfer',
     label: 'Transfer',
     views: [
+      {
+        id: 'transfers',
+        label: 'Transfers',
+        description: 'Scan a source, review a plan, approve it, and watch the verified copy',
+        icon: IconTransfer,
+        component: Transfers,
+      },
+      {
+        id: 'destinations',
+        label: 'Destinations',
+        description: 'Saved locations, their live availability, and the presets pinned to them',
+        icon: IconDestination,
+        component: Destinations,
+      },
+      {
+        id: 'presets',
+        label: 'Presets',
+        description: 'Immutable routing rules, as revisions you can audit',
+        icon: IconPreset,
+        component: Presets,
+      },
       {
         id: 'ingest',
         label: 'Offload',

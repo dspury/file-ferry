@@ -21,7 +21,7 @@ destination.
 
 Execute in this order:
 
-    #120  ->  A0  ->  B1  ->  B2  ->  BRAND  ->  B3  ->  A
+    #120  ->  A0  ->  B1  ->  B2  ->  BRAND(§6 decision)  ->  B3  ->  A
 
 The operator wants the **scoped build completed before packaging**, so full
 packaging (A) moves to the end and the app is packaged once, with everything in
@@ -231,61 +231,107 @@ Re-running it is under a minute and it is the whole cost of the reordering.
 
 ## BRAND — branding / style guide package
 
-The operator is preparing a branding and style-guide package on a separate
-branch. **It is not on the remote yet**, so this section states the integration
-contract rather than the content; fill in specifics when the branch lands.
+**This has landed.** `55f5652 feat(brand): add file-ferry logo, icons, and
+style guide` is on `branding/file-ferry-assets`, carrying
+`docs/BRAND-STYLE-GUIDE.md` and five masters under `assets/brand/`. That branch
+changes **no code** by design; turning it into product theme is this pass's job.
+
+Read `docs/BRAND-STYLE-GUIDE.md` in full before touching tokens. Summary of
+what constrains the build:
+
+### The palette, and the decision it forces
+
+| Token | Hex | Role |
+| --- | --- | --- |
+| `ink` | `#0E1219` | app background |
+| `ink-raise` | `#171C26` | surfaces, cards |
+| `bone` | `#F0ECE3` | primary text |
+| `ferry` | `#7AA6C8` | lead accent |
+| `steel` | `#33475E` | secondary / cargo bars |
+| `mist` | `#D4DEE7` | highlights, dividers |
+
+The guide's §6 is an explicit **open decision**: the brand contains no orange,
+while the desktop leads with `--c-accent: #ff6a2c` on `--c-bg: #14100e` and the
+TUI `ferry-studio` theme leads with `#ff7a45`. The guide proposes migrating
+primary/accent to the `ferry`/`steel` family on `ink`, keeping bone text and the
+existing ok/warn/danger ramps.
+
+**That decision must be made before B3 starts.** It is a theme migration across
+33 `--c-*` tokens plus 12 `--state-*`, not a swap of one accent.
+
+### Contrast — checked, with one finding
+
+Computed against the proposed backgrounds (WCAG 2.1: 4.5:1 normal text,
+3.0:1 large text and UI components):
+
+| on `ink #0E1219` | ratio | verdict |
+| --- | --- | --- |
+| bone `#F0ECE3` | 15.91:1 | AA text |
+| mist `#D4DEE7` | 13.76:1 | AA text |
+| ferry `#7AA6C8` | 7.25:1 | AA text |
+| **steel `#33475E`** | **1.97:1** | **fails at every level** |
+
+Same ordering on `ink-raise #171C26` (bone 14.48, mist 12.52, ferry 6.60,
+steel 1.79).
+
+Two consequences:
+
+- **`steel` is decoration only.** Never text, never a control boundary that
+  carries meaning, never a focus ring. That matches the role the guide gives it
+  ("cargo bars, dark end"), but it must not drift into UI use during B3.
+- **The migration improves accent contrast.** Ferry blue on ink is 7.25:1
+  against the current orange-on-coal 6.62:1. This is not a trade-off against
+  accessibility; it is an improvement.
+
+### Verified claims
+
+- §4's typography claim is correct — the shell already ships
+  `@fontsource-variable/archivo` (^5.3.0) and `@fontsource/ibm-plex-mono`
+  (^5.3.0), so no new font dependency is needed.
+- The palette is **sampled from rasters and self-described as approximate**.
+  Confirm exact values against `assets/brand/file-ferry-icon.ai` before
+  hard-coding tokens, as the guide itself instructs.
+
+### Still to fix during this pass
+
+- **Issue #101 — every `--fs-*` is absolute `px`** (`--fs-2xs: 10px` through
+  `--fs-2xl: 26px`), so OS text-only scaling does nothing. Convert the type
+  scale to `rem` while re-valuing it. Nearly free now, expensive later.
+- **Do not introduce a second token system.** Re-value the existing 80 custom
+  properties in `styles.css`. Two systems disagreeing about a colour is the
+  cross-surface divergence class this codebase has repeatedly been bitten by.
+
+### Asset handling
+
+- `ferry-logo-black.svg` carries no fill attributes and recolors via a single
+  CSS `fill` — that is its purpose; do not bake colours into copies.
+- `file-ferry-icon-gen.png` has a **baked light-grey surround**; do not use it
+  in-app. Export a clean squircle from the `.ai` master.
+- `file-ferry-icon-macOS-v1.png` is the mac packaging candidate. Wiring it in is
+  explicitly *not* done on the branding branch — it belongs to **Stage A3**,
+  since `desktop/build/` is already `buildResources` in
+  `electron-builder.yml`.
+- The `.ai` master is 6.7 MB and the gen PNGs are 2.6-2.8 MB. Keep large masters
+  out of anything the app bundles; ship only derived, sized exports.
 
 ### Where it sits
 
-Between **B2** and **B3**, and that position is deliberate: B3 builds seven or
-eight new screens, and building them against tokens that are about to be
-replaced means building them twice. **Do not start B3 before the branding
-package has landed on `main`.**
+Between **B2** and **B3**. B3 builds seven or eight new screens; building them
+against tokens that are about to be re-valued means building them twice. **Do
+not start B3 before the §6 decision is made and the tokens are migrated.**
 
-If the branding branch is delayed, B1 and B2 are unaffected -- neither touches
-presentation -- so continue with those and hold B3.
-
-### What it lands on
-
-`desktop/renderer/src/styles.css` already carries **80 CSS custom properties**
-in a coherent scheme, from the CinePrompt reskin (`c774d36`, reviewed in
-`docs/design/cineprompt-reskin-review.md`):
-
-| Family | Count | What |
-| --- | --- | --- |
-| `--c-*` | 33 | colour |
-| `--state-*` | 12 | job/entity state colours |
-| `--sp-*` | 8 | spacing, `4px`..`44px` |
-| `--fs-*` | 7 | font size, `10px`..`26px` |
-| `--radius-*` | 4 | corner radii |
-| `--tr-*` | 3 | transitions |
-| other | 13 | shadow, scrim, nav, header, glow, control, fills, families |
-
-This is a real system, not ad-hoc values. The branding package should **extend
-or re-value these tokens**, not introduce a second parallel system beside them
--- two token systems disagreeing about a colour is precisely the cross-surface
-divergence class this codebase has been bitten by before.
-
-### Two things the branding pass should fix while it is in there
-
-- **Issue #101 -- every `--fs-*` is an absolute `px`**, so OS text-only scaling
-  has no effect. Confirmed: `--fs-2xs: 10px` through `--fs-2xl: 26px`. Convert
-  the type scale to `rem` (or equivalent) as part of re-valuing it. Doing this
-  during a branding pass is nearly free; doing it afterwards means re-touching
-  every screen.
-- **Contrast.** Re-valuing colour tokens can silently break WCAG contrast.
-  Check the new palette against the text/background pairings before B3 consumes
-  it, not after. Issue #95 (no screen-reader pass) and #148 (Windows-only a11y
-  verification) are related open a11y work.
+B1 and B2 touch no presentation and are unaffected, so they can proceed in
+parallel with the §6 call.
 
 ### Acceptance
 
+- §6 decided and recorded, with the TUI theme's fate stated either way
 - One token system; no duplicate or shadow set of values
-- `--fs-*` scale is relative, and OS text scaling visibly changes rendered text
-- Contrast checked for the text/background pairings the new palette introduces
-- Existing screens still render correctly -- the reskin is not regressed
-- The desktop suite stays green, and **#122's render tests exist by now** (see
-  below), or the check is honestly recorded as "by eye only"
+- Exact hex values confirmed against the `.ai` master, not the raster samples
+- `--fs-*` is relative, and OS text scaling visibly changes rendered text
+- `steel` appears in no text or meaningful-boundary role
+- Existing screens still render correctly — the reskin is not regressed
+- Desktop suite green, and #122's render tests exist (see below)
 
 ---
 

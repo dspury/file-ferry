@@ -702,3 +702,41 @@ class TestAccessibility:
                 assert self._labelled_control(screen, "search") == "Search"
 
         asyncio.run(run())
+
+
+class TestBrandTheme:
+    """The TUI carries the brand palette (style guide §7, issue #124)."""
+
+    def test_theme_is_named_and_uses_the_brand_accent(self) -> None:
+        from file_ferry.tui import FERRY_THEME
+
+        assert FERRY_THEME.name == "ferry-studio"
+        assert FERRY_THEME.primary == "#75A1C6"
+        assert FERRY_THEME.background == "#0F1622"
+
+    def test_no_orange_or_violet_remains(self) -> None:
+        from file_ferry.tui import FERRY_THEME
+
+        legacy = {"#ff7a45", "#a970ff", "#35c5f0"}
+        values = {
+            FERRY_THEME.primary,
+            FERRY_THEME.secondary,
+            FERRY_THEME.accent,
+            FERRY_THEME.success,
+            FERRY_THEME.warning,
+            FERRY_THEME.error,
+        }
+        assert values.isdisjoint(legacy)
+
+    def test_functional_colours_match_the_desktop(self) -> None:
+        from file_ferry.tui import FERRY_THEME
+
+        assert FERRY_THEME.success == "#35a96c"
+        assert FERRY_THEME.warning == "#e7b923"
+        assert FERRY_THEME.error == "#f0495a"
+
+    def test_ascii_wordmark_reads_ferry(self) -> None:
+        from file_ferry.tui import ASCII_LOGO
+
+        assert "____" in ASCII_LOGO
+        assert max(len(line) for line in ASCII_LOGO.splitlines()) < 80

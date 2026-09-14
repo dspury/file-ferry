@@ -282,8 +282,8 @@ export function Organize(): JSX.Element {
             >
               <option value="copy">Copy</option>
               {/* Disabled, not removed: the restriction is deliberate and
-                * visible (destination-presets spec §1.2) until move/link
-                * meet the verified-transfer safety contract. */}
+               * visible (destination-presets spec §1.2) until move/link
+               * meet the verified-transfer safety contract. */}
               <option value="move" disabled>
                 Move (disabled — unsafe until verified-move contract)
               </option>

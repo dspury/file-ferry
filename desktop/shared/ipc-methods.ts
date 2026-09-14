@@ -315,11 +315,7 @@ export interface ListDestinationsResult {
 }
 
 export type DestinationAvailability =
-  | 'available'
-  | 'offline'
-  | 'needs_confirmation'
-  | 'ambiguous'
-  | 'unwritable';
+  'available' | 'offline' | 'needs_confirmation' | 'ambiguous' | 'unwritable';
 
 export interface DestinationResolution {
   readonly destinationId: number;

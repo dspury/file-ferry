@@ -48,17 +48,17 @@ from file_ferry.organize import compute_output_tree
 from file_ferry.paths import default_db_path
 from file_ferry.probe import SYSTEM_ARTIFACT_NAMES
 
-MM_THEME = Theme(
+FERRY_THEME = Theme(
     name="ferry-studio",
-    primary="#ff7a45",
-    secondary="#a970ff",
-    accent="#35c5f0",
-    success="#52d273",
-    warning="#ffc857",
-    error="#ff5c5c",
-    surface="#171922",
-    panel="#20232f",
-    background="#0d0f14",
+    primary="#75A1C6",
+    secondary="#5F87A8",
+    accent="#A3C0D7",
+    success="#35a96c",
+    warning="#e7b923",
+    error="#f0495a",
+    surface="#151E2D",
+    panel="#1C283B",
+    background="#0F1622",
     dark=True,
 )
 
@@ -1115,7 +1115,7 @@ class SettingsScreen(Screen[Any]):
 class FerryApp(App[Any]):
     TITLE = "FERRY"
     SUB_TITLE = f"POST WORKSTATION  /  v{__version__}"
-    THEMES: ClassVar = [MM_THEME]
+    THEMES: ClassVar = [FERRY_THEME]
     CSS = """
     Screen { background: $background; color: $text; }
     Header { background: $surface; }
@@ -1204,8 +1204,8 @@ class FerryApp(App[Any]):
         self.config_path = config_path
 
     def on_mount(self) -> None:
-        self.register_theme(MM_THEME)
-        self.theme = MM_THEME.name
+        self.register_theme(FERRY_THEME)
+        self.theme = FERRY_THEME.name
         self.push_screen("home")
 
     def _busy_pipeline(self) -> PipelineScreen | None:

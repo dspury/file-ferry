@@ -11,6 +11,7 @@ import type {
   OrganizeOutcome,
   CollisionIssue,
   OrganizationProfile,
+  SourceInspectResult,
 } from '../../../shared/ipc-methods.js';
 
 export type OrganizeStage = 'source' | 'preview' | 'ready' | 'running' | 'done';
@@ -38,6 +39,54 @@ export function previewApplyable(preview: OrganizePreview | null): boolean {
 export function collisionBlocks(preview: OrganizePreview | null): boolean {
   if (preview === null) return true;
   return preview.collisions.length > 0;
+}
+
+/**
+ * Why an inspected source may not be organized as-is, or null if it may.
+ *
+ * A scan that could not read every entry, or that found objects this
+ * copier never recreates (symlinks, devices, sockets), does not describe
+ * the whole source. Organizing it would copy the part that was seen and
+ * report a complete, successful run — the one outcome the safety
+ * contract forbids (spec §6.3, §7.1; A07).
+ *
+ * The backend refuses these too, and that refusal is the actual
+ * guarantee; this exists so the user is told before they press a button
+ * rather than by an error afterwards.
+ */
+export function sourceScanBlocker(inspected: SourceInspectResult | null): string | null {
+  if (inspected === null) return null;
+  const errorCount = inspected.errorCount ?? 0;
+  const nonFiles = inspected.nonFiles ?? [];
+  if (errorCount > 0) {
+    const sample = (inspected.scanErrors ?? []).slice(0, 3).join('; ');
+    const suffix = sample ? ` (${sample})` : '';
+    return (
+      `${errorCount} item${errorCount === 1 ? '' : 's'} in this source could not be read${suffix}. ` +
+      'Organizing now would leave them behind without saying so. Fix access to them, ' +
+      'or choose a subfolder that reads cleanly.'
+    );
+  }
+  if (nonFiles.length > 0) {
+    const symlinks = nonFiles.filter((e) => e.entryType === 'symlink');
+    const sample = nonFiles
+      .slice(0, 3)
+      .map((e) => e.path)
+      .join(', ');
+    const what =
+      symlinks.length === nonFiles.length
+        ? `${nonFiles.length} symlink${nonFiles.length === 1 ? '' : 's'} inside this folder ` +
+          `(${sample})`
+        : `${nonFiles.length} item${nonFiles.length === 1 ? '' : 's'} here are not regular ` +
+          `files (${sample})`;
+    return (
+      `${what}. They are never followed or recreated, so organizing would drop whatever ` +
+      'they point at without saying so. Choose a subfolder that does not contain them. ' +
+      '(Picking a folder that is itself an alias for a drive is fine — this is about ' +
+      'links inside the folder.)'
+    );
+  }
+  return null;
 }
 
 /** A move requires explicit confirmation (plan §4.3). */

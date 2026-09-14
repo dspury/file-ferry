@@ -23,6 +23,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog.js';
 import {
   organizeStage,
   previewApplyable,
+  sourceScanBlocker,
   collisionBlocks,
   moveRequiresConfirm,
   outcomeSummary,
@@ -105,6 +106,14 @@ export function Organize(): JSX.Element {
         path: sourcePath,
         kind: 'existing_media',
       });
+      // A source that did not scan cleanly cannot be organized
+      // completely, so say so here rather than letting the user press
+      // Apply and get a backend refusal (spec §6.3, §7.1).
+      const blocker = sourceScanBlocker(inspected);
+      if (blocker !== null) {
+        setPreviewError(blocker);
+        return;
+      }
       const baseParams = {
         sourceRoot: sourcePath,
         destRoot,
@@ -141,6 +150,13 @@ export function Organize(): JSX.Element {
         path: sourcePath,
         kind: 'existing_media',
       });
+      // The source is rescanned at apply time, so re-check: it may have
+      // become unreadable since the preview.
+      const blocker = sourceScanBlocker(inspected);
+      if (blocker !== null) {
+        setApplyError(blocker);
+        return;
+      }
       const baseParams = {
         sourceRoot: sourcePath,
         destRoot,

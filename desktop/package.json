@@ -32,7 +32,10 @@
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@oxlint/plugins": "^1.80.0",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
     "@types/node": "^26.4.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
@@ -45,13 +48,13 @@
     "eslint": "^9.39.5",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^16.0.0",
+    "jsdom": "^30.0.1",
     "oxlint": "^1.80.0",
     "prettier": "^3.4.2",
     "typescript": "^6.0.3",
     "vite": "^8.2.2",
-    "vitest": "^4.1.11",
-    "@eslint/js": "^9.39.5",
-    "globals": "^16.0.0"
+    "vitest": "^4.1.11"
   },
   "engines": {
     "node": ">=22.12.0"

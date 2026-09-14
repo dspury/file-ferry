@@ -21,6 +21,7 @@
   },
   "include": [
     "tests/**/*.ts",
+    "tests/**/*.tsx",
     "shared/**/*.ts",
     "electron/**/*.ts",
     "renderer/**/*.ts",

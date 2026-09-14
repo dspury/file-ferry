@@ -52,6 +52,7 @@ from file_ferry.application.sources import SourceService
 from file_ferry.application.transfer_plan import TransferPlanService
 from file_ferry.application.transfer_runner import TRANSFER_COMMAND, TransferRunner
 from file_ferry.application.volumes import SystemVolumeAdapter, VolumeChange, VolumeObserver
+from file_ferry.checksum import normalize_checksum_algo
 from file_ferry.persistence import runner
 from file_ferry.persistence.connection import transaction
 from file_ferry.service.protocol import (
@@ -1196,7 +1197,7 @@ class ApplicationService:
             proxyHeight=cfg.proxy_height,
             # Legacy config enum uses "xxhash"; the vNext protocol uses
             # "xxhash64". Normalize so the renderer sees a stable value.
-            checksumAlgo=_normalize_checksum_algo(raw_algo),
+            checksumAlgo=normalize_checksum_algo(raw_algo),
             resolvePath=cfg.resolve_path,
             ffmpegPath=cfg.ffmpeg_path,
             organizeTemplate=cfg.organize.template,
@@ -1343,13 +1344,6 @@ def _locate_binary(configured: str | None, name: str) -> str | None:
             return str(candidate)
     found = shutil.which(name)
     return found
-
-
-def _normalize_checksum_algo(algo: str) -> str:
-    """Map the legacy config enum value to the vNext protocol value."""
-    if algo == "xxhash":
-        return "xxhash64"
-    return algo
 
 
 def _assert_schema_shape(db_path: Path) -> None:

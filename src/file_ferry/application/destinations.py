@@ -31,6 +31,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from file_ferry.application.volume_identity import share_host, share_name
+from file_ferry.checksum import CANONICAL_CHECKSUM_ALGOS
 from file_ferry.persistence.connection import transaction
 from file_ferry.persistence.repositories import destinations as dest_repo
 from file_ferry.persistence.repositories import preset_revisions as revision_repo
@@ -48,7 +49,7 @@ from file_ferry.service.protocol import (
 
 CONFLICT_POLICIES = frozenset({"keep_both", "skip_identical", "needs_review"})
 LOCATION_KINDS = frozenset({"local_folder", "volume_folder", "mounted_share_folder"})
-CHECKSUM_ALGOS = frozenset({"xxhash64", "sha256"})
+CHECKSUM_ALGOS = CANONICAL_CHECKSUM_ALGOS
 
 
 def _now_iso() -> str:

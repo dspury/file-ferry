@@ -36,7 +36,7 @@ is a production claim; §1.1 completion levels apply.
 | P2 persistence: destinations, preset revisions, inventories, plans | Tests pass; **integration sign-off pending** | Migration 004 + services + protocol + wiring; R02–R07, R09 addressed |
 | P3 volume identity, discovery, rebinding | Tests pass; **integration sign-off pending** (macOS/Linux; Windows honestly unsupported) | Identity adapters, discovery health, resolver fed real observations; R10–R12 addressed |
 | P4 rule engine / conflict planner | Tests pass; **integration sign-off pending** | Rule engine, groups, conflict matrix, exclusion workflow. R14–R20 addressed — see "R14–R20 — the P4 review pass" below; reviewer verification pending |
-| P5 durable verified copy runner | NOT RUN | Out of this work order |
+| P5 durable verified copy runner | Tests pass; **integration sign-off pending** | Runner, migration 005, execution ledger, receipts; wired into the scheduler and reachable as `transfer.start` / `transfer.receipt` / `transfer.receiptExport`. A09–A11, A15–A16, A21–A23 covered in `test_transfer_runner_e2e.py`. Three defects found and fixed by those tests — see "P5 — the execution runner" below |
 | P6 desktop flow / CLI parity | NOT RUN | Out of this work order |
 | P7 packaging / pilot / real storage | NOT RUN | Out of this work order |
 | P8 final review handoff | NOT RUN | Out of this work order |
@@ -272,7 +272,7 @@ parity.
   when a preset's rules are not applied.
 - There is **no explicit exclusion workflow** yet. Every finding is therefore
   blocking; `excluded_by_user` is always 0.
-- `transfer.start` is deliberately absent until P5.
+- `transfer.start` was deliberately absent until P5; it now exists and is wired (see "P5 — the execution runner").
 - No CLI commands for destinations, presets, inventories, or plans exist. The
   earlier report's claim that `ferry destination …` etc. shipped was wrong;
   CLI parity is P6.
@@ -428,7 +428,19 @@ Only IDs with observed evidence are listed. Everything else is `NOT RUN`.
 | A05 (case/Unicode aliases, file/dir ancestor conflict) | PASS (planner layer) | `test_conflicts.py::TestDistinctConflictKinds`, `test_transfer_plan.py::test_a05_*` |
 | A17 (preserved group with mixed file types) | PASS (planner layer) | `test_rules.py::TestGroups` and `::TestGroupRootRouting`; R17 closed — `test_transfer_plan.py::test_the_group_root_lands_under_the_group_not_the_fallback`, `::test_a_colliding_group_moves_whole_and_keeps_its_internal_paths`, `::test_a_group_collision_blocks_whole_under_a_review_policy`. The group root is a group member; a collision moves the whole group or blocks it, never a member |
 | A18 (unknown extension, extensionless, empty directory) | PASS (planner layer) | `test_transfer_plan.py::test_a18_*`; R15 closed — the exclusion tests in `test_transfer_plan.py`/`test_presets.py`/`test_rules.py`; R18 closed — `::test_a_parent_of_routed_files_gets_no_empty_fallback_folder` and `::test_a_genuinely_empty_directory_keeps_its_entry` |
-| A09–A11, A15–A16, A19, A21–A24 | NOT RUN | Belong to P5–P7 |
+| A09 (external file at publication) | PASS (runner, over real wiring) | `test_transfer_runner_e2e.py::test_a_file_created_externally_after_approval_is_never_overwritten` |
+| A10 (cancelled mid-copy) | PASS (runner) | `::test_cancelling_mid_copy_leaves_the_source_intact_and_receipts_the_stop` |
+| A11 (write failure) | PASS (runner) | `::test_a_failing_write_leaves_the_source_intact_and_no_green_success` |
+| A15 (crash at the publication boundary) | PASS (runner) | `::test_a_crash_after_publication_verifies_rather_than_recopies`, `::test_a_crash_that_published_the_wrong_bytes_refuses_to_overwrite` |
+| A16 (source changed during copy / before resume) | PASS (runner) | `::test_a_source_changed_before_the_resume_is_refused`, `::test_a_source_edited_during_the_copy_is_caught` |
+| A21 (reservations after a crash) | PASS (recovery) | `::test_recovery_releases_reservations_a_dead_job_still_holds` |
+| A22 (receipt export failure) | PASS (runner) | `::test_a_failed_receipt_export_is_visible_and_retriable` |
+| A23 (repeat / partial resume) | PASS (runner) | `::test_a_resume_keeps_committed_files_and_finishes_the_rest` |
+| A19, A24 | NOT RUN | Belong to P6–P7 |
+
+A09–A11, A15–A16 and A21–A23 are covered against injected failures on a
+local filesystem, not against real hardware. The §12.2 real-storage
+matrix remains `NOT RUN`.
 
 A12/A13/A14/A25 were claimed `PASS` before any of the code existed. They
 are now genuinely covered at the resolver and adapter layers against fake
@@ -968,6 +980,76 @@ Recovery, per reviewer direction:
 The columns the guard checks are listed in `_AMENDED_V4_COLUMNS` in the
 migration, which is the authoritative list.
 
+## P5 — the execution runner
+
+`TransferRunner` (`application/transfer_runner.py`) executes an approved
+plan as a durable, verified, receipted transfer. Migration 005 adds the
+ledger: `transfer_executions`, `transfer_execution_items`,
+`transfer_path_reservations`, `transfer_receipts`. Three methods are
+reachable over RPC and advertised by `app.getCapabilities`:
+`transfer.start`, `transfer.receipt`, `transfer.receiptExport`. The
+runner is registered with the scheduler under the `transfer` command
+with a per-destination volume resolver, and `job.recover` now reconciles
+abandoned executions as well as abandoned jobs.
+
+### Three defects the end-to-end tests found
+
+All three were in code that was already written, already type-clean, and
+already passing every suite that existed. None was visible without a
+test that ran a transfer to completion and then interfered with it.
+
+1. **A resume reported success over an unpublished file.** `_pending_items`
+   selects only `pending` items, so an item left `failed` by an earlier
+   attempt was skipped by the resume entirely; the loop then reached its
+   end and claimed `succeeded`, marked the plan `executed`, and wrote a
+   green receipt whose own `actual.failed` counter said `1`. This is the
+   §7.3 "no green success" guarantee failing in the most direct way
+   available. Fixed in two places, because either alone would have left
+   the other latent: the crash-window reconciliation now re-arms `failed`
+   items to `pending` (resuming *is* the operator saying the cause is
+   gone, and revalidation has already refused the run if the source or
+   binding moved), and the success claim is now *proved* against the
+   ledger by `_unfinished_items` rather than inferred from having reached
+   the end of the loop.
+
+2. **A receipt named the wrong cause.** Execution-level findings —
+   revalidation, binding, crash reconciliation — reached no item, because
+   `_fail_boot` only touches `pending`/`copying` items. A resume refused
+   because the source had changed therefore receipted only the *previous*
+   attempt's per-item error: an operator reading it would see "No space
+   left on device" when the actual blocker was a changed card. Findings
+   are now threaded into `_write_receipt` and surfaced as
+   `blockingFindings`, ahead of the per-item errors.
+
+3. **`transfer.start` could not create its job at all.** It passed
+   `projectId=""` to `job.create`; `jobs.project_id` is a foreign key made
+   nullable by migration 004 precisely so a general transfer need not
+   belong to a project (spec §4.1), and the empty string is not a project
+   id. Every call failed on `FOREIGN KEY constraint failed`. The read
+   models had not followed the schema: `project_id` is now `str | None` on
+   `JobDetail`, `CreateJobParams` and `JobRow`, and the runner passes the
+   plan's project association. The same omission had left
+   `args_fingerprint` off `JobDetail` while the column and
+   `CreateJobParams` both carried it — the runner read
+   `job.args_fingerprint` on its retry-adoption path and would have raised
+   `AttributeError` at runtime.
+
+Making `projectId` nullable in the TypeScript contract surfaced a fourth,
+smaller one: `searchJobs` called `j.projectId.toLowerCase()`, which would
+have thrown for any transfer job. Fixed in `renderer/src/lib/activity.ts`.
+
+### What P5 does not cover
+
+- No desktop UI consumes `transfer.start`; that is P6.
+- No CLI parity for execution; also P6.
+- Failure injection is at the application seam (`copy_file_verified`,
+  `os.replace`) and by direct ledger manipulation for the crash windows.
+  Real ENOSPC, real permission loss, and real unplugged hardware are the
+  §12.2 matrix and remain unrun.
+- Concurrency is covered only as reservation *release* after a crash
+  (A21). Two live transfers racing the same destination is serialized by
+  the scheduler's volume limiter but is not itself tested here.
+
 ## Session log — 2026-09-13 (commit series landed; P5 begins)
 
 Step 0 of the 2026-09-13 handoff: the 47-file working tree (all P2–P4
@@ -990,9 +1072,49 @@ undeletable pytest garbage directories with `Directory not empty`
 warnings — the same environmental residue the R13 investigation
 artificially recreated without reproducing the failure.
 
+## Session log — 2026-09-13 (P5 landed)
+
+Continuation of the same day's handoff. The P5 working tree described in
+the handoff was found uncommitted in the **main checkout**, not in the
+`transfer-runner-p5` worktree, which was clean at `e7ba274`; it was
+copied across (main left untouched) and the work continued there.
+
+Starting state reproduced exactly as handed off: 5 mypy errors in the two
+new modules, `test_migration_fixtures.py::test_upgrade_from_legacy_shape_preserves_data`
+failing on a hard-coded head version of 4, the runner unwired, and zero
+P5 tests.
+
+Work done, in the order the handoff asked for: mypy fixed (including a
+`TransferReceiptRow` so the two receipt getters match the row-dataclass
+convention the rest of the file already used); both hard-coded head-version
+assertions changed to derive the head from the discovered migration set,
+so migration 006 will not fail them for an unrelated reason;
+`transfer.start` wired through `service.py`, `wiring.py`, and the shared
+TypeScript contract; then `tests/test_transfer_runner_e2e.py` — 17 tests
+covering the happy path and A09–A11, A15–A16, A21–A23. Those tests found
+three real defects in the runner, recorded under "P5 — the execution
+runner".
+
+One of the 17 leaves the real dispatcher running and calls only
+`transfer.start`, so the kick, the runner registration, and the volume
+resolver are all exercised rather than bypassed by a synchronous
+`dispatch`. Verified non-vacuous by removing the kick and watching it
+fail ("the dispatcher never ran the transfer job"), then restoring it.
+
+Validation on the final tree, output read directly: `pytest` **993
+passed**, `mypy src/file_ferry` success (83 source files), `ruff check`
+and `ruff format --check` clean (145 files), desktop `npm run typecheck`
+clean, `npm run lint` clean, `npm test` **259 passed**.
+
+R13 did not fire in any run this session; the gate remains open and no
+closure is claimed. The undeletable `garbage-*` pytest directories noted
+in the previous session's log were removed by hand
+(`chmod -R u+rwX` then `rm -rf`); they were residue from before the
+`77e470f` fix, not a new occurrence.
+
 ## Completion statement
 
-**Implemented** (spec §1.1) for P0, P1, P2, P3, and P4 — meaning the phased
+**Implemented** (spec §1.1) for P0, P1, P2, P3, P4, and P5 — meaning the phased
 changes and their automated acceptance tests pass, and that R01–R12 and
 R14–R20 are addressed with regressions. That is explicitly not
 integration sign-off, which is the reviewer's to give after inspecting
@@ -1002,7 +1124,9 @@ signed off as a completed foundation** while R13 remains open: an intermittent f
 nobody has explained is not a green baseline, whatever a given run
 prints. Not pilot-ready and not
 production-validated: no packaged artifact was built, no desktop UI consumes
-the new surface, and the §12.2 real-storage matrix is unrun. P3's identity
+the new surface — including the P5 execution methods, which are reachable
+over RPC but driven by nothing but tests — and the §12.2 real-storage
+matrix is unrun. P3's identity
 work is validated against captured platform output and one live read-only
 check on a single macOS machine — which is evidence that the code works, not
 evidence that the configuration is supported.

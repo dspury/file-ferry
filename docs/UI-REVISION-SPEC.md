@@ -151,7 +151,7 @@ already appeared once in review.
 
 ---
 
-## R-1 — Remove the left-edge colour bars · OPEN
+## R-1 — Remove the left-edge colour bars · OPEN (folded into R-7)
 
 Applies SR-1 to what exists today. 19 declarations across 5 selectors;
 all are accounted for below.
@@ -266,7 +266,7 @@ window. Content floors at ~354px, so the scroll-free floor today is
 
 ---
 
-## R-3 — One Transfer workspace, with navigable stages · OPEN
+## R-3 — One Transfer workspace, with navigable stages · DONE — #172 (`43996c4`)
 
 Offload, Organize and Transfers are three peer entries in the nav
 presenting the same shape — pick a source, preview, approve, watch, get a
@@ -365,7 +365,7 @@ files and bytes and time remaining, and **View** plus **Pause/Cancel**.
 
 ---
 
-## R-5 — Regroup the nav · OPEN
+## R-5 — Regroup the nav · DONE — #174 (`85133ca`)
 
 Eleven peer entries for an app with one job. Destinations and Presets are
 configuration filed among the verbs; `Media` is a label whose component is
@@ -381,7 +381,7 @@ Depends on R-3 for the Transfer consolidation.
 
 ---
 
-## R-6 — Compact the header · OPEN
+## R-6 — Compact the header · DONE — #174 (`85133ca`)
 
 Every view renders a kicker, a title, and a fixed `description` subtitle —
 three lines of chrome that never change and never respond to state. It is
@@ -413,7 +413,7 @@ makes it required.
 
 ---
 
-## R-8 — Add an interactive accent token · OPEN
+## R-8 — Add an interactive accent token · DONE — #171 (`47f5461`)
 
 `ferry #75A1C6` is hue 207.4°, **saturation 41.5%**, lightness 61.8%. It is
 the identity colour and it stays. It is also too muted to carry a filled

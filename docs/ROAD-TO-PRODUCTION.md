@@ -126,6 +126,59 @@ major and should go together as one PR.
 If an upgrade needs source changes to pass, that is fine — but say so
 explicitly rather than folding it in silently.
 
+## B-5 — R-9: stop surfacing CLI-only options in the desktop
+
+**Decided: the desktop does not surface CLI features.**
+
+Remove the Settings → "Organize command" panel and the three fields behind
+it from the desktop only — the section, its form state, and the
+`organizeTemplate` / `organizeMode` / `organizeOnConflict` params on the
+desktop settings call.
+
+**Do not touch the config itself.** `[organize]` stays in `config.py`,
+`models.py` and `config_hash()`, and the CLI (`organize.py`, `cli.py`) and
+the TUI (`tui.py:1044-1057`) keep reading and editing it. They are the
+surfaces those settings belong to. Only the desktop stops exposing them.
+
+**Acceptance:** no desktop path reads or writes the three values; `ferry
+organize` and the TUI behave identically before and after; `config_hash()`
+unchanged, so existing run provenance is not invalidated.
+
+## B-6 — Remove `OffloadRunner`
+
+**Decided: the runner goes; the offloading capability stays.**
+
+The capability already lives in the Transfer workspace — a camera card is a
+source type, `source.inspect({kind: 'card'})` runs inspection, the
+"Keep the card" safety statements render, and the durable `TransferRunner`
+does the work. That is offloading, on the engine with preflight, an approval
+gate and an item ledger. Nothing about it depends on `OffloadRunner`.
+
+Remove: `application/offload.py`, the import and `register_runner("offload")`
+in `service.py:33,959,968`, and the now-unreachable
+`intake.createSession` session-kind path if nothing else reaches it.
+
+**Two things to get right:**
+
+1. **Do not touch `source.inspect`'s `kind`.** `"card" | "existing_media"`
+   (`protocol.py:783`) is the *source* axis and is what the capability runs
+   on. The `"offload" | "existing_folder"` literal at `protocol.py:355` is
+   the intake *session* axis — a different thing that happens to share a
+   word. Confusing them removes the feature.
+
+2. **Orphaned jobs must explain themselves.** An existing `offload` job in
+   a user's database survives the removal. `scheduler.py:125-127` already
+   handles a missing runner safely — it transitions to `needs_attention`
+   rather than crashing — but it does so *silently*, so the operator sees a
+   job stuck in "needs attention" with no reason. Make that path record why,
+   so a withdrawn runner reads as "this job kind no longer exists" rather
+   than as an unexplained stall.
+
+**Acceptance:** a camera-card offload still completes end to end through the
+Transfer workspace, verified by running it — not by reading the diff; an
+`offload` job seeded into a test database lands in `needs_attention` with a
+stated reason; no `OffloadRunner` reference remains.
+
 ---
 
 # Track C — accessibility, after A-3
@@ -198,14 +251,3 @@ times the tests asserted existence rather than end-to-end function. When
 adding tests, ask what caller reaches the code.
 
 ---
-
-# Open questions — not the builder's to answer
-
-**R-9: should the desktop Settings screen expose options that only affect
-the CLI and TUI?** The `[organize]` panel was relabelled honestly in #173,
-but a GUI pane for a command-line feature is still odd. Raise it, do not
-resolve it.
-
-**Does `OffloadRunner` stay?** No UI path creates an `offload` job any more
-(R-3), but the runner is still registered for pre-existing jobs. At some
-point it either gets removed or gets a documented reason to stay.

@@ -31,19 +31,32 @@ OVERLAY="$OVERLAY_DIR/electron-builder.local.yml"
 # actually fired so a changed release config cannot silently re-enable
 # signing here.
 cp "$SRC" "$OVERLAY"
+# All three keys sit at two-space indent: `notarize`/`hardenedRuntime` under
+# `mac:`, `sign` under `dmg:`. A four-space `sign` pattern here never fired,
+# so the unsigned overlay quietly kept `dmg.sign: true`; the guards below now
+# pin the exact indent and every key by name.
 sed -i.bak \
   -e 's/^  notarize: true$/  notarize: false/' \
   -e 's/^  hardenedRuntime: true$/  hardenedRuntime: false/' \
-  -e 's/^    sign: true$/    sign: false/' \
+  -e 's/^  sign: true$/  sign: false/' \
   "$OVERLAY"
 rm "$OVERLAY".bak
 
-if grep -E '^  (notarize|hardenedRuntime): true|^    sign: true' "$OVERLAY"; then
+# Guard 1 (nothing signing-flavoured survives): a `true` left behind means a
+# substitution missed, whatever the reason.
+if grep -E '^  (notarize|hardenedRuntime|sign): true$' "$OVERLAY"; then
   echo "error: unsigned overlay still contains signing settings; the release config changed" >&2
   exit 1
 fi
-if ! grep -E '^  notarize: false|^  hardenedRuntime: false' "$OVERLAY"; then
-  echo "error: overlay substitutions did not line up; the release config changed" >&2
+# Guard 2 (every substitution fired): require all three `false` values, not
+# one of them. An OR-passed guard is how a broken `sign` substitution slipped
+# through before, so this names each key it did not find.
+missing=""
+grep -Eq '^  notarize: false$' "$OVERLAY" || missing="$missing notarize"
+grep -Eq '^  hardenedRuntime: false$' "$OVERLAY" || missing="$missing hardenedRuntime"
+grep -Eq '^  sign: false$' "$OVERLAY" || missing="$missing dmg.sign"
+if [ -n "$missing" ]; then
+  echo "error: overlay substitutions did not fire for:$missing — the release config changed" >&2
   exit 1
 fi
 

@@ -148,8 +148,8 @@ export function Settings(): JSX.Element {
       </Panel>
 
       <Panel
-        title="Organization"
-        description="Defaults for the folder template a preset-routed destination applies"
+        title="Organize command"
+        description="Used by the ferry organize command line and the TUI. These do not affect transfers in this app — a preset-routed destination routes by its own organization profile."
       >
         <Field label="Template" hint="Tokens are expanded per file, e.g. {date}/{camera}">
           <input

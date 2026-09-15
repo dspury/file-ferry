@@ -66,10 +66,7 @@ from file_ferry.service.protocol import (
     ListVolumesResult,
     LogicalClip,
     OrganizationProfile,
-    OrganizeApplyParams,
     OrganizePreview,
-    OrganizePreviewParams,
-    OrganizeResult,
     PlanApproveParams,
     PlanCreateParams,
     PlanEntriesParams,
@@ -442,14 +439,6 @@ def _build_handlers(service: ApplicationService) -> dict[str, Handler]:
         p = _validate(AcceptChangeParams, params)
         return service.reconcile_accept_change(p)
 
-    def organize_preview(params: dict[str, Any]) -> OrganizePreview:
-        p = _validate(OrganizePreviewParams, params)
-        return service.organize_preview(p)
-
-    def organize_apply(params: dict[str, Any]) -> OrganizeResult:
-        p = _validate(OrganizeApplyParams, params)
-        return service.organize_apply(p)
-
     def clips_detect(params: dict[str, Any]) -> list[LogicalClip]:
         p = _validate(DetectClipsParams, params)
         return service.clips_detect(p)
@@ -570,8 +559,6 @@ def _build_handlers(service: ApplicationService) -> dict[str, Handler]:
         "reconcile.asset": reconcile_asset,
         "reconcile.project": reconcile_project,
         "reconcile.acceptChange": reconcile_accept_change,
-        "organize.preview": organize_preview,
-        "organize.apply": organize_apply,
         "clips.detect": clips_detect,
         "clips.list": clips_list,
         "derivatives.list": derivatives_list,

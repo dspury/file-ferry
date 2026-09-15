@@ -147,7 +147,10 @@ export function Settings(): JSX.Element {
         </Field>
       </Panel>
 
-      <Panel title="Organization" description="Defaults the Organize screen starts from">
+      <Panel
+        title="Organization"
+        description="Defaults for the folder template a preset-routed destination applies"
+      >
         <Field label="Template" hint="Tokens are expanded per file, e.g. {date}/{camera}">
           <input
             value={form.organizeTemplate}

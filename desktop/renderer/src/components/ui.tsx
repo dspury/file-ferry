@@ -23,7 +23,7 @@ import { splitPathTail } from '../lib/format.js';
 import type { MeterStatus, StateTone } from '../lib/job-state.js';
 
 /**
- * The six operational states an offload, proxy run, or replica can be in,
+ * The six operational states a transfer, proxy run, or replica can be in,
  * plus `attention` for "a human has to look at this". `active` and
  * `cancelled` exist so a running job and a job an operator stopped are not
  * both forced through `neutral`; their token treatments live in styles.css.
@@ -406,97 +406,6 @@ export function SegmentedControl<T extends string>({
   );
 }
 
-export interface StepDef {
-  readonly id: string;
-  readonly label: string;
-  /**
-   * This stage, and every stage after it, can write to disk.
-   *
-   * The first such stage is where the flow stops being reversible, and it
-   * is the one distinction in the rail that carries real consequence — up
-   * to it, Offload and Organize have only read and planned. Marking it is
-   * what lets an operator see at a glance which side of the line they are
-   * standing on.
-   */
-  readonly writes?: boolean;
-}
-
-/**
- * The severity the *current* stage is reporting.
- *
- * `accent` is the resting case: the stage is simply where the flow has got
- * to. The other two exist for a terminal stage that has an outcome, because
- * "you have arrived at the last stage" and "the last stage went well" are
- * two different claims and the rail was making the second one for free. A
- * toned stage always changes its *label* too (`DONE` -> `INCOMPLETE`), so
- * the severity never rests on the plate colour alone.
- */
-export type StepTone = 'accent' | 'warn' | 'danger';
-
-/**
- * Progress through a plan -> review -> execute -> verify sequence.
- *
- * Ingest and Organize both gate later stages on earlier ones, and before
- * this the only cue was a row of disabled buttons. An ordered list is the
- * honest markup: `aria-current="step"` names where you are, and the
- * completed ones say so in text rather than only by colour.
- *
- * Three channels separate the three stage conditions, so none of them rests
- * on hue: a pending stage shows its number on a quiet plate, a finished one
- * shows a check and a visually-hidden "(completed)", and the active one is
- * the only `aria-current="step"` — and the only stage drawn as an enclosed,
- * lit plate with its label at full contrast.
- */
-export function Steps({
-  label,
-  steps,
-  activeId,
-  activeTone = 'accent',
-}: {
-  label: string;
-  steps: readonly StepDef[];
-  activeId: string;
-  activeTone?: StepTone | undefined;
-}): JSX.Element {
-  const activeIndex = steps.findIndex((s) => s.id === activeId);
-  const gateIndex = steps.findIndex((s) => s.writes === true);
-  return (
-    <ol className="steps" aria-label={label}>
-      {steps.map((step, index) => {
-        const done = activeIndex > index;
-        const active = activeIndex === index;
-        const tone = active && activeTone !== 'accent' ? ` step--active-${activeTone}` : '';
-        const state = done ? ' step--done' : active ? ` step--active${tone}` : '';
-        // Only the first writing stage carries the marker: it is a boundary,
-        // not a property each later stage repeats.
-        const gate = index === gateIndex && gateIndex > 0;
-        return (
-          <li
-            key={step.id}
-            className={`step${state}${gate ? ' step--gate' : ''}`}
-            aria-current={active ? 'step' : undefined}
-          >
-            {gate ? (
-              <span className="step__gate" aria-hidden="true">
-                writes
-              </span>
-            ) : null}
-            <span className="step__index" aria-hidden="true">
-              {done ? '✓' : index + 1}
-            </span>
-            {step.label}
-            {gate ? (
-              <span className="visually-hidden"> (from here on, ferry writes to disk)</span>
-            ) : null}
-            {done ? <span className="visually-hidden"> (completed)</span> : null}
-            {index < steps.length - 1 ? <span className="step__sep" aria-hidden="true" /> : null}
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
 /**
  * Folder chooser.
  *
@@ -594,7 +503,7 @@ function meterValueText(status: MeterStatus, percent: number): string {
  *
  *  - `complete` is the only status allowed to draw a full bar, and it draws
  *    one regardless of `percent`. A finished job holds no live snapshot, so
- *    the counters report 0 for it — which is how a succeeded offload used to
+ *    the counters report 0 for it — which is how a succeeded transfer used to
  *    render as an empty track next to the text "0%".
  *  - `failed`, `cancelled` and `stalled` fill to where work stopped and rule
  *    the remainder out with a hatch, and the plate reads "25% / STOPPED"

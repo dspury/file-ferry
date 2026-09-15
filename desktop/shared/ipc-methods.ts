@@ -917,24 +917,10 @@ export interface OrganizeEntry {
   readonly size: number;
 }
 
-/** Checksum evidence for one verified copy; present iff `ok`. */
-export interface CopyVerification {
-  readonly checksumAlgo: string;
-  readonly sourceChecksum: string;
-  readonly destChecksum: string;
-  readonly bytes: number;
-  readonly mtimePreserved: boolean;
-}
-
-export interface OrganizeOutcome {
-  readonly sourcePath: string;
-  readonly destPath: string;
-  readonly operation: string;
-  readonly ok: boolean;
-  readonly error: string | null;
-  readonly verification?: CopyVerification | null;
-}
-
+/**
+ * The organization-profile preview shape. R-3 withdrew the `organize.*` RPC
+ * methods; this survives because `profile.preview` still returns it.
+ */
 export interface OrganizePreview {
   readonly sourceRoot: string;
   readonly destRoot: string;
@@ -942,27 +928,6 @@ export interface OrganizePreview {
   readonly collisions: readonly CollisionIssue[];
   readonly totalBytes: number;
   readonly mode: string;
-}
-
-export interface OrganizePreviewParams {
-  readonly sourceRoot: string;
-  readonly destRoot: string;
-  readonly entries: readonly SourceInventoryEntry[];
-  readonly template?: JsonObject;
-  readonly mode?: 'copy' | 'move' | 'link';
-}
-
-export interface OrganizeApplyParams {
-  readonly sourceRoot: string;
-  readonly destRoot: string;
-  readonly entries: readonly SourceInventoryEntry[];
-  readonly mode?: 'copy' | 'move' | 'link';
-  readonly confirmMove?: boolean;
-  readonly template?: JsonObject;
-}
-
-export interface OrganizeResult {
-  readonly entries: readonly OrganizeOutcome[];
 }
 
 export interface ClipMember {
@@ -1212,8 +1177,6 @@ export interface MethodCatalog {
   'reconcile.asset': { params: ReconcileAssetParams; result: ReconcileReport };
   'reconcile.project': { params: ReconcileProjectParams; result: ReconcileReport[] };
   'reconcile.acceptChange': { params: AcceptChangeParams; result: ReconcileReport };
-  'organize.preview': { params: OrganizePreviewParams; result: OrganizePreview };
-  'organize.apply': { params: OrganizeApplyParams; result: OrganizeResult };
   'clips.detect': { params: DetectClipsParams; result: LogicalClip[] };
   'clips.list': { params: DetectClipsParams; result: LogicalClip[] };
   'derivatives.list': { params: { assetId: string }; result: DerivativeSummary[] };

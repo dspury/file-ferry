@@ -47,14 +47,14 @@ export function Projects(): JSX.Element {
         <Panel>
           <EmptyState
             message="No projects yet"
-            hint="A project is created as part of an offload — it is what destinations, assets, and receipts hang off."
+            hint="A project is created as part of a transfer — it is what destinations, assets, and receipts hang off."
             action={
               <button
                 type="button"
                 className="btn btn--primary"
-                onClick={() => navigateTo('ingest')}
+                onClick={() => navigateTo('transfers')}
               >
-                Go to Offload
+                Go to Transfer
               </button>
             }
           />

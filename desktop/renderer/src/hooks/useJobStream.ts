@@ -54,7 +54,7 @@ export function useJobStream(jobs: readonly JobDetail[], onUnknownJob: () => voi
       if (!isJobUpdatedParams(frame.params)) return;
       const snapshot = frame.params.snapshot;
       if (!knownIds.current.has(snapshot.id)) {
-        // A job created elsewhere (the Offload screen, another window, or a
+        // A job created elsewhere (the Transfer workspace, another window, or a
         // recovery sweep) cannot be rendered from a snapshot alone: it has
         // no command or project. Ask for a fresh list instead of inventing
         // a half-populated row.

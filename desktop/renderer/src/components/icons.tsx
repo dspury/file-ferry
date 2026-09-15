@@ -52,29 +52,6 @@ export function IconActivity(props: IconProps): JSX.Element {
   );
 }
 
-export function IconOffload(props: IconProps): JSX.Element {
-  return (
-    <Icon {...props}>
-      <path d="M12 3v10" />
-      <path d="m8 9 4 4 4-4" />
-      <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
-    </Icon>
-  );
-}
-
-export function IconOrganize(props: IconProps): JSX.Element {
-  return (
-    <Icon {...props}>
-      <rect x="3" y="3" width="7" height="7" rx="1.5" />
-      <path d="M6.5 13v5.5a1.5 1.5 0 0 0 1.5 1.5h2" />
-      <path d="M6.5 13.5v0" />
-      <path d="M14 6.5h6" />
-      <path d="M14 20h6" />
-      <path d="M14 13.5h6" />
-    </Icon>
-  );
-}
-
 export function IconProjects(props: IconProps): JSX.Element {
   return (
     <Icon {...props}>

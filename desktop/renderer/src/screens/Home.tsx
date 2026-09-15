@@ -9,7 +9,7 @@
  * were hard-coded to `0` -- see `lib/home.ts` for why they cannot be
  * computed here -- and a permanent `0` under UNSAFE CARDS is a claim, not a
  * blank. The safety statements an operator acts on live where the facts do:
- * Offload's "keep the card" banner, and Media's lifecycle tally.
+ * the Transfer workspace's "keep the card" banner, and Media's tally.
  */
 import { useAsync } from '../hooks/useAsync.js';
 import {
@@ -130,8 +130,8 @@ export function Home(): JSX.Element {
       >
         {volumesList.length === 0 ? (
           /*
-            Compact, because the other well on this screen holds "Start an
-            offload" -- the only thing a first-run Dashboard can actually
+            Compact, because the other well on this screen holds "Start a
+            transfer" -- the only thing a first-run Dashboard can actually
             do -- and two full wells push it off the fold at the app's own
             1280x800 default. This panel reports a condition and offers a
             diagnostic; that one offers the next move, so that one keeps
@@ -195,14 +195,14 @@ export function Home(): JSX.Element {
         {recent.length === 0 ? (
           <EmptyState
             message="No jobs yet"
-            hint="Offload a camera card or organize existing media to create the first one."
+            hint="Transfer a camera card or a folder to create the first one."
             action={
               <button
                 type="button"
                 className="btn btn--primary"
-                onClick={() => navigateTo('ingest')}
+                onClick={() => navigateTo('transfers')}
               >
-                Start an offload
+                Start a transfer
               </button>
             }
           />

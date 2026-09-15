@@ -158,7 +158,7 @@ function AssetBrowser({ projectId }: { projectId: string | null }): JSX.Element 
             message={all.length === 0 ? 'No media yet' : 'No media matches'}
             hint={
               all.length === 0
-                ? 'Assets appear here once an offload or an organize run has adopted them.'
+                ? 'Assets appear here once a transfer has adopted them.'
                 : 'Try a different search, or widen the project filter.'
             }
             action={
@@ -166,9 +166,9 @@ function AssetBrowser({ projectId }: { projectId: string | null }): JSX.Element 
                 <button
                   type="button"
                   className="btn btn--primary"
-                  onClick={() => navigateTo('ingest')}
+                  onClick={() => navigateTo('transfers')}
                 >
-                  Go to Offload
+                  Go to Transfer
                 </button>
               ) : (
                 <button type="button" className="btn" onClick={() => setQuery('')}>
@@ -347,7 +347,7 @@ function AssetView({
           <EmptyState
             density="compact"
             message="No derivatives"
-            hint="Proxies are generated after an offload verifies — an asset with no verified replica has nothing to transcode from yet."
+            hint="Proxies are generated after a transfer verifies — an asset with no verified replica has nothing to transcode from yet."
           />
         ) : (
           <div className="table-wrap">
@@ -419,7 +419,7 @@ function ReplicaTable({ overview }: { overview: AssetOverview }): JSX.Element {
     return (
       <EmptyState
         message="No replicas recorded"
-        hint="A verified copy is written by an offload job."
+        hint="A verified copy is written by a transfer job."
       />
     );
   }

@@ -212,7 +212,7 @@ export function Presets(): JSX.Element {
     if (draft === null) return;
     setPreviewing(true);
     try {
-      // The one preview RPC is the organize previewer; it sees the fallback
+      // The one preview RPC is profile.preview; it sees the fallback
       // template (which is how the sidecar stores presets' fallback). It
       // does not evaluate rules — the button says "fallback" so the panel
       // never claims more than it shows.

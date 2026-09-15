@@ -15,8 +15,6 @@ import {
   IconDestination,
   IconEnvironment,
   IconMedia,
-  IconOffload,
-  IconOrganize,
   IconPreset,
   IconProjects,
   IconSettings,
@@ -27,8 +25,6 @@ import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { Onboarding } from './screens/Onboarding.js';
 import { Home } from './screens/Home.js';
 import { Projects } from './screens/Projects.js';
-import { Ingest } from './screens/Ingest.js';
-import { Organize } from './screens/Organize.js';
 import { Activity } from './screens/Activity.js';
 import { AssetDetail } from './screens/AssetDetail.js';
 import { Settings } from './screens/Settings.js';
@@ -43,10 +39,11 @@ declare global {
 }
 
 /*
- * The view ids are the hash route and must not change — `#/ingest` is what
- * a reload or a deep link resolves against. The labels are what an operator
- * reads, so those are named for the task ("Offload") rather than the
- * internal stage name.
+ * The view ids are the hash route. The labels are what an operator reads.
+ *
+ * R-3 left one Transfer entry: the Offload and Organize screens were
+ * withdrawn (Organize entirely; Offload absorbed as a source type inside
+ * the Transfer workspace), so there is exactly one way into a transfer.
  */
 const NAV_GROUPS: readonly NavGroup[] = [
   {
@@ -93,20 +90,6 @@ const NAV_GROUPS: readonly NavGroup[] = [
         description: 'Immutable routing rules, as revisions you can audit',
         icon: IconPreset,
         component: Presets,
-      },
-      {
-        id: 'ingest',
-        label: 'Offload',
-        description: 'Copy a camera card, verify every byte, and keep the receipt',
-        icon: IconOffload,
-        component: Ingest,
-      },
-      {
-        id: 'organize',
-        label: 'Organize',
-        description: 'Preview a folder structure over existing media, then apply it',
-        icon: IconOrganize,
-        component: Organize,
       },
     ],
   },

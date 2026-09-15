@@ -21,11 +21,11 @@ export interface ViewDef {
 /**
  * A labelled run of nav items.
  *
- * The rail used to be eight equal-weight entries in the order they were
- * built, which gave no clue that Offload and Organize are the two jobs the
- * app exists to do, or that Environment and Settings are somewhere you go
- * once. Grouping states that; `footer` pins the maintenance group to the
- * bottom of the rail, away from the daily work.
+ * The rail used to be equal-weight entries in the order they were built,
+ * which gave no clue that transferring media is the job the app exists to
+ * do, or that Environment and Settings are somewhere you go once. Grouping
+ * states that; `footer` pins the maintenance group to the bottom of the
+ * rail, away from the daily work.
  */
 export interface NavGroup {
   readonly id: string;

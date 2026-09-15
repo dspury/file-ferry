@@ -203,6 +203,7 @@ describe('brand tokens (the #160 migration, pinned)', () => {
       '--c-accent-hover': '#99B9D3',
       '--c-accent-soft': '#1D2939',
       '--c-accent-line': 'rgba(117, 161, 198, 0.65)',
+      '--c-accent-interactive': '#54A4E7',
       '--c-on-accent': '#0F1622',
       '--c-ok': '#35a96c',
       '--c-ok-soft': '#14282B',
@@ -222,7 +223,7 @@ describe('brand tokens (the #160 migration, pinned)', () => {
       '--c-neutral-soft': '#1D2430',
       '--c-scrim': 'rgba(6, 10, 17, 0.66)',
     } satisfies Record<string, string>;
-    expect(Object.keys(expected)).toHaveLength(33);
+    expect(Object.keys(expected)).toHaveLength(34);
     for (const [name, value] of Object.entries(expected)) {
       expect(token(name)).toBe(value);
     }

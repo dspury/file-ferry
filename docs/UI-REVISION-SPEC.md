@@ -47,6 +47,9 @@ guard working as intended.
 Fair game: layout, spacing, borders, and **which** token a rule reaches
 for.
 
+**Amended by R-8:** one token is added — the interactive accent. That is
+the only sanctioned change, and #162 is updated in the same commit.
+
 ### SR-3 — Contrast floors
 
 - `--c-text-faint` `#919497` is 4.86:1 on `--c-surface-2`. Moving text to
@@ -61,6 +64,90 @@ for.
 CI sets `ELECTRON_SKIP_BINARY_DOWNLOAD` and never loads Electron. A green
 desktop job says nothing about how anything looks. Boot the app, and for
 layout work resize it.
+
+---
+
+### SR-5 — Material: translucent glass over an atmospheric wash
+
+The shell is layered translucent material, not a wireframe. Three levels:
+
+| level | role | note |
+| --- | --- | --- |
+| wash | the canvas | a large-scale, single-direction gradient, brighter toward the upper left of the **content area** |
+| rail | recessed | darker than the content at every height, including the top |
+| panel | raised | frosted translucent over the wash, ~14px radius, gentle vertical gradient lighter at the top, soft ambient shadow |
+
+**Rims.** A large panel and the transfer dock each carry a soft 1px rim of
+lighter tone around the whole perimeter. That rim, not the fill, is what
+gives a panel its silhouette — measured, a panel fill differs from adjacent
+canvas by only **1.16:1**, which is not enough to define an edge on its own.
+
+**Rims stop there.** Table rows, status words, chips, and the individual
+statistics in a hero panel get no rim and no box. They are separated by
+spacing and the faintest hairlines. SR-1 still governs: a rim is a full
+perimeter, never one edge.
+
+**No row striping.** Table rows are one tone, divided by hairlines only.
+
+**Gradients** belong in exactly three places: the canvas wash, a panel's
+own vertical fill, and an accent fill. Never on text, icons, or borders.
+
+### SR-6 — Glow budget: one emitting element per screen
+
+Exactly **one** element emits light at any time — the active stage tab, or
+the leading progress bar, or the primary action. Everything else is *lit*
+but does not emit: rims, nav plates, buttons, status pills, dividers, text.
+
+The intensity is restrained — roughly a third of what reads as "neon."
+
+This is not decoration policy, it is a state-signalling budget. Spending
+the brightest thing on screen on chrome leaves nothing in reserve for an
+actual alarm.
+
+### SR-7 — Brightness floor
+
+The interface is bright and legible. A "more restrained" pass that darkens
+the whole frame is a regression, and it is measurable — mean frame
+luminance, sampled on a 7px grid:
+
+| pass | mean luminance | verdict |
+| --- | --- | --- |
+| luminous glass (adopted) | **0.0492** | the target |
+| elevated, flat canvas | 0.0311 | dimmer |
+| "converged" (rejected) | 0.0272 | dimmest — rejected for this reason |
+
+**Do not flatten the wash to chase a contrast number.** That was tried: the
+wash went from 11.2× corner-to-corner luminance down to 1.7×, and the whole
+app got darker than either option it was meant to combine.
+
+### SR-8 — Monospace is for data only
+
+File paths, byte counts, durations, hashes, ids. Never headings, never
+button labels, never micro-labels. Mono everywhere is what makes an
+interface read as a terminal utility rather than a product.
+
+### SR-9 — Dramatic scale contrast
+
+One number per view is at display scale; its label is a small uppercase
+letterspaced micro-label. A ratio around 6× between the hero numeral and
+the labels around it is the intent. Everything at one middling size is the
+look being replaced.
+
+### SR-10 — One glyph per state, globally
+
+A state's glyph is fixed across the whole app, so state survives greyscale
+and never depends on hue alone:
+
+| state | glyph | tint |
+| --- | --- | --- |
+| running / active | filled triangle | accent |
+| done / ok | filled dot | muted grey |
+| needs review / attention | hollow ring | amber |
+| failed | filled hexagon | danger |
+| cancelled | horizontal bar | muted |
+
+Two different glyphs for one state is a defect, not a style choice. It has
+already appeared once in review.
 
 ---
 
@@ -129,7 +216,7 @@ demanding option, chosen deliberately over 900 or 1000.
 1. **No width breakpoints exist.** The only `@media` rules in
    `styles.css` are `prefers-reduced-motion` (1669, 2293) and
    `forced-colors` (2317). The layout only squashes.
-2. **No window floor.** `BrowserWindow` (`electron/main.ts:34-37`) sets
+2. **No window floor.** `BrowserWindow` (`electron/main.ts:36-37`) sets
    `width: 1280, height: 800` with no `minWidth`/`minHeight`.
 
 ### Measured behaviour
@@ -179,6 +266,162 @@ window. Content floors at ~354px, so the scroll-free floor today is
 
 ---
 
+## R-3 — One Transfer workspace, with navigable stages · OPEN
+
+Offload, Organize and Transfers are three peer entries in the nav
+presenting the same shape — pick a source, preview, approve, watch, get a
+receipt. They share components and read as siblings. They are not siblings;
+they have **zero RPC methods in common** and three different durability
+levels:
+
+| screen | backend | preflight | approval gate | job record | crash resume | cancel | progress |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Transfers | `TransferRunner` | yes | yes | yes + item ledger | per item | yes | yes |
+| Offload | `OffloadRunner` | no | job-level | yes | whole job | job-level | job-level |
+| Organize | **no runner** | no | no | **none** | **none** | **none** | **none** |
+
+`organize_apply` (`src/file_ferry/application/organize.py:112`) is a
+synchronous loop inside the RPC handler. It holds the sidecar's RPC thread
+for the whole operation, so a large organize makes the app stop answering.
+
+**The UI presents these as three equal choices and an operator cannot tell
+them apart.** That is the defect; the visual merge is downstream of it.
+
+### Required
+
+- One **Transfer** nav entry. The five stages — Scan, Plan, Preflight,
+  Approve, Copy — become a **segmented tab bar**, not a wizard: a stage
+  already reached stays clickable, and leaving a stage never discards it.
+  Segments are divided by thin vertical hairlines so the five read as
+  discrete countable cells.
+- The transfer is a **context** the tabs are views onto. The route hash
+  already carries everything needed to restore it; keep that.
+- Offload and Organize are resolved, not merely hidden. **This is a
+  decision the spec does not make**: either their capabilities port onto
+  `TransferRunner`, or they are withdrawn. Hiding a nav entry while the
+  synchronous `organize_apply` path stays reachable over RPC resolves
+  nothing.
+
+### Acceptance
+
+- One transfer entry point in the nav
+- Every reached stage is clickable and lossless to revisit
+- No UI path reaches a transfer that lacks preflight, an approval gate and
+  an item ledger
+- The Organize RPC-thread block is either gone or documented as withdrawn
+
+---
+
+## R-4 — Persistent transfer dock · OPEN
+
+There is no always-visible representation of work in flight. A running
+transfer lives in the Transfers hash; navigate away and the route back is
+a hash the operator no longer has. For an app whose value is long-running
+operations that must not be lost, that is the wrong default.
+
+### Required
+
+A dock pinned across the bottom of the window whenever a transfer is
+active, present on every screen: source → destination, a progress track,
+files and bytes and time remaining, and **View** plus **Pause/Cancel**.
+
+- Dock material follows SR-5: frosted, rimmed, ambient shadow upward.
+- The progress fill may be the screen's one emitting element (SR-6).
+- The dock is also what makes collapsing the nav (R-2) safe — navigating
+  away can no longer lose your place in the work.
+
+### Acceptance
+
+- Visible on every view while a transfer is active, absent otherwise
+- Cancel routes through the same gate the Transfer screen uses; the dock
+  never gets a privileged path to a destructive action
+- Does not overlap content — the content area shortens by the dock height
+- Present and usable at the R-2 minimum width
+
+---
+
+## R-5 — Regroup the nav · OPEN
+
+Eleven peer entries for an app with one job. Destinations and Presets are
+configuration filed among the verbs; `Media` is a label whose component is
+`AssetDetail.tsx`.
+
+### Required
+
+Two groups. **WORK** — Dashboard, Transfer, Activity. **SETUP**, pinned to
+the bottom — Destinations, Presets, Library, Settings. Rename `Media` to
+match what it does.
+
+Depends on R-3 for the Transfer consolidation.
+
+---
+
+## R-6 — Compact the header · OPEN
+
+Every view renders a kicker, a title, and a fixed `description` subtitle —
+three lines of chrome that never change and never respond to state. It is
+the direct cause of the 760px collision in R-2.
+
+### Required
+
+One line: title left, status readout right. The `description` field either
+moves to a tooltip or is dropped; the nav already says where you are.
+
+---
+
+## R-7 — Surface and material migration · OPEN
+
+Apply SR-5 through SR-10 to the existing stylesheet. This is the visual
+pass, and it depends on R-8 for the accent token.
+
+Scope: canvas wash, rail recession, panel fills and rims, radius, removal
+of per-element boxes and row striping, mono restricted to data, the type
+scale gap, the state-glyph table.
+
+### Rail recession is a fix, not a preference
+
+Measured on the reference: the muted `WORK` / `SETUP` labels sat at
+**3.34:1** because the wash was brightest at the top of the rail — a real
+WCAG failure. Recessing the rail to `#0A1A2F` takes the same labels to
+**5.73:1**. The rail should read as behind the content regardless; this
+makes it required.
+
+---
+
+## R-8 — Add an interactive accent token · OPEN
+
+`ferry #75A1C6` is hue 207.4°, **saturation 41.5%**, lightness 61.8%. It is
+the identity colour and it stays. It is also too muted to carry a filled
+interactive state — a gradient on it reads as muddy.
+
+**Contrast does not decide this.** Holding hue and lightness and sweeping
+saturation moves contrast by 0.15 across the whole usable range:
+
+| saturation | hex | ink text on fill | as text on `--c-surface-2` |
+| --- | --- | --- | --- |
+| 41.5% (`ferry`) | `#75A1C6` | 6.62:1 | 5.42:1 |
+| **75.4% (chosen)** | **`#54A4E7`** | **6.77:1** | **5.54:1** |
+| 97.8% (as rendered) | `#4BACFD` | 7.44:1 | 5.61:1 |
+
+### Required
+
+Add one token — `#54A4E7`, ferry's exact hue and lightness at 75%
+saturation — for **filled interactive accents only**: active tab, primary
+button, progress fill, focus ring. `ferry` keeps the logo, brand surfaces,
+and every non-filled use.
+
+**This amends SR-2.** #162 pins all 33 `--c-*` values and will fail on the
+addition; that test is updated as part of this item, deliberately and in
+one commit, not worked around.
+
+### Acceptance
+
+- Exactly one new colour token; no other pinned value changes
+- #162 updated in the same commit, with the new value pinned
+- No filled accent uses `ferry`; no brand surface uses the new token
+
+---
+
 ## Decisions log
 
 | Date | Decision |
@@ -187,13 +430,58 @@ window. Content floors at ~354px, so the scroll-free floor today is
 | 2026-09-14 | `.nav__item` included in R-1 — "no exceptions" |
 | 2026-09-14 | `minWidth` 600 with layout work, over 900 or 1000 |
 | 2026-09-14 | `.step--gate` and `.pathpick .btn` exempt as structural dividers |
+| 2026-09-14 | Visual direction: luminous translucent glass, not flat elevated surfaces |
+| 2026-09-14 | Glow kept but budgeted to one emitting element per screen |
+| 2026-09-14 | Brightness is a floor, not a preference — a darker pass was tried and rejected |
+| 2026-09-14 | Offload / Organize / Transfers consolidate into one Transfer workspace (R-3) |
+| 2026-09-14 | Stages are a clickable tab bar over a persistent context, never a wizard |
+| 2026-09-14 | A persistent transfer dock is adopted (R-4) |
+| 2026-09-14 | One interactive accent token added at 75% saturation; SR-2 amended (R-8) |
+
+---
+
+## Reference images
+
+`docs/ui-refs/` holds the approved visual direction. They are generated
+mockups, not screenshots of the app, and they are **directional, not
+literal**:
+
+| file | shows |
+| --- | --- |
+| `transfer.jpg` | stage tab bar, hero panel, plan list, panel material |
+| `dashboard.jpg` | scale contrast, hero progress, unboxed statistics, state glyphs |
+| `dock.jpg` | the persistent dock material and contents (ignore the screen behind it — it drifted) |
+
+Known inaccuracies in all three, do not reproduce them:
+
+- **The logo is a generic wave, not the ferry mark.** The real SVG lives at
+  `assets/brand/ferry-logo-black.svg`.
+- The accent renders near **97% saturation**; the spec value is
+  `#54A4E7` at **75%**, which is calmer. Build to the token, not the image.
+- Nav labels and file paths in the images are placeholder.
 
 ---
 
 ## Coordination
 
-Stage A packaging is running in parallel and touches `desktop/build/`,
-`electron-builder.yml`, `scripts/`, and the frozen sidecar. This spec
-touches `styles.css`, `App.tsx`, and `electron/main.ts`. **`main.ts` is
-the one overlap** — R-2 needs it for `minWidth`, and Stage A may not.
-Coordinate before editing it.
+Stage A packaging landed on `feat/stage-a-packaging` (`1b4996e`) and
+touches `desktop/build/`, `electron-builder.yml`, `scripts/`, and the
+frozen sidecar. This spec touches `styles.css`, `App.tsx`, the screens,
+and `electron/main.ts`. **`main.ts` is the one overlap** — R-2 needs it
+for `minWidth`. Rebase on Stage A rather than racing it.
+
+## Suggested order
+
+R-8 first: the accent token settles the palette everything else is drawn
+against, and it is a small, self-contained change that includes its own
+test update.
+
+Then R-3, because it decides what screens exist. R-5 and R-6 fall out of
+it. R-7 is the bulk of the visual work and wants a settled screen list.
+R-1 is subsumed by R-7 but can land early on its own. R-2 and R-4 are
+coupled — the dock has to survive the minimum width, and the collapsed
+nav is only safe once the dock exists.
+
+**R-3 has an open question that is not the builder's to answer:** whether
+Offload and Organize port onto `TransferRunner` or are withdrawn. Raise it
+rather than picking one.

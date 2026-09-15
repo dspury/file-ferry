@@ -245,13 +245,19 @@ export function App(): JSX.Element {
         {/*
           R-6: one line — title left, sidecar status right. The kicker and
           the fixed per-view subtitle were three lines of chrome that never
-          changed and never reacted to state; the description now rides as
-          the title's tooltip, and the nav already says where you are. It is
-          also what removes the 760px title/subtitle collision R-2 measured.
+          changed and never reacted to state, so both are gone; the nav
+          already names the view.
+
+          The description is dropped from the header rather than moved to a
+          `title` attribute: `title` is not an accessible tooltip — it does
+          not appear on keyboard focus, is absent on touch, and is announced
+          inconsistently — so a string that used to be visible text for
+          everyone would become mouse-only. `ViewDef.description` stays on
+          the type for screens that may want it later. Removing the subtitle
+          is also what removes the 760px title/subtitle collision R-2
+          measured.
         */}
-        <h1 className="header__title" title={active.description}>
-          {active.label}
-        </h1>
+        <h1 className="header__title">{active.label}</h1>
         <div className="header__actions">
           {/*
             A live region: the sidecar going away mid-session is something

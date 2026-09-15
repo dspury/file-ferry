@@ -126,11 +126,12 @@ describe('App shell', () => {
     await screen.findByText('Sidecar · protocol v1');
 
     const title = screen.getByRole('heading', { level: 1, name: 'Dashboard' });
-    // The kicker and the fixed subtitle are gone from the DOM, and the
-    // description survives only as the title's tooltip.
+    // The kicker and the fixed subtitle are gone, and the description is
+    // not rendered at all — not as visible text, and not as a mouse-only
+    // `title` attribute (which is not an accessible tooltip).
     expect(document.querySelector('.header__kicker')).toBeNull();
     expect(document.querySelector('.header__subtitle')).toBeNull();
-    expect(title.getAttribute('title')).toBe('Jobs and connected sources at a glance');
+    expect(title.hasAttribute('title')).toBe(false);
     expect(screen.queryByText('Jobs and connected sources at a glance')).toBeNull();
   });
 });

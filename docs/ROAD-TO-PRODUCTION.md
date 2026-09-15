@@ -1,221 +1,211 @@
 # Road to production
 
-What is left between `main` and a production-validated ferry, in order.
-Written so a fresh session can pick it up without re-deriving anything.
+The complete remaining work, in order. **Every numbered item is one PR.**
+Branch each off `main` directly — do not stack. Stop and report after each.
 
-**Baseline:** `main` @ `bd0e77f`. **Status:** implemented, not pilot-ready,
-not production-validated — in the spec's own terms (§13.6).
+Two documents govern the work and this one does not repeat them:
+
+- `docs/UI-REVISION-SPEC.md` — standing rules SR-1..SR-10 and items R-1..R-8.
+  The rules bind every item, including ones that do not mention them.
+- `docs/BRAND-STYLE-GUIDE.md` — palette, tokens, identity.
+
+**SR-4 applies to everything here.** CI sets `ELECTRON_SKIP_BINARY_DOWNLOAD`
+and never loads Electron, so a green desktop job says nothing about how the
+app looks or whether it boots. Run it.
 
 ---
 
-## Where things actually stand
+## Where things stand
 
-The phase table in `DESTINATION-PRESETS-EXECUTION-REPORT.md` is stale for
-P6 and P7. Corrected:
-
-| Phase | Real status |
+| phase | state |
 | --- | --- |
-| P0 cleanup/baseline | **Not signed off** — R13 open |
-| P1 safety regressions | Tests pass; integration sign-off pending |
-| P2 persistence | Tests pass; integration sign-off pending |
-| P3 volume identity | Tests pass; integration sign-off pending (macOS/Linux) |
-| P4 rule engine / planner | Tests pass; integration sign-off pending |
-| P5 verified copy runner | Tests pass; integration sign-off pending |
-| P6 desktop flow / CLI parity | **Landed** — B1 (#158), B2 (#161), B3 (#164) |
-| P7 packaging / pilot / real storage | **In progress** — Stage A only |
-| P8 final review handoff | NOT RUN |
+| P1-P5 engine | complete — durable verified transfer with an item ledger |
+| P6 UI bridge | complete — B1 #158, B2 #161, B3 #164 |
+| P7 desktop shell | in progress — this document |
+| Packaging | Stage A landed (#167); unsigned local builds work |
 
-The engine is complete and drivable from both the CLI and the UI. What
-remains is almost entirely *evidence*, not code — plus the UI work below.
+Merged from the UI spec: R-3 (#172), R-5 and R-6 (#174), R-8 (#171).
+Remaining: R-1 (folded into R-7), R-2, R-4, R-7.
 
 ---
 
-## 0. UI design — open, and ahead of everything else
+# Track A — the UI, sequential
 
-The operator's read after driving the app: the colour scheme holds up,
-the design needs a thorough rethink. **A dedicated UI conversation is
-happening separately.**
+A-1 through A-3 all touch `styles.css`. Do them in order, one at a time,
+merging each before starting the next.
 
-- `docs/UI-REVISION-SPEC.md` holds the standing rules and the itemised
-  revisions (`SR-1`…, `R-1`, `R-2`).
-- That spec is the input to the restyling pass, and it will grow.
+## A-1 — R-4: the persistent transfer dock
 
-Everything below assumes the UI settles first. Packaging a shell that is
-about to be redesigned means packaging twice — the same argument that put
-the brand migration before B3.
+Spec: `UI-REVISION-SPEC.md` R-4. Reference: `docs/ui-refs/dock.jpg`.
 
-**Exception:** Stage A (§1) touches build configuration, not the shell,
-so it can finish in parallel.
+**This comes before the reskin.** It is structural — it changes what the
+content area's height is — and a reskin done first would have to be redone
+around it.
 
----
+**Acceptance** is in the spec. Two additions:
 
-## 1. Stage A — a packaged macOS app
+- Cancel must route through the same gate the Transfer screen uses. The
+  dock never gets a privileged path to a destructive action.
+- It must not be possible for the dock to show a transfer as running after
+  the job has settled. Drive a real job to completion and watch it clear.
 
-In flight. Full detail in `docs/PACKAGING-HANDOFF.md`.
+## A-2 — R-2: minimum width and breakpoints
 
-- **A1** unsigned local build path — `notarize: true` and
-  `hardenedRuntime: true` block a build with no Apple credentials
-- **A2** refreeze the sidecar — the current binary predates B1/B2/B3
-- **A3** app icon — `assets/brand/file-ferry-icon-macOS-v1.png` to
-  `desktop/build/icon.png` (confirmed final, not a candidate)
-- **A4** produce and verify the bundle by booting it
+Spec: `UI-REVISION-SPEC.md` R-2, including the measured overflow table.
+Reference: `docs/ui-refs/` (the narrow-width behaviour is described, not
+pictured — the narrow reference predates the current nav).
 
-**Exit:** a double-clickable `ferry.app` that starts its own frozen
-sidecar, migrates to schema 5, and drives a transfer end to end.
+R-6 already removed the title/subtitle collision the spec measured at
+760px; re-measure rather than trusting the old table. The nav is now 9
+entries in 3 groups, which changes the collapse behaviour the spec
+describes.
 
----
+**The dock (A-2) must survive every width ≥ 600.** That is why A-1 comes
+first.
 
-## 2. §12.1 — disposable local pilot
+## A-3 — R-7: the surface and material migration
 
-The first real-data run. Not the storage matrix; a controlled rehearsal.
+Spec: `UI-REVISION-SPEC.md` R-7, governed by SR-5 through SR-10.
+References: `docs/ui-refs/transfer.jpg`, `dashboard.jpg`, `dock.jpg`.
 
-Requires, per spec:
+**This is the largest item in the project.** It is also the one where the
+references are directional rather than literal — their known inaccuracies
+are listed in the spec's "Reference images" section. Build to the tokens.
 
-- independent source and destination directories, isolated app data
-- **mixed real files** — "not only tiny text renamed `.mov`": actual
-  media, documents, archives, nested bundles, large files, empty folders,
-  overlapping filenames
-- known hashes going in
-- **independent verification** — a separate checksum walk, not Ferry's own
-  status
-- every original accounted for as copied, verified-identical, explicitly
-  excluded, or failed
-- the **packaged** app and the CLI exercised against the same contracts
-- proof that general transfer needs no FFmpeg
-- provenance checked against the packaged release, not a source checkout
+**R-1 is folded in here.** The left-edge colour bars on `.stat`, `.banner`
+and `.nav__item` go as part of this pass, under SR-1. The spec's R-1 section
+still holds the selector-by-selector detail; use it.
 
-**Exit:** a run where Ferry's account of what happened matches an
-independent checksum walk, file for file.
+Because of its size, **A-3 may be split into more than one PR** — that is
+the one exception to one-item-one-PR. If you split it, split by surface
+(tokens and panels / tables and lists / states and banners), not by screen.
+
+**Acceptance:** SR-5..SR-10 hold across every screen, and the brightness
+floor in SR-7 is met — measure it, do not judge it by eye.
 
 ---
 
-## 3. §12.2 — real storage matrix
+# Track B — correctness, independent
 
-The gate for a macOS production claim, and the biggest unknown. Entirely
-`NOT RUN`. Everything verified so far is injected failures against a local
-filesystem with byte-sized fixtures.
+None of these touch `styles.css`, so they can be done at any point, in any
+order, without conflicting with Track A.
 
-Required:
+## B-1 — #123: an unpackaged Electron run cannot load the renderer
 
-- external local drive → a separate local destination volume
-- external local drive → an already-mounted network share
-- a populated destination with overlaps, and two sequential source drives
-- **≥10,001 entries and at least one ≥10 GiB file**
-- **a ≥2-hour sustained transfer** (or a full representative drive
-  offload), recording throughput, memory behaviour, DB/job state, and
-  receipt integrity
-- controlled cancellation, app/sidecar restart, and network
-  disconnect/reconnect on disposable targets
+`electron/main.ts` picks the renderer source from `app.isPackaged` alone, so
+`electron .` from a checkout always tries the Vite dev server and fails hard
+without it. Add an explicit override.
 
-> "Simulated adapters do not satisfy the real interruption gate."
-> "Do not manufacture confidence from repeated tiny-file tests."
+This matters more than its age suggests: every SR-4 verification in this
+document depends on booting a checkout.
 
-Record: OS, commit/package provenance, source and destination
-filesystems, mount protocol, counts and bytes, duration, peak memory,
-observed issues, independent hash comparison. Keep private paths out of
-committed artifacts.
+## B-2 — #138: no `"type": "module"` in `desktop/package.json`
 
-Also required separately: **100,000-entry synthetic planning**, measured
-on its own, to expose memory and IPC growth.
+Vite 8 warns about it. Adding it changes how every `.js` in the package is
+interpreted — verify the Electron main process and preload still load, both
+unpackaged and packaged. Not a one-line change.
 
-**This is where the engine meets reality.** Throughput, memory under
-100k entries, and interruption semantics on a live network mount are all
-unmeasured. It is the step most likely to send work back to the engine,
-which is why it should not be left until last.
+## B-3 — #101: close it
 
-**If hardware or permission is unavailable:** mark the exact gate
-`NOT RUN`, provide a reproducible procedure, finish everything else, and
-**do not** mark P7 production-validated.
+Every `--fs-*` token is already `rem` on main (`styles.css:192-198`), and
+#162 pins the scale. The issue is resolved in fact. Verify text-only zoom
+actually scales, then close it with that evidence. **No code expected** — if
+something does not scale, that is a finding, report it.
 
----
+## B-4 — dependency majors
 
-## 4. §12.3 — operational documentation
+Three open dependabot PRs, all majors: #149 TypeScript 6→7, #150 eslint
+9→10, #151 @eslint/js 9→10. #121 records that the grouping produces
+unmergeable PRs.
 
-Update the root and desktop READMEs, release instructions, and CLI/TUI
-parity docs to final behaviour. Must cover: preset examples, supported
-tokens and date semantics, destination recognition limits, recovery
-steps, metadata limitations, exclusion behaviour, conflict policies, and
-how to inspect and export receipts.
+**One PR per upgrade, and #149 alone first** — a TypeScript major can change
+what typechecks across the whole codebase, and bundling it with lint changes
+makes a failure impossible to attribute. #150 and #151 are the same eslint
+major and should go together as one PR.
 
-One distinction the spec calls out explicitly: **copies verified ≠ storage
-redundancy ≠ backup guarantees.** Say so plainly.
+If an upgrade needs source changes to pass, that is fine — but say so
+explicitly rather than folding it in silently.
 
 ---
 
-## 5. Signing and notarization
+# Track C — accessibility, after A-3
 
-Out of scope for the pilot; required for any real release.
+Do not start these before the reskin lands. Auditing a UI that is about to
+be restyled wastes the audit.
 
-- Needs an Apple Developer ID and notarization credentials in the
-  environment. `electron-builder.yml` is already configured for it
-  (`hardenedRuntime`, `notarize: true`, entitlements present).
-- Per `docs/RELEASE.md`: an unsigned local build is a development
-  artifact. **An unsigned local pilot is not a public stable release.**
-- Auto-update stays disabled until update signing, rollback, and release
-  verification exist.
+## C-1 — #95: the screen-reader pass
 
----
+No VoiceOver pass has ever been run against the reskin. This is the issue
+that most plausibly should gate a release and currently does not.
 
-## 6. §13 — final handoff
+Cover, at minimum: the nav and its three groups, the stage tab bar, the
+transfer dock, every banner and state chip, and the plan table. Record what
+was tested and what was found — a pass with no written record is not a pass.
 
-P8. The implementation agent must provide:
+## C-2 — #148: Windows verification
 
-1. Execution report with P0–P8 and A01–A26 statuses, each linked to
-   evidence
-2. Files changed, architecture decisions, migration behaviour, explicit
-   deviations
-3. Exact validation commands and results — **including failed and flaky
-   runs**
-4. Fresh-user reproduction: save destination → create/import preset →
-   inspect sources → review plan → execute → inspect receipt →
-   reconnect/resume
-5. Packaged artifact location and provenance; declared support boundary;
-   unperformed gates named
-6. Remaining risks, and a clear implemented / pilot-ready /
-   production-validated statement
-
-> "Do not publish, merge, upload user data, or perform the user's actual
-> migration merely because implementation is complete."
+NVDA/Narrator, backslash path rendering, real forced-colours. Needs a
+Windows machine; if none is available, say so and leave the issue open
+rather than closing it on inference.
 
 ---
 
-## Standing blockers
+# Track D — production readiness
 
-**R13** — an unexplained intermittent SQLite backup failure. P0 has never
-been signed off because of it. It has not fired in many consecutive runs,
-which is **not** the same as being fixed. An intermittent nobody has
-explained is not a green baseline.
+Sequential, and each depends on the one before.
 
-**Acceptance coverage** — A09–A11, A15–A16, A21–A23 pass against injected
-failures on a local filesystem. A01–A08, A12–A14, A17–A20, A24–A26 have
-service- or planner-level coverage. None of it is hardware-validated;
-that is §12.2.
+## D-1 — §12.1: disposable local pilot
+
+A full offload → verify → receipt cycle on the packaged app against
+throwaway data. Proves the packaged bundle does real work, which Stage A
+explicitly did not test (A4 verified the shell only — no files were
+transferred).
+
+## D-2 — §12.2: the real storage matrix
+
+**Argue for doing this as early as Track D allows.** It is the step most
+likely to send work back into the engine, and every day it is deferred is a
+day of UI work built on an unproven base.
+
+Required, on real hardware, not fixtures: a directory of ≥10,001 entries; a
+single file ≥10 GiB; a sustained transfer ≥2 hours; real mid-transfer
+cancellation; real network-volume disconnect. Everything verified so far has
+been injected failures against byte-sized fixtures on a local disk.
+
+## D-3 — §12.3: operational documentation
+
+What an operator does when a transfer needs attention, how to read a
+receipt, where the data lives, how to recover from a crash mid-transfer.
+
+## D-4 — signing and notarization
+
+Needs an Apple Developer ID and notarization credentials. **The operator
+supplies these; do not ask for them and do not handle them.** The unsigned
+local path (`scripts/package-mac-local.sh`) stays as-is for development.
+
+## D-5 — §13: final handoff
 
 ---
 
-## Open issues, and whether they gate
+# Standing blockers
 
-| Issue | Gates production? |
-| --- | --- |
-| #123 unpackaged Electron cannot load the built renderer | No — dev-mode only; packaged path differs |
-| #101 absolute px type scale defeats text scaling | **Closed by #160** — verify and close the issue |
-| #95 no screen-reader pass (macOS/VoiceOver) | Should gate a release; a11y is unverified |
-| #148 Windows-only a11y verification | No — Windows is honestly unsupported |
-| #138 `desktop/package.json` has no `"type": "module"` | No — a vite 8 warning |
-| #121 dependabot grouping produces unmergeable PRs | No — process, not product |
-| #149/#150/#151 typescript 7, eslint 10 | No — blocked on upstream peer deps |
+**R13 has not fired in many consecutive runs. That is not the same as being
+fixed.** Treat it as live until something proves otherwise.
+
+**Two green suites have covered unreachable code in this project** — P5 over
+RPC with no caller, and B3's approval stage with nothing invoking it. Both
+times the tests asserted existence rather than end-to-end function. When
+adding tests, ask what caller reaches the code.
 
 ---
 
-## Shortest honest path
+# Open questions — not the builder's to answer
 
-1. Settle the UI (separate conversation) → `UI-REVISION-SPEC.md`
-2. Finish Stage A → a bundle that boots
-3. §12.1 pilot on real mixed files, independently verified
-4. §12.2 on real hardware — **do this before polishing anything else**,
-   because it is the step that can invalidate the engine
-5. §12.3 docs, then §13 handoff
-6. Signing only when a real release is actually wanted
+**R-9: should the desktop Settings screen expose options that only affect
+the CLI and TUI?** The `[organize]` panel was relabelled honestly in #173,
+but a GUI pane for a command-line feature is still odd. Raise it, do not
+resolve it.
 
-Steps 1–3 are work. Step 4 is evidence that cannot be shortcut, faked, or
-inferred from green tests.
+**Does `OffloadRunner` stay?** No UI path creates an `offload` job any more
+(R-3), but the runner is still registered for pre-existing jobs. At some
+point it either gets removed or gets a documented reason to stay.

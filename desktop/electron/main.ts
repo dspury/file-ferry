@@ -12,6 +12,7 @@ import { resolveSidecarCommand } from './sidecar-command.js';
 import { showPicker } from './dialogs.js';
 import { ensureLogDir, appendLog, countLogFiles, openDiagnosticFolder } from './diagnostics.js';
 import { applyContentSecurityPolicy, baseWindowOptions } from './security.js';
+import { resolveRendererSource } from './renderer-source.js';
 import {
   JobSnapshotStore,
   replayPayload,
@@ -23,14 +24,21 @@ import { PROTOCOL_VERSION } from '../shared/version.js';
 import { getReleaseInfo, releaseSummary } from '../shared/release.js';
 import type { PickRequest } from '../shared/dialog.js';
 
-const isDev = !app.isPackaged;
-
 interface SidecarRequestEnvelope {
   readonly method: string;
   readonly params: unknown;
 }
 
 async function createMainWindow(supervisor: SidecarSupervisor): Promise<BrowserWindow> {
+  // The renderer source, resolved once: `FERRY_RENDERER_URL` can point a
+  // checkout at the built renderer (#123). The CSP follows that source, not
+  // packaging, so a built renderer is verified under the production policy.
+  const renderer = resolveRendererSource({
+    isPackaged: app.isPackaged,
+    overrideUrl: process.env.FERRY_RENDERER_URL,
+    distRendererPath: pathResolve(__dirname, '../renderer/index.html'),
+  });
+
   const window = new BrowserWindow({
     ...baseWindowOptions(),
     width: 1280,
@@ -44,7 +52,7 @@ async function createMainWindow(supervisor: SidecarSupervisor): Promise<BrowserW
     },
   });
 
-  applyContentSecurityPolicy(window.webContents.session, isDev);
+  applyContentSecurityPolicy(window.webContents.session, renderer.devServer);
 
   // Forward sidecar events to the renderer. Job-update events are also
   // recorded into the replay store so a reloaded window can be caught up.
@@ -69,10 +77,7 @@ async function createMainWindow(supervisor: SidecarSupervisor): Promise<BrowserW
 
   window.once('ready-to-show', () => window.show());
 
-  const rendererIndex = isDev
-    ? 'http://localhost:5173'
-    : `file://${pathResolve(__dirname, '../renderer/index.html')}`;
-  await window.loadURL(rendererIndex);
+  await window.loadURL(renderer.url);
 
   return window;
 }

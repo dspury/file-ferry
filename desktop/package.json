@@ -12,6 +12,7 @@
     "build:electron": "tsc -p tsconfig.electron.json",
     "build:renderer": "tsc -p tsconfig.renderer.json --noEmit && vite build",
     "dev": "npm run build:shared && concurrently -k \"tsc -p tsconfig.electron.json --watch\" \"vite\"",
+    "start:built": "npm run build && node scripts/start-built.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -b tsconfig.json && tsc -p tsconfig.tests.json",

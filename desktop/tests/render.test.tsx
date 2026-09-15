@@ -94,6 +94,46 @@ describe('App shell', () => {
     expect(active).toHaveLength(1);
     expect(active[0]!.getAttribute('aria-current')).toBe('page');
   });
+
+  it('regroups the rail and renames Transfers/Media (R-5)', async () => {
+    stubFerry();
+    render(<App />);
+    await screen.findByText('Sidecar · protocol v1');
+
+    const nav = screen.getByRole('navigation', { name: 'Primary' });
+    expect(
+      [...nav.querySelectorAll('.nav__group')].map((g) => g.getAttribute('aria-label')),
+    ).toEqual(['Work', 'Library', 'Setup']);
+    // One Transfer entry, and Media is `Assets` after AssetDetail.
+    expect([...nav.querySelectorAll('.nav__item')].map((b) => b.textContent)).toEqual([
+      'Dashboard',
+      'Transfer',
+      'Activity',
+      'Projects',
+      'Assets',
+      'Destinations',
+      'Presets',
+      'Environment',
+      'Settings',
+    ]);
+    // Work is the body; Library and Setup are the two pinned footer runs.
+    expect(nav.querySelector('.nav__footer')?.querySelectorAll('.nav__group')).toHaveLength(2);
+  });
+
+  it('collapses the header to one line (R-6)', async () => {
+    stubFerry();
+    render(<App />);
+    await screen.findByText('Sidecar · protocol v1');
+
+    const title = screen.getByRole('heading', { level: 1, name: 'Dashboard' });
+    // The kicker and the fixed subtitle are gone, and the description is
+    // not rendered at all — not as visible text, and not as a mouse-only
+    // `title` attribute (which is not an accessible tooltip).
+    expect(document.querySelector('.header__kicker')).toBeNull();
+    expect(document.querySelector('.header__subtitle')).toBeNull();
+    expect(title.hasAttribute('title')).toBe(false);
+    expect(screen.queryByText('Jobs and connected sources at a glance')).toBeNull();
+  });
 });
 
 describe('Dashboard project column', () => {

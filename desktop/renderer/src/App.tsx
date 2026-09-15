@@ -41,14 +41,15 @@ declare global {
 /*
  * The view ids are the hash route. The labels are what an operator reads.
  *
- * R-3 left one Transfer entry: the Offload and Organize screens were
- * withdrawn (Organize entirely; Offload absorbed as a source type inside
- * the Transfer workspace), so there is exactly one way into a transfer.
+ * R-3 left one Transfer entry (Offload and Organize withdrawn or absorbed).
+ * R-5 regrouped the rail: Work holds the daily verbs, and the Library and
+ * Setup runs are pinned to the bottom. `Transfers` became `Transfer`, and
+ * `Media` became `Assets` after what `AssetDetail.tsx` actually does.
  */
 const NAV_GROUPS: readonly NavGroup[] = [
   {
-    id: 'overview',
-    label: 'Overview',
+    id: 'work',
+    label: 'Work',
     views: [
       {
         id: 'home',
@@ -56,6 +57,13 @@ const NAV_GROUPS: readonly NavGroup[] = [
         description: 'Jobs and connected sources at a glance',
         icon: IconDashboard,
         component: Home,
+      },
+      {
+        id: 'transfers',
+        label: 'Transfer',
+        description: 'Scan a source, review a plan, approve it, and watch the verified copy',
+        icon: IconTransfer,
+        component: Transfers,
       },
       {
         id: 'activity',
@@ -67,16 +75,34 @@ const NAV_GROUPS: readonly NavGroup[] = [
     ],
   },
   {
-    id: 'transfer',
-    label: 'Transfer',
+    id: 'library',
+    label: 'Library',
+    footer: true,
     views: [
       {
-        id: 'transfers',
-        label: 'Transfers',
-        description: 'Scan a source, review a plan, approve it, and watch the verified copy',
-        icon: IconTransfer,
-        component: Transfers,
+        id: 'projects',
+        label: 'Projects',
+        description: 'Storage-policy health across every project',
+        icon: IconProjects,
+        component: Projects,
       },
+      {
+        id: 'asset',
+        // Was "Media", after `AssetDetail.tsx`: the screen browses assets and
+        // inspects their replicas, proxies, and clips, which "Media" named
+        // only by file type.
+        label: 'Assets',
+        description: 'Browse the library, then inspect replicas, proxies, and clips',
+        icon: IconMedia,
+        component: AssetDetail,
+      },
+    ],
+  },
+  {
+    id: 'setup',
+    label: 'Setup',
+    footer: true,
+    views: [
       {
         id: 'destinations',
         label: 'Destinations',
@@ -91,33 +117,6 @@ const NAV_GROUPS: readonly NavGroup[] = [
         icon: IconPreset,
         component: Presets,
       },
-    ],
-  },
-  {
-    id: 'library',
-    label: 'Library',
-    views: [
-      {
-        id: 'projects',
-        label: 'Projects',
-        description: 'Storage-policy health across every project',
-        icon: IconProjects,
-        component: Projects,
-      },
-      {
-        id: 'asset',
-        label: 'Media',
-        description: 'Browse the library, then inspect replicas, proxies, and clips',
-        icon: IconMedia,
-        component: AssetDetail,
-      },
-    ],
-  },
-  {
-    id: 'system',
-    label: 'System',
-    footer: true,
-    views: [
       {
         id: 'onboarding',
         label: 'Environment',
@@ -137,18 +136,6 @@ const NAV_GROUPS: readonly NavGroup[] = [
 ];
 
 const VIEWS = flattenViews(NAV_GROUPS);
-
-/**
- * Which rail group each view sits in, for the header's kicker.
- *
- * Presentational only: the header states the whole location — TRANSFER /
- * Offload — rather than just the leaf, which is what a screen title on its
- * own leaves ambiguous once there are eight of them. The nav already
- * announces the grouping via `role="group"`, so the kicker is aria-hidden.
- */
-const GROUP_OF = new Map<string, string>(
-  NAV_GROUPS.flatMap((group) => group.views.map((view) => [view.id, group.label] as const)),
-);
 
 interface ShellStatus {
   readonly tone: 'ok' | 'danger' | 'neutral';
@@ -255,13 +242,22 @@ export function App(): JSX.Element {
       </nav>
 
       <header className="header">
-        <div className="header__lede">
-          <span className="header__kicker" aria-hidden="true">
-            {GROUP_OF.get(active.id) ?? ''}
-          </span>
-          <h1 className="header__title">{active.label}</h1>
-        </div>
-        <p className="header__subtitle">{active.description}</p>
+        {/*
+          R-6: one line — title left, sidecar status right. The kicker and
+          the fixed per-view subtitle were three lines of chrome that never
+          changed and never reacted to state, so both are gone; the nav
+          already names the view.
+
+          The description is dropped from the header rather than moved to a
+          `title` attribute: `title` is not an accessible tooltip — it does
+          not appear on keyboard focus, is absent on touch, and is announced
+          inconsistently — so a string that used to be visible text for
+          everyone would become mouse-only. `ViewDef.description` stays on
+          the type for screens that may want it later. Removing the subtitle
+          is also what removes the 760px title/subtitle collision R-2
+          measured.
+        */}
+        <h1 className="header__title">{active.label}</h1>
         <div className="header__actions">
           {/*
             A live region: the sidecar going away mid-session is something

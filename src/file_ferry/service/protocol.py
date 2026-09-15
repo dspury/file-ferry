@@ -630,22 +630,6 @@ class OrganizeEntry(FrozenModel):
     size: int
 
 
-class OrganizeOutcome(FrozenModel):
-    """The result of one organize operation.
-
-    ``verification`` is present exactly when ``ok`` is true: a copy that
-    reported success without checksum evidence was one of the confirmed
-    baseline defects, so the evidence now rides with the outcome.
-    """
-
-    source_path: str = Field(alias="sourcePath")
-    dest_path: str = Field(alias="destPath")
-    operation: str
-    ok: bool
-    error: str | None = None
-    verification: dict[str, Any] | None = None
-
-
 class OrganizePreview(FrozenModel):
     """A complete source-to-destination tree + collision report."""
 
@@ -658,30 +642,17 @@ class OrganizePreview(FrozenModel):
 
 
 class OrganizePreviewParams(FrozenModel):
-    """The params for ``organize.preview``."""
+    """The params ``profile.preview`` builds to reuse the organize previewer.
+
+    R-3 withdrew the ``organize.*`` RPC methods; this shape survives because
+    ``profile.preview`` still returns an :class:`OrganizePreview`.
+    """
 
     source_root: str = Field(alias="sourceRoot")
     dest_root: str = Field(alias="destRoot")
     entries: list[SourceInventoryEntry]
     template: dict[str, Any] = Field(default_factory=dict)
     mode: Literal["copy", "move", "link"] = "copy"
-
-
-class OrganizeApplyParams(FrozenModel):
-    """The params for ``organize.apply``."""
-
-    source_root: str = Field(alias="sourceRoot")
-    dest_root: str = Field(alias="destRoot")
-    entries: list[SourceInventoryEntry]
-    mode: Literal["copy", "move", "link"] = "copy"
-    confirm_move: bool = Field(default=False, alias="confirmMove")
-    template: dict[str, Any] = Field(default_factory=dict)
-
-
-class OrganizeResult(FrozenModel):
-    """The result of ``organize.apply``."""
-
-    entries: list[OrganizeOutcome]
 
 
 # ---------------------------------------------------------------------------
@@ -1615,12 +1586,9 @@ __all__ = [
     "ManifestReplica",
     "MountedVolume",
     "OrganizationProfile",
-    "OrganizeApplyParams",
     "OrganizeEntry",
-    "OrganizeOutcome",
     "OrganizePreview",
     "OrganizePreviewParams",
-    "OrganizeResult",
     "PlanApproveParams",
     "PlanCreateParams",
     "PlanDestination",

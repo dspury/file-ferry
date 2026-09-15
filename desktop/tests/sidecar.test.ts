@@ -8,7 +8,7 @@
  * paths are covered by the packaged-app smoke test in Package 9; here
  * we verify the decision logic that drives them.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { joinPath, resolveDevPython, resolveSidecarCommand } from '../electron/sidecar-command.js';
 import { SidecarSupervisor, classifyUnexpectedFrame } from '../electron/sidecar.js';
 import type { ProtocolErrorEvent } from '../electron/sidecar.js';
@@ -165,6 +165,52 @@ describe('classifyUnexpectedFrame', () => {
     // are valid members of ProtocolErrorEvent['reason'].
     const typed: ProtocolErrorEvent['reason'][] = reasons;
     expect(typed).toHaveLength(2);
+  });
+});
+
+describe('shutdown is not a crash', () => {
+  // Regression: `handleExit` emitted `crashed` before checking
+  // `stopRequested`, so the SIGTERM quit path lodged "sidecar crashed
+  // (exit=null)" into the packaged app's diagnostic log on every clean
+  // shutdown. This drives a real child exit down each path — a real process,
+  // so the ordering is what is under test and not a stand-in for it.
+  //
+  // The child is this runtime, told to linger or to exit at once, so the
+  // test is portable (no `/bin/sleep`) and needs no sidecar.
+  const LINGER = ['-e', 'setInterval(() => {}, 1000)'];
+  const EXIT_3 = ['-e', 'process.exit(3)'];
+
+  it('never emits crashed when the exit was requested', async () => {
+    const sup = new SidecarSupervisor({
+      executable: process.execPath,
+      args: LINGER,
+      // The child never announces readiness; the wait below is meant to
+      // time out after the stop has already exercised the exit path.
+      readyTimeoutMs: 200,
+    });
+    const crashed = vi.fn();
+    sup.on('crashed', crashed);
+    const started = sup.start().catch(() => undefined);
+    await vi.waitFor(() => expect(sup.status().pid).not.toBeNull());
+    await sup.stop();
+    await started;
+    expect(crashed).not.toHaveBeenCalled();
+    expect(sup.status().state).toBe('stopped');
+  });
+
+  it('still emits crashed for an exit nobody requested', async () => {
+    const sup = new SidecarSupervisor({
+      executable: process.execPath,
+      args: EXIT_3,
+      readyTimeoutMs: 500,
+      // No restart off the back of an unrequested exit in a unit test.
+      restartSafe: () => false,
+    });
+    const crashed = vi.fn();
+    sup.on('crashed', crashed);
+    await expect(sup.start()).rejects.toThrow();
+    expect(crashed).toHaveBeenCalledWith({ exitCode: 3 });
+    expect(sup.status().state).toBe('stopped');
   });
 });
 

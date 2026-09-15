@@ -8,7 +8,7 @@ Branch: `branding/file-ferry-assets` · Masters live in `assets/brand/`.
 |---|---|---|---|
 | `assets/brand/file-ferry-logo-gen.png` | 2048 × 2048 | Full lockup: mark + `FILE-FERRY` wordmark on ink field | Hero, README, marketing, about screens |
 | `assets/brand/file-ferry-icon-gen.png` | 2048 × 2048 | Mark on navy squircle, shown on a light-grey surround | Source presentation only — see §5 |
-| `assets/brand/file-ferry-icon-macOS-v1.png` | 1024 × 1024 | Mark in macOS squircle, transparent corners | macOS app icon candidate |
+| `assets/brand/file-ferry-icon-macOS-v1.png` | 1024 × 1024 | Mark in macOS squircle, transparent corners | macOS app icon — **final** (operator, Stage A) |
 | `assets/brand/file-ferry-icon.ai` | Illustrator master (PDF-1.6 compatible) | Vector source of the mark | Canonical source for all exports and exact color values |
 | `assets/brand/ferry-logo-black.svg` | Vector, viewBox `1033 × 498` (2.9 KB) | Mono black mark, no wordmark, unstyled paths | Single-color use: light backgrounds, favicons, print, engraving; recolor via `fill` |
 
@@ -146,10 +146,11 @@ Keep them as they are.
 - `file-ferry-icon-gen.png` has a **baked light-grey surround** — do not
   use it directly in-app. Crop it or, preferably, export a clean squircle
   from the `.ai` master.
-- `file-ferry-icon-macOS-v1.png` (transparent corners) is the current
-  candidate for mac packaging (`desktop/build/` is `buildResources` per
-  `desktop/build/electron-builder.yml:5-7`; wiring the icon in is
-  follow-up work, not done on this branch).
+- `file-ferry-icon-macOS-v1.png` (transparent corners) is the mac app
+  icon, **final** as of Stage A packaging — confirmed by the operator.
+  `desktop/build/` is `buildResources` per
+  `desktop/build/electron-builder.yml:5-7`, and the icon ships as
+  `desktop/build/icon.png` (a committed copy, not a build step).
 - Clear space: at least the cap-height of the wordmark's `F` on all sides.
   Minimum width: 160 px digital for the full lockup, 32 px for the solo mark.
 - Don'ts: no recoloring, no rotation/skew, no drop shadows, no busy or
@@ -360,9 +361,10 @@ full-colour masters, not to this file.
 
 ### Also not done
 
-- **The macOS app icon.** `file-ferry-icon-macOS-v1.png` is the candidate and
-  `desktop/build/` is already `buildResources`; wiring it belongs to Stage A3
-  of `docs/PACKAGING-HANDOFF.md`, at packaging time.
+- **The macOS app icon.** `file-ferry-icon-macOS-v1.png` is final (operator,
+  Stage A) and wired in via `desktop/build/icon.png` at Stage A3 of
+  `docs/PACKAGING-HANDOFF.md`. The mark at the app-icon size has no TUI
+  counterpart — see §7 for the terminal side.
 - **The TUI banner** is figlet text and stays that way (§7) — a terminal cannot
   render the mark.
 

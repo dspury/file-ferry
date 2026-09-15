@@ -55,8 +55,8 @@ export function Activity(): JSX.Element {
 
   const raw = jobs.data?.jobs ?? [];
 
-  // A job that appears only in an event (created on the Offload screen, or
-  // by a recovery sweep) cannot be rendered from its snapshot alone, so the
+  // A job that appears only in an event (created in the Transfer workspace,
+  // or by a recovery sweep) cannot be rendered from its snapshot alone, so the
   // stream asks for a fresh list instead. `reload` is already stable.
   const stream = useJobStream(raw, jobs.reload);
 
@@ -156,7 +156,7 @@ export function Activity(): JSX.Element {
             message={list.length === 0 ? 'No jobs yet' : 'No jobs match'}
             hint={
               list.length === 0
-                ? 'Offloads and organize runs show up here as soon as they are created.'
+                ? 'Transfers show up here as soon as they are created.'
                 : 'Try a different filter or clear the search.'
             }
             action={
@@ -168,9 +168,9 @@ export function Activity(): JSX.Element {
                 <button
                   type="button"
                   className="btn btn--primary"
-                  onClick={() => navigateTo('ingest')}
+                  onClick={() => navigateTo('transfers')}
                 >
-                  Start an offload
+                  Start a transfer
                 </button>
               ) : filter === 'all' && query === '' ? undefined : (
                 <button

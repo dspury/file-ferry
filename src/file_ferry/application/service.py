@@ -96,10 +96,7 @@ from file_ferry.service.protocol import (
     LogicalClip,
     MountedVolume,
     OrganizationProfile,
-    OrganizeApplyParams,
     OrganizePreview,
-    OrganizePreviewParams,
-    OrganizeResult,
     PlanApproveParams,
     PlanCreateParams,
     PlanEntriesPage,
@@ -206,8 +203,6 @@ METHOD_NAMES: tuple[str, ...] = (
     "reconcile.asset",
     "reconcile.project",
     "reconcile.acceptChange",
-    "organize.preview",
-    "organize.apply",
     "clips.detect",
     "clips.list",
     "derivatives.list",
@@ -944,11 +939,12 @@ class ApplicationService:
             params.asset_id, params.replica_id, algo=params.checksum_algo
         )
 
-    def organize_preview(self, params: OrganizePreviewParams) -> OrganizePreview:
-        return self._organize_service().preview(params)
-
-    def organize_apply(self, params: OrganizeApplyParams) -> OrganizeResult:
-        return self._organize_service().apply(params)
+    #
+    # R-3 withdrew the `organize.preview` / `organize.apply` RPC methods: the
+    # screen is gone, and a synchronous organize duplicated preset-routed
+    # transfer while holding the sidecar's RPC thread. `OrganizeService`
+    # itself stays because `profile.preview` legitimately reuses its
+    # `preview` — that is the one remaining caller.
 
     def clips_detect(self, params: DetectClipsParams) -> list[LogicalClip]:
         return self._clips_service().detect(params.source_id)

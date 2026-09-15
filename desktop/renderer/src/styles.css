@@ -1716,218 +1716,74 @@ textarea:focus-visible {
   margin-top: var(--sp-3);
 }
 
-/* ===================== step / stage rail ======================== */
+/* ===================== stage tabs ============================== */
 
 /*
- * Ingest and Organize are both plan -> review -> execute -> verify. The
- * rail makes that sequence visible so the operator knows where they are
- * and what is still gating them.
+ * The five stages of the Transfer workspace as a segmented tab bar over one
+ * transfer context (R-3) — not a wizard. A stage already reached stays
+ * clickable and leaving one never discards it, so a tab is a view onto the
+ * work rather than a step in a sequence.
  *
- * The rail wraps rather than scrolls (#100). It used to be a single
- * `nowrap` row with `overflow-x: auto` as the escape, which at >=150%
- * zoom clipped stages 4-6 inside a scroll container that nothing in it
- * could focus -- a sighted keyboard-only operator could see the cut-off
- * and could not move it (WCAG 2.1.1). Wrapping costs vertical space at
- * small widths instead: nothing is ever off-box, so there is no scroll
- * region to make reachable in the first place. Each `.step` keeps its
- * own `nowrap` (a stage label never breaks mid-word) and refuses to
- * shrink, so the rail wraps at whole-stage boundaries only.
+ * Thin vertical hairlines divide the cells so the five read as discrete and
+ * countable. The active tab is marked three ways — a raised plate, full-
+ * contrast weight, and an inset accent rule — so the state never rests on
+ * hue. SR-1: the hairline between cells is a structural divider, not a
+ * left-edge state bar.
  */
-.steps {
+.tabs {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--sp-2);
-  row-gap: var(--sp-2);
-  padding: var(--sp-3) var(--sp-4);
-  background: var(--c-surface);
+  align-items: stretch;
   border: 1px solid var(--c-border);
   border-radius: var(--radius);
+  background: var(--c-surface);
+  overflow: hidden;
 }
 
-.step {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: var(--sp-2);
-  font-family: var(--ff-mono);
+.tabs__item {
+  flex: 1 1 0;
+  min-width: 0;
+  height: var(--control-h);
+  padding: 0 var(--sp-3);
+  border: 0;
+  border-left: 1px solid var(--c-border);
+  background: transparent;
+  color: var(--c-text-dim);
+  font: inherit;
   font-size: var(--fs-sm);
+  font-weight: 550;
   letter-spacing: var(--tr-label);
   text-transform: uppercase;
-  color: var(--c-text-faint);
   white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--motion),
+    color var(--motion);
 }
 
-/*
- * The stage marker, and the sheet's one real WCAG 1.4.11 problem.
- *
- * It used to be a transparent circle whose only edge was `--c-border-strong`
- * at 1.63:1 on `--c-surface`. That edge was doing two jobs at once: it was
- * the marker's *shape* and, for a pending stage, the marker's *state* —
- * "pending" was a ring, "done" was a green ring, "active" was a lit accent
- * disc. A 1.63:1 outline is not a state indicator anyone can rely on.
- *
- * It is fixed on both axes rather than one:
- *
- *  - the resting edge moves to `--c-border-indicator`, which is 3.61:1 on
- *    `--c-surface` (the rail's own fill) and 3.20:1 on `--c-surface-2` (the
- *    plate inside it), so the marker clears 3:1 in both directions;
- *  - the marker no longer relies on its edge to say which state it is in.
- *    A pending stage shows its number; a completed one shows a check glyph
- *    and carries a visually-hidden "(completed)"; the active one is a lit
- *    plate and is the only `aria-current="step"`. That is a text difference
- *    and a fill difference on top of the hue, so the state survives
- *    greyscale, and it survives a user stylesheet that strips borders
- *    entirely.
- *
- * Squared off rather than circular, because it is a frame counter, not a
- * bullet — and because `--radius-xs` is the same corner the chips use, so
- * the two engraved plates in the system match.
- */
-.step__index {
-  width: 20px;
-  height: 20px;
-  flex: none;
-  border-radius: var(--radius-xs);
-  border: 1px solid var(--c-border-indicator);
+.tabs__item:first-child {
+  border-left: 0;
+}
+
+.tabs__item:hover:not(:disabled) {
   background: var(--c-surface-2);
-  color: var(--c-text-dim);
-  display: grid;
-  place-items: center;
-  font-family: var(--ff-mono);
-  font-size: var(--fs-xs);
-  font-weight: 600;
-  letter-spacing: normal;
+  color: var(--c-text);
 }
 
-/*
- * The active stage is the only enclosed one.
- *
- * Before this the current stage differed from a pending one by text colour
- * and weight plus an accent marker -- two hue signals and a weight bump,
- * across six stages that were otherwise identical rectangles of text. Giving
- * it a plate of its own makes "where am I in this flow" a *shape* difference
- * you can read without resolving the labels at all, which is what "at a
- * glance" has to mean on a rail that spans the window.
- */
-.step--active {
+.tabs__item--active {
+  background: var(--c-surface-3);
   color: var(--c-text);
   font-weight: 600;
-  padding: 3px var(--sp-3) 3px var(--sp-2);
-  margin: -3px 0;
-  border: 1px solid var(--c-accent-line);
-  border-radius: var(--radius);
-  background: var(--c-accent-soft);
+  box-shadow: inset 0 -2px 0 var(--c-accent);
 }
 
-.step--active .step__index {
-  background: var(--c-accent);
-  border-color: var(--c-accent);
-  color: var(--c-on-accent);
-  box-shadow: var(--glow-accent);
+.tabs__item:disabled {
+  color: var(--c-text-faint);
+  cursor: not-allowed;
 }
 
-/*
- * A current stage that is reporting an outcome rather than a position.
- *
- * The terminal stage of an apply is reached whatever the apply returned, so
- * in the accent it stamped DONE over a run that lost a file. These two
- * variants put the stage in the severity its own result banner is in. They
- * take the `-soft` plate and the semantic hue for the marker rather than
- * filling it the way the accent does: a filled marker is the "this is live,
- * you are here" treatment, and a finished-with-problems stage is neither.
- * The glow goes with it for the same reason.
- *
- * Hue is never the signal on its own — the label changes with the tone (DONE
- * -> INCOMPLETE -> FAILED), which is what survives greyscale and a
- * forced-colours mode.
- */
-.step--active-warn {
-  border-color: var(--c-warn-line);
-  background: var(--c-warn-soft);
-}
-
-.step--active-warn .step__index {
-  background: var(--c-warn-soft);
-  border-color: var(--c-warn);
-  color: var(--c-warn);
-  box-shadow: none;
-}
-
-.step--active-danger {
-  border-color: var(--c-danger-line);
-  background: var(--c-danger-soft);
-}
-
-.step--active-danger .step__index {
-  background: var(--c-danger-soft);
-  border-color: var(--c-danger);
-  color: var(--c-danger);
-  box-shadow: none;
-}
-
-/* The connector belongs between the plates, not inside one. Each `li` holds
-   the rule that leads out of it, so once the active stage became an enclosed
-   box its own rule ended up drawn within the border, reading as a stray mark
-   after the label. The gap left behind still spaces the run. */
-.step--active .step__sep {
-  display: none;
-}
-
-.step--active + .step {
-  margin-left: var(--sp-2);
-}
-
-/*
- * The point of no return.
- *
- * Everything up to here has read the source and planned; from here ferry
- * writes. That is the one distinction in the rail with a consequence
- * attached, so it gets a rule and a word rather than being left to the
- * operator to infer from the stage names. Warning-toned, not danger: the
- * boundary is a fact about the flow, and the destructive-action colour
- * belongs to the confirm dialog and the move banner that actually arm it.
- */
-.step--gate {
-  border-left: 1px solid var(--c-warn-line);
-  padding-left: var(--sp-3);
-  margin-left: var(--sp-1);
-}
-
-.step--gate.step--active {
-  border-left-color: var(--c-warn);
-}
-
-.step__gate {
-  font-family: var(--ff-mono);
-  font-size: var(--fs-2xs);
-  font-weight: 600;
-  letter-spacing: var(--tr-wide);
-  text-transform: uppercase;
-  color: var(--c-warn);
-}
-
-.step--done {
-  color: var(--c-text-dim);
-}
-
-.step--done .step__index {
-  background: var(--c-ok-soft);
-  border-color: var(--c-ok);
-  color: var(--c-ok);
-}
-
-.step__sep {
-  flex: 1;
-  min-width: var(--sp-4);
-  height: 1px;
-  background: var(--c-border-strong);
-}
-
-/* The connector out of a finished stage is finished too, so the rail draws
-   a continuous run of progress instead of six unrelated markers. */
-.step--done .step__sep {
-  background: var(--c-ok);
+.tabs__item:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: -2px;
 }
 
 /* ========================= progress ============================= */

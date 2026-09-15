@@ -96,7 +96,7 @@ export function searchJobs(jobs: readonly JobDetail[], query: string): JobDetail
  * A finished job will never emit again, so subscribing to one costs a
  * round trip and buys nothing. Everything else can still move — including
  * `planned` and `awaiting_review`, which is exactly the transition an
- * operator is waiting on after creating an offload.
+ * operator is waiting on after starting a transfer.
  */
 export function streamableJobIds(jobs: readonly JobDetail[]): string[] {
   return jobs.filter((job) => !FINISHED_STATES.has(job.state)).map((job) => job.id);
@@ -133,7 +133,7 @@ export function mergeJobSnapshot(job: JobDetail, snapshot: JobSnapshot | null): 
  * Bytes first: a card is a handful of very large files, so a file count
  * jumps in visible steps while bytes move continuously. Items next, for a
  * runner that cannot report bytes (transcoding gives no usable output
- * size). Steps last, and only as a coarse phase indicator — an offload has
+ * size). Steps last, and only as a coarse phase indicator — a transfer has
  * two of them, so on its own it would read 0%, 50%, 100% for a job that
  * spends an hour inside the second one.
  */

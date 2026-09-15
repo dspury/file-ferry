@@ -67,7 +67,6 @@ describe('narrow preload surface (ADR-0001)', () => {
       'inventory',
       'job',
       'manifest',
-      'organize',
       'plan',
       'profile',
       'project',
@@ -87,7 +86,7 @@ describe('narrow preload surface (ADR-0001)', () => {
     expect(api.project.list).toBeTypeOf('function');
     expect(api.job.cancel).toBeTypeOf('function');
     expect(api.reconcile.acceptChange).toBeTypeOf('function');
-    expect(api.organize.apply).toBeTypeOf('function');
+    expect(api.intake.adoptSource).toBeTypeOf('function');
     expect(api.dialog.pick).toBeTypeOf('function');
     expect(api.app.openDiagnosticFolder).toBeTypeOf('function');
   });

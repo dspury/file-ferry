@@ -204,13 +204,18 @@ describe('Presets', () => {
 });
 
 describe('Transfers (pipeline shell)', () => {
-  it('renders the staged pipeline and the scan affordance with no ids in the route', () => {
+  it('renders the five-stage tab bar and the scan affordance with no ids in the route', () => {
     stub({});
     render(<Transfers />);
-    // The steps rail names the whole flow, and the writing stage is marked.
-    const rail = screen.getByRole('list', { name: 'Transfer pipeline' });
-    expect(rail.textContent).toContain('Scan');
-    expect(rail.textContent).toContain('Approve');
+    // R-3: the five stages are a tab bar over one transfer context. The
+    // writing stage is named as such so the boundary is not inferred.
+    const tabs = screen.getByRole('tablist', { name: 'Transfer stages' });
+    expect(tabs.textContent).toContain('Scan');
+    expect(tabs.textContent).toContain('Approve');
+    expect(tabs.textContent).toContain('Copy');
+    expect(screen.getByRole('tab', { name: /Copy/ }).textContent).toContain('writes to disk');
+    // Nothing is scanned yet, so the later stages are not reachable.
+    expect(screen.getByRole('tab', { name: 'Plan' }).hasAttribute('disabled')).toBe(true);
     expect(screen.getByText('Sources')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Scan source' })).toBeTruthy();
   });
@@ -363,23 +368,29 @@ describe('Transfers (approve gate)', () => {
     window.location.hash = '#/transfers?inv=1&plan=plan-1';
     render(<Transfers />);
 
-    // The screen loads the plan (draft) and both gates are closed.
+    // The screen loads the plan (draft) on the Plan tab. Both gates are
+    // closed: Start is on the Copy tab, Approve on the Approve tab.
     await screen.findByText('draft');
-    const approveButton = screen.getByRole('button', { name: 'Approve plan' });
-    expect(approveButton.hasAttribute('disabled')).toBe(true);
-    expect(
-      screen.getByRole('button', { name: 'Start verified transfer' }).hasAttribute('disabled'),
-    ).toBe(true);
+    fireEvent.click(screen.getByRole('tab', { name: /Copy/ }));
+    const startButton = await screen.findByRole('button', { name: 'Start verified transfer' });
+    expect(startButton.hasAttribute('disabled')).toBe(true);
 
-    // Preflight passes; Approve arms, Start stays locked on approval.
-    fireEvent.click(screen.getByRole('button', { name: 'Run preflight' }));
+    // Preflight passes on the Preflight tab...
+    fireEvent.click(screen.getByRole('tab', { name: 'Preflight' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Run preflight' }));
     // The banner text spans elements; match on its content, not its label.
     await screen.findByText(/Checked 2 entries against the live filesystem/);
+
+    // ...but Start stays locked until approval.
+    fireEvent.click(screen.getByRole('tab', { name: /Copy/ }));
     expect(
-      screen.getByRole('button', { name: 'Start verified transfer' }).hasAttribute('disabled'),
+      (await screen.findByRole('button', { name: 'Start verified transfer' })).hasAttribute(
+        'disabled',
+      ),
     ).toBe(true);
 
-    const armed = screen.getByRole('button', { name: 'Approve plan' });
+    fireEvent.click(screen.getByRole('tab', { name: 'Approve' }));
+    const armed = await screen.findByRole('button', { name: 'Approve plan' });
     expect(armed.hasAttribute('disabled')).toBe(false);
     fireEvent.click(armed);
 
@@ -388,7 +399,8 @@ describe('Transfers (approve gate)', () => {
 
     // Start is now unlocked and goes to the server with the exact
     // fingerprint it was approved under.
-    fireEvent.click(screen.getByRole('button', { name: 'Start verified transfer' }));
+    fireEvent.click(screen.getByRole('tab', { name: /Copy/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Start verified transfer' }));
     // The job chip appears once the execution started; the Progress label
     // is split across elements, so assert on state text.
     await screen.findByText('succeeded');
@@ -464,11 +476,13 @@ describe('Transfers (approve gate)', () => {
     // Wait for the plan to load: the pipeline sections mount asynchronously.
     await screen.findByText('draft');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Run preflight' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Preflight' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Run preflight' }));
     await screen.findByText('destination unwritable');
     // A failed preflight leaves Approve unarmed; the screen says why
     // before the click instead of waiting for the server to refuse.
-    const approve = screen.getByRole('button', { name: 'Approve plan' });
+    fireEvent.click(screen.getByRole('tab', { name: 'Approve' }));
+    const approve = await screen.findByRole('button', { name: 'Approve plan' });
     expect(approve.hasAttribute('disabled')).toBe(true);
   });
 });

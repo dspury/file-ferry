@@ -1,7 +1,7 @@
 /**
  * Renderer entry point. The foundation package ships a minimal
- * placeholder; the real screens (Home, Ingest, Organize, etc.)
- * land in Package 7 of the implementation plan.
+ * placeholder; the real screens (Home, Transfers, etc.) land in
+ * Package 7 of the implementation plan.
  */
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -9,7 +9,7 @@ import { createRoot } from 'react-dom/client';
  * The CinePrompt type pair, bundled rather than fetched.
  *
  * The packaged renderer loads over `file://` behind `font-src 'self'`, and
- * the app has to work with no network at all -- an offload runs in a
+ * the app has to work with no network at all -- a transfer runs in a
  * basement with a card reader, not next to a CDN. Vite emits these faces
  * into `dist/renderer/assets`, so they resolve from the app bundle.
  *

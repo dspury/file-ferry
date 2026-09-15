@@ -8,10 +8,10 @@
  * every method passes through to a typed request on the sidecar.
  */
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import type { Frame, ResponseFrame, EventFrame } from '../shared/ipc-schema.js';
-import type { MethodName, ParamsOf, ResultOf } from '../shared/ipc-methods.js';
-import type { PickRequest, PickResult } from '../shared/dialog.js';
-import type { FerryAPI as DeclaredAPI } from '../shared/preload-api.js';
+import type { Frame, ResponseFrame, EventFrame } from '../shared/ipc-schema.js' with { 'resolution-mode': 'import' };
+import type { MethodName, ParamsOf, ResultOf } from '../shared/ipc-methods.js' with { 'resolution-mode': 'import' };
+import type { PickRequest, PickResult } from '../shared/dialog.js' with { 'resolution-mode': 'import' };
+import type { FerryAPI as DeclaredAPI } from '../shared/preload-api.js' with { 'resolution-mode': 'import' };
 
 function invoke<M extends MethodName>(method: M, params: ParamsOf<M>): Promise<ResultOf<M>> {
   // SAFETY: `ipcRenderer.invoke` is typed `Promise<any>` because the channel

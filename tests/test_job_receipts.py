@@ -96,7 +96,9 @@ def _receipt(svc: ApplicationService, job_id: str) -> dict[str, object]:
 class TestProxyRuns:
     def _proxy_job(self, fixture: Fixture) -> str:
         job = fixture.service.job_create(
-            CreateJobParams(projectId=fixture.project_id, command="proxy", sessionId=fixture.session_id)
+            CreateJobParams(
+                projectId=fixture.project_id, command="proxy", sessionId=fixture.session_id
+            )
         )
         _queue(fixture.service, job.id)
         return job.id

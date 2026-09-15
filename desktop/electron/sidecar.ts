@@ -321,13 +321,21 @@ export class SidecarSupervisor extends EventEmitter {
     this.child = null;
     this.stdoutLines?.close();
     this.stderrLines?.close();
-    this.state = 'crashed';
-    this.emit('crashed', { exitCode: code });
+    /*
+     * Shutdown, not crash: `stop()` sets `stopRequested` before killing the
+     * child, so a quit path — normal app exit, or the supervisor's own
+     * restart — lands here with SIGTERM and gets counted as a crash. The
+     * supervisor logged "sidecar crashed (exit=null)" on every clean quit,
+     * which made the diagnostic log read as a failure the packaged app did
+     * not have. Report a crash only when nobody asked for the exit.
+     */
     if (this.stopRequested) {
       this.state = 'stopped';
       this.emit('stopped', undefined);
       return;
     }
+    this.state = 'crashed';
+    this.emit('crashed', { exitCode: code });
     if (this.restartCount >= this.options.maxRestarts) {
       this.state = 'stopped';
       this.emit('stopped', undefined);

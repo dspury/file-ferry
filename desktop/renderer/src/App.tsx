@@ -22,6 +22,8 @@ import {
 } from './components/icons.js';
 import { StatusReadout } from './components/ui.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
+import { TransferDock } from './components/TransferDock.js';
+import { useActiveTransfers } from './hooks/useActiveTransfers.js';
 import { Onboarding } from './screens/Onboarding.js';
 import { Home } from './screens/Home.js';
 import { Projects } from './screens/Projects.js';
@@ -163,6 +165,10 @@ export function App(): JSX.Element {
     };
   }, []);
 
+  // The dock is shell-level: it follows the engine's job state, not any one
+  // screen, so a running transfer stays reachable after navigating away.
+  const dock = useActiveTransfers();
+
   const navRef = useRef<HTMLElement>(null);
   const followFocus = useRef(false);
 
@@ -283,6 +289,24 @@ export function App(): JSX.Element {
           </ErrorBoundary>
         </div>
       </main>
+
+      {/*
+        The dock takes its own grid row, so it *shortens* the content area
+        rather than covering it. View opens the job log, which is where the
+        job and its receipt are reachable (the job model carries no plan id,
+        so the Transfer workspace cannot be opened on a job alone).
+      */}
+      {dock.job !== null ? (
+        <TransferDock
+          job={dock.job}
+          snapshot={dock.snapshot}
+          more={dock.more}
+          cancelling={dock.cancelling}
+          error={dock.error}
+          onView={() => navigateTo('activity')}
+          onCancel={dock.cancel}
+        />
+      ) : null}
     </div>
   );
 }

@@ -365,7 +365,10 @@ code,
 .app {
   display: grid;
   grid-template-columns: var(--nav-w) 1fr;
-  grid-template-rows: var(--header-h) 1fr;
+  /* header / content / dock. The dock row is `auto` and collapses to nothing
+     when no transfer is in flight, so the content area takes its height only
+     while the dock is present (R-4: the dock shortens, never covers). */
+  grid-template-rows: var(--header-h) 1fr auto;
   height: 100vh;
 }
 
@@ -576,6 +579,92 @@ code,
 .status--danger .status__dot {
   background: var(--c-danger);
   box-shadow: 0 0 0 3px var(--c-danger-soft);
+}
+
+/* ========================= transfer dock (R-4) ================== */
+
+/*
+ * Pinned across the bottom of the window while a transfer is in flight, on
+ * every view. It is a grid row of its own, so the content area gives up its
+ * height rather than the dock floating over it.
+ *
+ * SR-5 material: a raised plate with a soft 1px rim around the whole
+ * perimeter and an ambient shadow thrown upward, and a gentle vertical fill
+ * lighter at the top. SR-6: the fill of the progress bar is the screen's one
+ * emitting element while the dock is present; the plate itself only reflects.
+ * R-7 owns the final surface treatment.
+ */
+.dock {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-3) var(--sp-5);
+  background: linear-gradient(var(--c-surface-2), var(--c-surface));
+  border: 1px solid var(--c-border-indicator);
+  border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.dock__mark {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--c-accent-soft);
+  color: var(--c-accent);
+}
+
+.dock__identity {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.dock__state {
+  font-family: var(--ff-mono);
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--tr-wide);
+  text-transform: uppercase;
+  color: var(--c-text-faint);
+}
+
+.dock__title {
+  font-size: var(--fs-md);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dock__track {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.dock__counters {
+  font-family: var(--ff-mono);
+  font-size: var(--fs-xs);
+  color: var(--c-text-dim);
+}
+
+.dock__actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.dock__error {
+  color: var(--c-danger);
+  font-size: var(--fs-sm);
 }
 
 /* =========================== content ============================ */

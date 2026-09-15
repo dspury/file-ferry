@@ -31,25 +31,43 @@ import {
 import { jobStateTone } from '../lib/job-state.js';
 import { formatBytes } from '../lib/doctor.js';
 import { navigateTo } from '../views.js';
-import type { JobDetail } from '../../../shared/ipc-methods.js';
+import type { JobDetail, ProjectSummary } from '../../../shared/ipc-methods.js';
 import type { JSX } from 'react';
 
 /** Jobs are listed newest-work-first; the dashboard shows only the head of
  *  the list and defers the rest to Activity, which can filter and search. */
 const RECENT_JOB_LIMIT = 6;
 
+/**
+ * Project ids are opaque UUIDs and dominated the dashboard's project
+ * column; the title-case name is what the column is for. A job from a
+ * project this copy of the list does not know still shows, elided to a
+ * short prefix with the full id in its title (Activity is the place to
+ * match it exactly).
+ */
+function projectLabel(projects: readonly ProjectSummary[]): (id: string | null) => string {
+  const names = new Map<string, string>(projects.map((p) => [p.id, p.name]));
+  return (id) => {
+    if (id === null) return '—';
+    const name = names.get(id);
+    return name ?? `${id.slice(0, 8)}… (${id.slice(-4)})`;
+  };
+}
+
 export function Home(): JSX.Element {
   const jobs = useAsync(() => window.ferry.job.list());
   const volumes = useAsync(() => window.ferry.source.listVolumes());
+  // Project ids are opaque UUIDs; the table carries the readable name.
+  const projects = useAsync(() => window.ferry.project.list());
 
-  const loading = jobs.loading || volumes.loading;
-  const error = jobs.error ?? volumes.error;
+  const loading = jobs.loading || volumes.loading || projects.loading;
+  const error = jobs.error ?? volumes.error ?? projects.error;
 
   if (loading) {
     return (
       <ScreenLoading
         message="Reading jobs and volumes…"
-        hint="Nothing is being written. This is two read-only queries against the sidecar."
+        hint="Nothing is being written. These are read-only queries against the sidecar."
       />
     );
   }
@@ -60,6 +78,7 @@ export function Home(): JSX.Element {
         onRetry={() => {
           jobs.reload();
           volumes.reload();
+          projects.reload();
         }}
       />
     );
@@ -67,6 +86,7 @@ export function Home(): JSX.Element {
 
   const jobList = jobs.data?.jobs ?? [];
   const volumesList = volumes.data?.volumes ?? [];
+  const projectNameOf = projectLabel(projects.data?.projects ?? []);
 
   /*
    * Every field here is derived from the job list this screen already has.
@@ -203,7 +223,7 @@ export function Home(): JSX.Element {
                     <td>
                       <JobStateChip state={j.state} />
                     </td>
-                    <td className="muted">{j.projectId}</td>
+                    <td className="muted">{projectNameOf(j.projectId)}</td>
                   </tr>
                 ))}
               </tbody>

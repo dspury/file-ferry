@@ -8,12 +8,12 @@ import { useRoute } from './hooks/useRoute.js';
 import type { FerryAPI } from '../../shared/preload-api.js';
 import { flattenViews, navigateTo, type NavGroup, type ViewDef } from './views.js';
 import { viewIndex, moveIndex, keyToAction } from './lib/nav.js';
+import { FerryMark } from './components/FerryMark.js';
 import {
   IconActivity,
   IconDashboard,
   IconDestination,
   IconEnvironment,
-  IconFerry,
   IconMedia,
   IconOffload,
   IconOrganize,
@@ -250,7 +250,7 @@ export function App(): JSX.Element {
       <nav className="nav" aria-label="Primary" ref={navRef} onKeyDown={onNavKeyDown}>
         <div className="nav__brand">
           <span className="nav__mark" aria-hidden="true">
-            <IconFerry size={17} />
+            <FerryMark />
           </span>
           <span className="nav__wordmark">
             ferry

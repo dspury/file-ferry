@@ -115,11 +115,18 @@ def test_dispatch_runner_exception_becomes_failed(db: Path) -> None:
     assert sched.dispatch(jid).state == "failed"
 
 
-def test_dispatch_no_runner_becomes_needs_attention(db: Path) -> None:
+def test_dispatch_no_runner_becomes_needs_attention_and_explains_itself(db: Path) -> None:
     jobs = JobService(db)
     sched = JobScheduler(db, jobs)  # no runner registered
-    jid = _queued_job(jobs, command="unknown")
-    assert sched.dispatch(jid).state == "needs_attention"
+    jid = _queued_job(jobs, command="offload")
+    result = sched.dispatch(jid)
+    assert result.state == "needs_attention"
+    # A job kind can be withdrawn (the `offload` runner was, B-6) while a job
+    # of that kind still exists. It must name the reason, not show as an
+    # unexplained "needs attention".
+    assert result.error is not None
+    assert "'offload'" in result.error
+    assert "withdrawn" in result.error
 
 
 def test_dispatch_non_queued_is_noop(db: Path) -> None:

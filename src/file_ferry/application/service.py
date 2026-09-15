@@ -30,10 +30,8 @@ from file_ferry.application.intake import IntakeService
 from file_ferry.application.inventory import InventoryService, recover_abandoned_scans
 from file_ferry.application.jobs import JobService
 from file_ferry.application.manifest import ManifestService
-from file_ferry.application.offload import OffloadRunner
 from file_ferry.application.organize import OrganizeService
 from file_ferry.application.plan import IntakePlanner
-from file_ferry.application.policies import StoragePolicy
 from file_ferry.application.preflight import PreflightService, recover_abandoned_preflights
 from file_ferry.application.presets import PresetRevisionService
 from file_ferry.application.profiles import ProfileService
@@ -955,17 +953,14 @@ class ApplicationService:
     # ---- scheduler wiring --------------------------------------------
 
     def _register_scheduler_runners(self) -> None:
-        """Wire the durable runners (offload, proxy, transfer) into the scheduler."""
-        offload = OffloadRunner(
-            self._planner_service(),
-            self._intake_service(),
-            self._replica_service(),
-            self._asset_service(),
-            self._job_service(),
-            receipt_writer=self._write_job_receipt,
-            policy_resolver=self._policy_for_project,
-        )
-        self._scheduler_service().register_runner("offload", offload)
+        """Wire the durable runners (proxy, transfer) into the scheduler.
+
+        The `offload` runner was withdrawn (B-6): a camera card is a source
+        type inside the Transfer workspace now, and the durable TransferRunner
+        does the same work with preflight, an approval gate and an item
+        ledger. Jobs of that kind created before the withdrawal are failed
+        safe by the scheduler with a stated reason (see `scheduler._execute`).
+        """
         proxy = ProxyRunner(
             self._asset_service(),
             self._derivative_service(),
@@ -1013,13 +1008,6 @@ class ApplicationService:
                     update={"warnings": [*receipt.warnings, f"supersedes receipt {prior}"]}
                 )
             store.write(conn, receipt, replace=True)
-
-    def _policy_for_project(self, project_id: str) -> StoragePolicy | None:
-        """The storage policy a receipt is judged against, or None."""
-        try:
-            return self._project_service().get(project_id).storage_policy
-        except KeyError:
-            return None
 
     # ---- derivatives / manifest --------------------------------------
 

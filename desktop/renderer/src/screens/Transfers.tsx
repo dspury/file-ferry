@@ -1,19 +1,27 @@
 /**
- * Transfers screen — the durable engine's pipeline (P6/B3).
+ * Transfers screen — the one Transfer workspace (R-3).
  *
- * Scan -> plan -> review -> preflight -> approve -> verified copy ->
- * receipt, against the same `ApplicationService` the CLI drives. The
- * server owns every gate (approval needs a current passing preflight; a
- * moved fingerprint is refused; `needs_review` blocks approval). The
- * screen renders those gates and never works around them: Start stays
- * disabled until the exact plan in view is approved, and a decision that
- * supersedes a plan un-approves it in the same breath.
+ * Scan -> Plan -> Preflight -> Approve -> Copy, against the same
+ * `ApplicationService` the CLI drives. The server owns every gate
+ * (approval needs a current passing preflight; a moved fingerprint is
+ * refused; `needs_review` blocks approval). The screen renders those
+ * gates and never works around them: Start stays disabled until the
+ * exact plan in view is approved, and a decision that supersedes a plan
+ * un-approves it in the same breath.
  *
- * Everything the screen needs to restore itself lives in the route hash
- * (`#/transfers?inv=…&dest=…&plan=…&pre=…&job=…`), so closing and
- * reopening the view — or reloading — cannot lose a scan, a plan, an
- * in-flight preflight, or a running job. The durable state itself lives
- * in the sidecar; the hash only remembers which ids to look at.
+ * R-3 made the five stages a *tab bar over one context*, not a wizard:
+ * a stage already reached stays clickable, and leaving a stage never
+ * discards it. A camera card is a source type here (the withdrawn
+ * Offload screen is absorbed), so choosing one runs `source.inspect`
+ * and surfaces the card-safety statements before the durable transfer
+ * path takes over.
+ *
+ * Everything the workspace needs to restore itself lives in the route
+ * hash (`#/transfers?stage=…&inv=…&plan=…&pre=…&job=…&card=…`), so
+ * closing and reopening the view — or reloading — cannot lose a scan, a
+ * plan, an in-flight preflight, or a running job. The durable state
+ * itself lives in the sidecar; the hash only remembers which ids to look
+ * at.
  */
 import { useEffect, useRef, useState, type JSX } from 'react';
 import { useAsync } from '../hooks/useAsync.js';
@@ -32,7 +40,6 @@ import {
   ScreenError,
   ScreenLoading,
   StatCard,
-  Steps,
 } from '../components/ui.js';
 import {
   inventoryStatusTone,
@@ -46,28 +53,33 @@ import {
 } from '../lib/transfers.js';
 import { jobMeterStatus, jobStateTone } from '../lib/job-state.js';
 import { progressLabel, snapshotProgress } from '../lib/activity.js';
-import { formatBytes } from '../lib/doctor.js';
+import { formatBytes } from '../lib/format.js';
 import type {
   DestinationResolution,
   JobDetail,
   PlanDecision,
   JobSnapshot,
   PreflightStatus,
+  SourceInspectResult,
   TransferPlanEntry,
   TransferPlanStatus,
   TransferReceiptStatus,
 } from '../../../shared/ipc-methods.js';
 
-/** Pipeline steps; `writes` marks the first stage that touches the disk. */
-const STEPS = [
+/**
+ * The five stages, in order. The ids are the `stage` route param, so a
+ * reload lands on the same tab. `writes` marks the boundary the spec
+ * cares about: Scan/Plan/Preflight/Approve only read, only Copy writes.
+ */
+const STAGES = [
   { id: 'scan', label: 'Scan', writes: false },
   { id: 'plan', label: 'Plan', writes: false },
-  { id: 'review', label: 'Review', writes: false },
   { id: 'preflight', label: 'Preflight', writes: false },
   { id: 'approve', label: 'Approve', writes: false },
-  { id: 'transfer', label: 'Transfer', writes: true },
-  { id: 'receipt', label: 'Receipt', writes: false },
+  { id: 'copy', label: 'Copy', writes: true },
 ] as const;
+
+type StageId = (typeof STAGES)[number]['id'];
 
 const ENTRY_PAGE = 100;
 const RECEIPT_ROW_LIMIT = 200;
@@ -79,6 +91,17 @@ function idsFromHash(raw: string | null): readonly number[] {
     .split(',')
     .map((s) => Number(s))
     .filter((n) => Number.isInteger(n) && n > 0);
+}
+
+function numberFromHash(raw: string | null): number | null {
+  if (raw === null || raw === '') return null;
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+function stageFromHash(raw: string | null): StageId | null {
+  const match = STAGES.find((s) => s.id === raw);
+  return match === undefined ? null : match.id;
 }
 
 type SetParam = (patch: Readonly<Record<string, string | null>>) => void;
@@ -119,32 +142,175 @@ export function Transfers(): JSX.Element {
   const inventoryIds = idsFromHash(route.params.get('inv') ?? null);
   const planId = route.params.get('plan') ?? null;
   const jobId = route.params.get('job') ?? null;
+  const preflightId = numberFromHash(route.params.get('pre') ?? null);
+  const card = route.params.get('card') === '1';
 
-  const activeStep = jobId !== null ? 'transfer' : planId !== null ? 'plan' : 'scan';
+  // A stage is reachable once the context it views exists: Scan always,
+  // Plan once a source is scanned, the rest once a plan exists. A disabled
+  // tab names something the workspace cannot show yet, never a wizard step
+  // the operator has to satisfy in order.
+  const reached = {
+    scan: true,
+    plan: inventoryIds.length > 0,
+    preflight: planId !== null,
+    approve: planId !== null,
+    copy: planId !== null,
+  } satisfies Record<StageId, boolean>;
+
+  const requested = stageFromHash(route.params.get('stage') ?? null);
+  const stage: StageId =
+    requested !== null && reached[requested]
+      ? requested
+      : jobId !== null
+        ? 'copy'
+        : planId !== null
+          ? 'plan'
+          : 'scan';
+
+  // A decision produces a new plan; the note explains why the plan in view
+  // changed. Held here so the Plan tab and the pipeline can both raise it.
+  const [superseded, setSuperseded] = useState<string | null>(null);
+  const replacePlan = (note: string, nextPlanId: string): void => {
+    setSuperseded(note);
+    setParam({ plan: nextPlanId, pre: null, job: null, stage: 'plan' });
+  };
+
+  const select = (next: StageId): void => setParam({ stage: next });
 
   return (
     <div className="page">
-      <Steps label="Transfer pipeline" steps={STEPS} activeId={activeStep} />
-      <SourcesPanel inventoryIds={inventoryIds} setParam={setParam} />
-      {inventoryIds.length > 0 && (
-        <PlanSection
-          inventoryIds={inventoryIds}
-          planId={planId}
-          jobId={jobId}
-          setParam={setParam}
-        />
-      )}
+      {card ? (
+        <Banner tone="warn" label="Keep the card">
+          Do not format or erase the source card yet. Nothing has been verified: the receipt in
+          Activity is what confirms every file landed and matched its checksum, and that is what
+          makes the card safe to format.
+        </Banner>
+      ) : null}
+
+      <StageTabs stage={stage} reached={reached} onSelect={select} />
+
+      {superseded !== null ? (
+        <Banner tone="attention" label="Plan superseded">
+          {`${superseded} Its approval no longer counts; review and approve the new plan.`}
+        </Banner>
+      ) : null}
+
+      <div
+        className="stage-panel"
+        role="tabpanel"
+        id={`stage-panel-${stage}`}
+        aria-labelledby={`stage-tab-${stage}`}
+        tabIndex={-1}
+      >
+        {stage === 'scan' ? (
+          <ScanStage inventoryIds={inventoryIds} card={card} setParam={setParam} />
+        ) : (
+          inventoryIds.length > 0 && (
+            <>
+              {stage === 'plan' && (
+                <PlanStage
+                  inventoryIds={inventoryIds}
+                  planId={planId}
+                  setParam={setParam}
+                  onSuperseded={replacePlan}
+                />
+              )}
+              {planId !== null && stage !== 'plan' && (
+                <PlanPipeline
+                  stage={stage}
+                  planId={planId}
+                  jobId={jobId}
+                  preflightId={preflightId}
+                  setParam={setParam}
+                />
+              )}
+            </>
+          )
+        )}
+      </div>
     </div>
   );
 }
 
-// ---- scan -----------------------------------------------------------------
+// ---- stage tabs ------------------------------------------------------------
 
-function SourcesPanel({
+/**
+ * The five stages as a segmented tab bar.
+ *
+ * A stage already reached stays clickable and leaving one never discards it:
+ * the durable state lives in the sidecar and the ids live in the hash, so a
+ * tab is a view onto the transfer, not a step in a sequence. Segments are
+ * divided by thin vertical hairlines so the five read as discrete countable
+ * cells. Roving tabindex plus Left/Right follows the ARIA tabs pattern.
+ */
+function StageTabs({
+  stage,
+  reached,
+  onSelect,
+}: {
+  stage: StageId;
+  reached: Record<StageId, boolean>;
+  onSelect: (next: StageId) => void;
+}): JSX.Element {
+  const listRef = useRef<HTMLDivElement>(null);
+  const enabledIds = STAGES.filter((s) => reached[s.id]).map((s) => s.id);
+
+  const onKeyDown = (e: React.KeyboardEvent): void => {
+    const step = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+    if (step === 0) return;
+    e.preventDefault();
+    const current = enabledIds.indexOf(stage);
+    const next = enabledIds[(current + step + enabledIds.length) % enabledIds.length];
+    if (next === undefined) return;
+    onSelect(next);
+    // Focus follows the selection, or the ring stays on the tab left behind.
+    window.requestAnimationFrame(() =>
+      listRef.current?.querySelector<HTMLButtonElement>(`[data-stage="${next}"]`)?.focus(),
+    );
+  };
+
+  return (
+    <div
+      className="tabs"
+      role="tablist"
+      aria-label="Transfer stages"
+      ref={listRef}
+      onKeyDown={onKeyDown}
+    >
+      {STAGES.map((s) => {
+        const active = s.id === stage;
+        return (
+          <button
+            key={s.id}
+            type="button"
+            role="tab"
+            data-stage={s.id}
+            id={`stage-tab-${s.id}`}
+            aria-selected={active}
+            aria-controls={`stage-panel-${s.id}`}
+            tabIndex={active ? 0 : -1}
+            disabled={!reached[s.id]}
+            className={`tabs__item${active ? ' tabs__item--active' : ''}`}
+            onClick={() => onSelect(s.id)}
+          >
+            {s.label}
+            {s.writes ? <span className="visually-hidden"> (writes to disk)</span> : null}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ---- scan ------------------------------------------------------------------
+
+function ScanStage({
   inventoryIds,
+  card,
   setParam,
 }: {
   inventoryIds: readonly number[];
+  card: boolean;
   setParam: SetParam;
 }): JSX.Element {
   const statuses = useAsync(
@@ -154,9 +320,20 @@ function SourcesPanel({
   const scanning = (statuses.data ?? []).some((s) => s.status === 'scanning');
   useReloadWhile(scanning, statuses.reload);
 
+  // The source *type* being chosen. A card is inspected (source.inspect) so
+  // the card-safety statements can be shown; a folder goes straight to the
+  // read-only inventory. Both then build a plan on the durable transfer path.
+  //
+  // The displayed type is derived: a pending pick wins until the next scan,
+  // after which the scanned source itself (`card`, from the hash) is the
+  // truth. Shadowing `card` in state instead left the label stale when the
+  // hash changed underneath the mount.
+  const [pendingKind, setPendingKind] = useState<'folder' | 'card' | null>(null);
+  const sourceKind = pendingKind ?? (card ? 'card' : 'folder');
   const [sourcePath, setSourcePath] = useState<string | null>(null);
-  const [starting, setStarting] = useState(false);
+  const [inspecting, setInspecting] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [inspected, setInspected] = useState<SourceInspectResult | null>(null);
 
   const pick = async (): Promise<void> => {
     const result = await window.ferry.dialog.pick({ kind: 'directory' });
@@ -165,32 +342,66 @@ function SourcesPanel({
 
   const scan = async (): Promise<void> => {
     if (sourcePath === null) return;
-    setStarting(true);
+    setInspecting(true);
     setScanError(null);
     try {
+      if (sourceKind === 'card') {
+        // R-3: the withdrawn Offload screen's capability, kept as a source
+        // type. Inspection is read-only and is what the card-safety copy
+        // stands on; the plan itself is still built from the inventory.
+        setInspected(await window.ferry.source.inspect({ path: sourcePath, kind: 'card' }));
+        setParam({ card: '1' });
+      } else {
+        setInspected(null);
+        setParam({ card: null });
+      }
       const created = await window.ferry.inventory.create({
         path: sourcePath,
         label: sourcePath.split('/').pop() ?? sourcePath,
       });
-      // Record the id immediately: a reload mid-scan must find it.
-      setParam({ inv: [...inventoryIds, created.inventoryId].join(',') });
+      // Record the id immediately: a reload mid-scan must find it. Moving to
+      // Plan is the natural next view, not a step the wizard demands. The
+      // pending pick is cleared so the radio falls back to the type the hash
+      // now records as scanned.
+      setPendingKind(null);
+      setParam({ inv: [...inventoryIds, created.inventoryId].join(','), stage: 'plan' });
       setSourcePath(null);
     } catch (err) {
       setScanError(err instanceof Error ? err.message : String(err));
     } finally {
-      setStarting(false);
+      setInspecting(false);
     }
   };
 
   return (
     <Panel
       title="Sources"
-      description="Every folder is scanned read-only before anything is planned."
+      description="A camera card or any folder. Every source is scanned read-only before anything is planned."
       flush
     >
       <div className="card__body stack">
+        <div className="row" role="radiogroup" aria-label="Source type">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={sourceKind === 'folder'}
+            className={`btn btn--sm${sourceKind === 'folder' ? ' btn--primary' : ''}`}
+            onClick={() => setPendingKind('folder')}
+          >
+            Folder
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={sourceKind === 'card'}
+            className={`btn btn--sm${sourceKind === 'card' ? ' btn--primary' : ''}`}
+            onClick={() => setPendingKind('card')}
+          >
+            Camera card
+          </button>
+        </div>
         <div className="field-grid">
-          <Field label="Source folder">
+          <Field label={sourceKind === 'card' ? 'Camera card' : 'Source folder'}>
             <PathPicker value={sourcePath} onPick={pick} buttonLabel="Browse…" />
           </Field>
         </div>
@@ -198,11 +409,17 @@ function SourcesPanel({
           <button
             type="button"
             className="btn btn--primary"
-            disabled={sourcePath === null || starting}
+            disabled={sourcePath === null || inspecting}
             onClick={scan}
           >
-            {starting ? 'Starting scan…' : 'Scan source'}
+            {inspecting ? 'Scanning…' : 'Scan source'}
           </button>
+          {inspected !== null ? (
+            <span className="muted">
+              {inspected.fileCount.toLocaleString()} files · {formatBytes(inspected.totalBytes)} ·
+              manifest <code>{inspected.manifestHash.slice(0, 8)}</code>
+            </span>
+          ) : null}
           {scanError !== null && <span className="muted">{scanError}</span>}
         </div>
       </div>
@@ -248,18 +465,18 @@ function SourcesPanel({
   );
 }
 
-// ---- destination + plan creation ------------------------------------------
+// ---- destination + plan creation (the Plan tab) ----------------------------
 
-function PlanSection({
+function PlanStage({
   inventoryIds,
   planId,
-  jobId,
   setParam,
+  onSuperseded,
 }: {
   inventoryIds: readonly number[];
   planId: string | null;
-  jobId: string | null;
   setParam: SetParam;
+  onSuperseded: (note: string, nextPlanId: string) => void;
 }): JSX.Element {
   const destinations = useAsync(async () => {
     const [list, resolve] = await Promise.all([
@@ -271,7 +488,6 @@ function PlanSection({
   const [destinationId, setDestinationId] = useState<number | null>(null);
   const [planning, setPlanning] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
-  const [superseded, setSuperseded] = useState<string | null>(null);
 
   const all = destinations.data?.destinations ?? [];
   const resolutionOf = (id: number): DestinationResolution | undefined =>
@@ -286,20 +502,12 @@ function PlanSection({
         destinationId,
         inventoryIds: [...inventoryIds],
       });
-      setSuperseded(null);
-      setParam({ plan: plan.id, pre: null, job: null });
+      setParam({ plan: plan.id, pre: null, job: null, stage: 'plan' });
     } catch (err) {
       setPlanError(err instanceof Error ? err.message : String(err));
     } finally {
       setPlanning(false);
     }
-  };
-
-  const replacePlan = (note: string, nextPlanId: string): void => {
-    setSuperseded(note);
-    // A decision produces a new plan; the old preflight and any approval
-    // belong to the plan that was replaced.
-    setParam({ plan: nextPlanId, pre: null, job: null });
   };
 
   return (
@@ -349,36 +557,50 @@ function PlanSection({
         </div>
       </Panel>
 
-      {superseded !== null && (
-        <Banner tone="attention" label="Plan superseded">
-          {`${superseded} Its approval no longer counts; review and approve the new plan.`}
-        </Banner>
-      )}
-
-      {planId !== null && (
-        <PlanPipeline
-          planId={planId}
-          jobId={jobId}
-          setParam={setParam}
-          onSuperseded={replacePlan}
-        />
-      )}
+      {planId !== null && <PlanSummary planId={planId} onSuperseded={onSuperseded} />}
     </>
   );
 }
 
-// ---- the plan pipeline -----------------------------------------------------
-
-function PlanPipeline({
+function PlanSummary({
   planId,
-  jobId,
-  setParam,
   onSuperseded,
 }: {
   planId: string;
-  jobId: string | null;
-  setParam: SetParam;
   onSuperseded: (note: string, nextPlanId: string) => void;
+}): JSX.Element {
+  const plan = useAsync(() => window.ferry.transfer.planGet(planId), [planId]);
+  if (plan.loading && plan.data === null) {
+    return <ScreenLoading message="Reading plan…" />;
+  }
+  if (plan.error !== null) {
+    return <ScreenError message={plan.error} onRetry={plan.reload} />;
+  }
+  if (plan.data === null) {
+    return <ScreenError message="The plan could not be read." onRetry={plan.reload} />;
+  }
+  return (
+    <>
+      <PlanPanel plan={plan.data} />
+      <EntriesPanel planId={planId} onSuperseded={onSuperseded} />
+    </>
+  );
+}
+
+// ---- the plan pipeline (Preflight / Approve / Copy tabs) --------------------
+
+function PlanPipeline({
+  stage,
+  planId,
+  jobId,
+  preflightId,
+  setParam,
+}: {
+  stage: StageId;
+  planId: string;
+  jobId: string | null;
+  preflightId: number | null;
+  setParam: SetParam;
 }): JSX.Element {
   const plan = useAsync(() => window.ferry.transfer.planGet(planId), [planId]);
   if (plan.loading && plan.data === null) {
@@ -395,10 +617,11 @@ function PlanPipeline({
   // runs, and an early return after hooks would change that.
   return (
     <PlanBody
+      stage={stage}
       planId={planId}
       jobId={jobId}
+      preflightId={preflightId}
       setParam={setParam}
-      onSuperseded={onSuperseded}
       planStatus={plan.data}
       reloadPlan={plan.reload}
     />
@@ -406,48 +629,58 @@ function PlanPipeline({
 }
 
 function PlanBody({
+  stage,
   planId,
   jobId,
+  preflightId,
   setParam,
-  onSuperseded,
   planStatus,
   reloadPlan,
 }: {
+  stage: StageId;
   planId: string;
   jobId: string | null;
+  preflightId: number | null;
   setParam: SetParam;
-  onSuperseded: (note: string, nextPlanId: string) => void;
   planStatus: TransferPlanStatus;
   reloadPlan: () => void;
 }): JSX.Element {
   const gate = startGate(planStatus);
   const executed = planStatus.status === 'executed';
-  // Preflight state must be readable by the approve stage too: approval
-  // requires a current passing preflight for the exact fingerprint. The
-  // server refuses without one and hands over the reason; the disabled
-  // button here exists so the UI says so *before* the click, not instead
-  // of the server's answer.
-  const preflight = usePreflight(planId, planStatus.fingerprint);
+  // Preflight state is shared by the Preflight and Approve tabs: approval
+  // requires a current passing preflight for the exact fingerprint, so the
+  // Approve tab reaches the same state the Preflight tab produced. The
+  // started id is written to the hash (`pre`) so leaving and returning to
+  // either tab is lossless.
+  const preflight = usePreflight(planId, planStatus.fingerprint, preflightId, (id) =>
+    setParam({ pre: String(id) }),
+  );
+
+  // An executed plan has nowhere left to go; the receipt is the whole view,
+  // whatever tab the hash was left on.
+  if (executed) {
+    return <ReceiptPanel planId={planId} />;
+  }
+
   return (
     <>
-      <PlanPanel plan={planStatus} />
-      {!executed && <EntriesPanel planId={planId} onSuperseded={onSuperseded} />}
-      {!executed && <PreflightPanel preflight={preflight} />}
-      {!executed && (
+      {stage === 'preflight' && <PreflightPanel preflight={preflight} />}
+      {stage === 'approve' && (
         <ApprovalPanel plan={planStatus} preflight={preflight} onApproved={reloadPlan} />
       )}
-      {!executed && (
-        <ExecutionPanel
-          planId={planId}
-          jobId={jobId}
-          plan={planStatus}
-          setParam={setParam}
-          canStart={gate.canStart}
-          gateReason={gate.reason}
-        />
+      {stage === 'copy' && (
+        <>
+          <ExecutionPanel
+            planId={planId}
+            jobId={jobId}
+            plan={planStatus}
+            setParam={setParam}
+            canStart={gate.canStart}
+            gateReason={gate.reason}
+          />
+          {jobId !== null && <ReceiptPanel planId={planId} />}
+        </>
       )}
-      {executed && <ReceiptPanel planId={planId} />}
-      {!executed && jobId !== null && <ReceiptPanel planId={planId} />}
     </>
   );
 }
@@ -663,7 +896,7 @@ function entryTone(action: string): 'neutral' | 'ok' | 'attention' | 'danger' {
 
 // ---- preflight + approval ---------------------------------------------------
 
-/** Preflight state for one plan, shared by the preflight and approve stages. */
+/** Preflight state for one plan, shared by the preflight and approve tabs. */
 interface PreflightState {
   readonly hasRun: boolean;
   readonly passed: boolean;
@@ -674,8 +907,13 @@ interface PreflightState {
   readonly error: string | null;
 }
 
-function usePreflight(planId: string, planFingerprint: string): PreflightState {
-  const [startedId, setStartedId] = useState<number | null>(null);
+function usePreflight(
+  planId: string,
+  planFingerprint: string,
+  initialId: number | null,
+  onStart: (id: number) => void,
+): PreflightState {
+  const [startedId, setStartedId] = useState<number | null>(initialId);
   const status = useAsync<PreflightStatus | null>(
     async () => (startedId === null ? null : window.ferry.transfer.preflightStatus(startedId)),
     [startedId],
@@ -690,6 +928,7 @@ function usePreflight(planId: string, planFingerprint: string): PreflightState {
     try {
       const started = await window.ferry.transfer.preflightStart(planId);
       setStartedId(started.id);
+      onStart(started.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -898,7 +1137,7 @@ function ExecutionPanel({
     setError(null);
     try {
       const started = await window.ferry.transfer.start(planId, plan.fingerprint);
-      setParam({ job: started.job.id });
+      setParam({ job: started.job.id, stage: 'copy' });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -928,7 +1167,7 @@ function ExecutionPanel({
 
   return (
     <Panel
-      title="Transfer"
+      title="Copy"
       description="The copy is durable: closing this view or the app cannot lose it. Resume happens at a safe boundary."
       actions={state !== null ? <Chip tone={jobStateTone(state)}>{state}</Chip> : null}
     >

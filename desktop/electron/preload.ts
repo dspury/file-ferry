@@ -161,10 +161,6 @@ const api = {
     acceptChange: (params: ParamsOf<'reconcile.acceptChange'>) =>
       invoke('reconcile.acceptChange', params),
   },
-  organize: {
-    preview: (params: ParamsOf<'organize.preview'>) => invoke('organize.preview', params),
-    apply: (params: ParamsOf<'organize.apply'>) => invoke('organize.apply', params),
-  },
   clips: {
     detect: (sourceId: number) => invoke('clips.detect', { sourceId }),
     list: (sourceId: number) => invoke('clips.list', { sourceId }),

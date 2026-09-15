@@ -81,8 +81,15 @@
   --c-text-faint: #919497;
 
   /* --- accent + semantics.
-     The interaction accent is brand `ferry` blue. The semantic hues below
-     are the ones the product already shipped: the brand artwork defines no
+     There are two accents (R-8). Brand `ferry` blue is the identity colour:
+     it keeps the logo, every brand surface, and every non-filled use — text,
+     icons, indicator borders, soft plates. `--c-accent-interactive` below is
+     the same hue and lightness at higher saturation, and it is the only
+     accent for *filled* interactive states — the primary button, the progress
+     fill, the active stage marker, a checkbox, and the focus ring. A gradient
+     or fill on `ferry` reads as muddy; this is the lit version of it.
+     The semantic hues below are the ones the product already shipped: the
+     brand artwork defines no
      success / warning / danger, and they clear AA on the new ink background
      unchanged (§6). The state hues are the six in BRAND-STYLE-GUIDE §6a,
      kept mutually distinguishable — in particular `attention` stays violet
@@ -103,8 +110,16 @@
   --c-accent-hover: #99B9D3;
   --c-accent-soft: #1D2939;
   --c-accent-line: rgba(117, 161, 198, 0.65);
+  /* R-8: ferry's exact hue (207.4°) and lightness (61.8%) at 75%
+     saturation, for filled interactive accents only (see the block above).
+     Contrast does not decide this — holding hue and lightness, sweeping
+     saturation moves contrast by 0.15 across the whole usable range, so the
+     choice is about a fill reading as lit rather than muddy. The
+     `--glow-accent` filament stays ferry-derived. */
+  --c-accent-interactive: #54A4E7;
   /* Foreground for anything filled with the accent. Ink, so the blue reads
-     as the lit plate (§3a: 6.62:1 against it). */
+     as the lit plate (§3a: 6.62:1 against `ferry`, 6.77:1 against the
+     interactive accent). */
   --c-on-accent: #0F1622;
 
   --c-ok: #35a96c; /* fuji green (kept) */
@@ -957,8 +972,8 @@ code,
 }
 
 .btn--primary {
-  background: var(--c-accent);
-  border-color: var(--c-accent);
+  background: var(--c-accent-interactive);
+  border-color: var(--c-accent-interactive);
   color: var(--c-on-accent);
   font-weight: 700;
 }
@@ -1359,7 +1374,7 @@ textarea {
 input[type='checkbox'] {
   width: 15px;
   height: 15px;
-  accent-color: var(--c-accent);
+  accent-color: var(--c-accent-interactive);
   flex: none;
 }
 
@@ -1381,7 +1396,7 @@ textarea:hover:not(:disabled) {
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid var(--c-accent);
+  outline: 2px solid var(--c-accent-interactive);
   outline-offset: 1px;
   border-color: var(--c-accent);
 }
@@ -1441,7 +1456,7 @@ textarea:focus-visible {
 }
 
 .pathpick:focus-within {
-  outline: 2px solid var(--c-accent);
+  outline: 2px solid var(--c-accent-interactive);
   outline-offset: 1px;
   border-color: var(--c-accent);
 }
@@ -1652,7 +1667,7 @@ textarea:focus-visible {
   width: 38%;
   height: 100%;
   border-radius: var(--radius-pill);
-  background: var(--c-accent);
+  background: var(--c-accent-interactive);
   animation: busy-sweep 1.15s ease-in-out infinite;
 }
 
@@ -1821,8 +1836,8 @@ textarea:focus-visible {
 }
 
 .step--active .step__index {
-  background: var(--c-accent);
-  border-color: var(--c-accent);
+  background: var(--c-accent-interactive);
+  border-color: var(--c-accent-interactive);
   color: var(--c-on-accent);
   box-shadow: var(--glow-accent);
 }
@@ -1962,7 +1977,7 @@ textarea:focus-visible {
 
 .progress__fill {
   height: 100%;
-  background: var(--c-accent);
+  background: var(--c-accent-interactive);
   box-shadow: var(--glow-accent);
 }
 
@@ -2221,7 +2236,7 @@ textarea:focus-visible {
   left: -9999px;
   top: 0;
   z-index: 100;
-  background: var(--c-accent);
+  background: var(--c-accent-interactive);
   color: var(--c-on-accent);
   padding: var(--sp-2) var(--sp-3);
   border-radius: 0 0 var(--radius) 0;
@@ -2232,14 +2247,14 @@ textarea:focus-visible {
 }
 
 :focus-visible {
-  outline: 2px solid var(--c-accent);
+  outline: 2px solid var(--c-accent-interactive);
   outline-offset: 2px;
 }
 
 .nav__item:focus-visible,
 .btn:focus-visible,
 .seg__item:focus-visible {
-  outline: 2px solid var(--c-accent);
+  outline: 2px solid var(--c-accent-interactive);
   outline-offset: 2px;
 }
 
@@ -2250,7 +2265,7 @@ textarea:focus-visible {
  * sentence being agreed to inside the focused region rather than beside it.
  */
 .checkline:focus-within {
-  outline: 2px solid var(--c-accent);
+  outline: 2px solid var(--c-accent-interactive);
   outline-offset: 2px;
   border-radius: var(--radius-sm);
 }

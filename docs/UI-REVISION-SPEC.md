@@ -296,11 +296,31 @@ them apart.** That is the defect; the visual merge is downstream of it.
   discrete countable cells.
 - The transfer is a **context** the tabs are views onto. The route hash
   already carries everything needed to restore it; keep that.
-- Offload and Organize are resolved, not merely hidden. **This is a
-  decision the spec does not make**: either their capabilities port onto
-  `TransferRunner`, or they are withdrawn. Hiding a nav entry while the
-  synchronous `organize_apply` path stays reachable over RPC resolves
-  nothing.
+
+### Offload and Organize — decided 2026-09-14
+
+**Organize is withdrawn.** It duplicates something the engine already does
+better. `OrganizeApplyParams` is `sourceRoot` -> `destRoot` plus entries and
+a folder template, copy-only (move and link are already rejected at
+`organize.py:120-123`). A `Destination` carries `organizationProfileId`.
+A transfer to a preset-routed destination is therefore the *same operation*
+— source to destination, applying a folder template, copying — and it is
+durable, while Organize is a synchronous loop holding the sidecar's RPC
+thread. There is no capability here to preserve, only a worse path to the
+same result.
+
+Withdrawal means the screen **and** the `organize.preview` / `organize.apply`
+RPC methods. Removing the nav entry while the synchronous path stays
+reachable over RPC resolves nothing.
+
+**Offload is absorbed, not withdrawn.** Its camera-card work is real
+capability with no equivalent in the transfer path — `source.inspect`,
+`intake.adoptSource`, `intake.createSession`, and the card-safety messaging
+("keep the card"). That becomes a **source type inside the Transfer
+workspace**: choosing a card as the source runs inspection and surfaces the
+card-safety statements, then the normal Scan -> Plan -> Preflight -> Approve
+-> Copy path takes over on `TransferRunner`. The `OffloadRunner` job kind
+stays for already-created jobs; no new UI path creates one.
 
 ### Acceptance
 
@@ -308,7 +328,12 @@ them apart.** That is the defect; the visual merge is downstream of it.
 - Every reached stage is clickable and lossless to revisit
 - No UI path reaches a transfer that lacks preflight, an approval gate and
   an item ledger
-- The Organize RPC-thread block is either gone or documented as withdrawn
+- `organize.preview` and `organize.apply` are gone from the RPC surface,
+  not merely unreferenced by the UI
+- Selecting a camera card as a transfer source still runs inspection and
+  still shows the card-safety messaging — losing that is a regression, not
+  a simplification
+- No new job is created with the `offload` kind
 
 ---
 
@@ -437,6 +462,7 @@ one commit, not worked around.
 | 2026-09-14 | Stages are a clickable tab bar over a persistent context, never a wizard |
 | 2026-09-14 | A persistent transfer dock is adopted (R-4) |
 | 2026-09-14 | One interactive accent token added at 75% saturation; SR-2 amended (R-8) |
+| 2026-09-14 | R-3 resolved: Organize withdrawn (screen + RPC), Offload absorbed as a source type |
 
 ---
 

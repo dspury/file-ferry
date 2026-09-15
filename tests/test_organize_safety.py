@@ -33,7 +33,6 @@ from file_ferry.application.transfer_safety import (
     validate_relpath,
 )
 from file_ferry.service.protocol import (
-    OrganizeApplyParams,
     OrganizePreviewParams,
     SourceInspectParams,
     SourceInventoryEntry,
@@ -75,27 +74,12 @@ class TestOverwriteRefused:
         reasons = {c.reason for c in preview.collisions}
         assert "existing_file" in reasons
 
-    def test_apply_refuses_and_keeps_existing_content(self, tmp_path: Path) -> None:
-        src = tmp_path / "src"
-        _make_tree(src, 2)
-        dest = tmp_path / "dest"
-        _make_tree(dest, 1, content=b"different-owner")
-        with pytest.raises(OrganizeError, match="collisions detected"):
-            OrganizeService().apply(
-                OrganizeApplyParams(
-                    sourceRoot=str(src),
-                    destRoot=str(dest),
-                    entries=_entries_for(src, 2),
-                    mode="copy",
-                )
-            )
-        # The pre-existing file was not replaced and nothing else landed.
-        assert (dest / "CL000/A0000.mov").read_bytes() == b"different-owner"
-        assert not (dest / "CL000/A0001.mov").exists()
-
-    def test_apply_never_replaces_even_without_preview(self, tmp_path: Path) -> None:
+    def test_copy_never_replaces_an_existing_destination(self, tmp_path: Path) -> None:
         # Direct primitive-level guarantee: publication is exclusive no
-        # matter what the caller did between preview and apply (A09).
+        # matter what a caller did between planning and copying (A09). This
+        # is the guarantee TransferRunner relies on at execute time; the
+        # `organize.apply` RPC path that also relied on it was withdrawn in
+        # R-3, but the primitive is unchanged and still the one under test.
         src = tmp_path / "src.bin"
         src.write_bytes(b"new-content")
         dest = tmp_path / "dest.bin"
@@ -304,22 +288,7 @@ class TestScanErrorsFailClosed:
         finally:
             (src / "locked").chmod(0o755)
 
-    def test_apply_refuses_an_unreadable_source_and_writes_nothing(self, tmp_path: Path) -> None:
-        src, dest = self._tree_with_unreadable_subdir(tmp_path)
-        try:
-            with pytest.raises(OrganizeError, match="could not be fully accounted for"):
-                OrganizeService().apply(
-                    OrganizeApplyParams(
-                        sourceRoot=str(src),
-                        destRoot=str(dest),
-                        entries=[SourceInventoryEntry(path="good.mov", size=1, mtime=0.0)],
-                    )
-                )
-        finally:
-            (src / "locked").chmod(0o755)
-        assert list(dest.iterdir()) == [], "a refused apply writes nothing at all"
-
-    def test_apply_refuses_unsupported_objects(self, tmp_path: Path) -> None:
+    def test_preview_refuses_unsupported_objects(self, tmp_path: Path) -> None:
         """§6.3: symlinks are flagged, never quietly skipped past.
 
         The refusal has to say *which* path stopped it — a message that
@@ -334,8 +303,8 @@ class TestScanErrorsFailClosed:
         dest = tmp_path / "dest"
         dest.mkdir()
         with pytest.raises(OrganizeError) as caught:
-            OrganizeService().apply(
-                OrganizeApplyParams(
+            OrganizeService().preview(
+                OrganizePreviewParams(
                     sourceRoot=str(src),
                     destRoot=str(dest),
                     entries=[SourceInventoryEntry(path="real.mov", size=1, mtime=0.0)],
@@ -350,7 +319,7 @@ class TestScanErrorsFailClosed:
         assert "Nothing was written" in message
         assert list(dest.iterdir()) == []
 
-    def test_a_symlinked_source_root_is_not_what_blocks(self, tmp_path: Path) -> None:
+    def test_a_symlinked_source_root_is_not_a_finding(self, tmp_path: Path) -> None:
         """Selecting an alias for a mount is ordinary, not a finding.
 
         The restriction is about links *inside* the tree. P3 handles
@@ -364,17 +333,16 @@ class TestScanErrorsFailClosed:
         alias.symlink_to(real, target_is_directory=True)
         dest = tmp_path / "dest"
         dest.mkdir()
-        result = OrganizeService().apply(
-            OrganizeApplyParams(
+        preview = OrganizeService().preview(
+            OrganizePreviewParams(
                 sourceRoot=str(alias),
                 destRoot=str(dest),
                 entries=[SourceInventoryEntry(path="a.mov", size=1, mtime=0.0)],
             )
         )
-        assert [o.ok for o in result.entries] == [True]
-        assert (dest / "a.mov").read_bytes() == b"a"
+        assert [e.dest_path for e in preview.entries] == [str(dest.resolve() / "a.mov")]
 
-    def test_apply_refuses_a_partial_entry_list(self, tmp_path: Path) -> None:
+    def test_preview_refuses_a_partial_entry_list(self, tmp_path: Path) -> None:
         """A truncated or stale list must not narrow the operation silently."""
         src = tmp_path / "src"
         src.mkdir()
@@ -383,8 +351,8 @@ class TestScanErrorsFailClosed:
         dest = tmp_path / "dest"
         dest.mkdir()
         with pytest.raises(OrganizeError, match="does not account for the whole source"):
-            OrganizeService().apply(
-                OrganizeApplyParams(
+            OrganizeService().preview(
+                OrganizePreviewParams(
                     sourceRoot=str(src),
                     destRoot=str(dest),
                     entries=[SourceInventoryEntry(path="a.mov", size=1, mtime=0.0)],
@@ -392,22 +360,21 @@ class TestScanErrorsFailClosed:
             )
         assert list(dest.iterdir()) == []
 
-    def test_a_clean_source_still_organizes(self, tmp_path: Path) -> None:
+    def test_a_clean_source_previews(self, tmp_path: Path) -> None:
         """The gate must not block ordinary work."""
         src = tmp_path / "src"
         src.mkdir()
         (src / "a.mov").write_bytes(b"a")
         dest = tmp_path / "dest"
         dest.mkdir()
-        result = OrganizeService().apply(
-            OrganizeApplyParams(
+        preview = OrganizeService().preview(
+            OrganizePreviewParams(
                 sourceRoot=str(src),
                 destRoot=str(dest),
                 entries=[SourceInventoryEntry(path="a.mov", size=1, mtime=0.0)],
             )
         )
-        assert [o.ok for o in result.entries] == [True]
-        assert (dest / "a.mov").read_bytes() == b"a"
+        assert [e.dest_path for e in preview.entries] == [str(dest.resolve() / "a.mov")]
 
     def test_the_intake_planner_refuses_an_unaccounted_source(self, tmp_path: Path) -> None:
         """The compatibility planner used a files-only scan (R08)."""

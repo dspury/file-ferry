@@ -1,29 +1,28 @@
-"""Existing-folder adoption / organization (plan §4.3, §7.3).
+"""Existing-folder adoption / organization preview (plan §4.3, §7.3).
 
-Adopts a source into a named organization profile destination. Always
-provides a complete preview tree and collision report before a mutating
-operation.
+Builds a complete preview tree and collision report for adopting a source
+into a named organization profile destination. The preview is now the whole
+service: R-3 withdrew the Organize screen and the ``organize.preview`` /
+``organize.apply`` RPC methods, and ``profile.preview`` is the live caller.
 
-Safety contract (destination-presets spec §1.2, P1 guards):
+Safety contract (destination-presets spec §1.2, P1 guards) — all of it now
+bears on *planning*, because this module no longer writes:
 
-- ``copy`` is the only supported mode. ``move``/``link`` are disabled
-  with an actionable error until an independently specified safety
-  contract exists — a deliberate visible restriction, not a removal.
 - Every rendered destination is containment-validated against the
   destination root (no absolute paths, ``..``, or symlink escapes).
 - Collisions are detected both among planned entries **and against
   files already present at the destination**.
-- Publication is exclusive: an existing destination file is never
-  replaced, and each copy is checksum-verified before it counts as
-  succeeded.
 - The **backend** re-scans the source and fails closed on an incomplete
   or unsupported scan. ``source.inspect`` surfacing an ``errorCount``
   does not by itself stop anything: this entry point takes a
-  caller-supplied entry list, so a renderer that forwards only
-  ``inspected.entries`` would hand over a silently partial set and get a
-  green result for a transfer that left files behind (spec §7.1, A07;
-  R08). Until the explicit exclusion workflow exists (P4), an
-  unaccounted source stops the operation here rather than in the UI.
+  caller-supplied entry list, so a caller that forwards only
+  ``inspected.entries`` would hand over a silently partial set (spec
+  §7.1, A07; R08). Until the explicit exclusion workflow exists (P4), an
+  unaccounted source stops here rather than in the UI.
+
+The exclusive, checksum-verified *copy* contract those findings guarded now
+lives solely in ``file_ferry.application.transfer_safety`` and is enforced by
+``TransferRunner`` at execute time.
 """
 
 from __future__ import annotations
@@ -33,34 +32,17 @@ from pathlib import Path
 from file_ferry.application.plan import detect_collisions
 from file_ferry.application.sources import scan_inventory_detailed
 from file_ferry.application.transfer_safety import (
-    CopyVerification,
     UnsafeDestinationError,
-    copy_file_verified,
     render_destination,
     validate_dest_root,
     validate_relpath,
 )
 from file_ferry.service.protocol import (
-    OrganizeApplyParams,
     OrganizeEntry,
-    OrganizeOutcome,
     OrganizePreview,
     OrganizePreviewParams,
-    OrganizeResult,
     SourceInventoryEntry,
 )
-
-_COPY = "copy"
-_MOVE = "move"
-_LINK = "link"
-
-_DISABLED_MODES_MESSAGE = (
-    "organize {mode} is disabled until it meets the verified-transfer safety "
-    "contract (checksum-verified, no-overwrite, durable receipts). Use copy, "
-    "or the new transfer workflow once it ships. See "
-    "docs/DESTINATION-PRESETS-PRODUCTION-SPEC.md §1.2."
-)
-
 
 _INCOMPLETE_SCAN_MESSAGE = (
     "the source could not be fully accounted for, so organizing it would silently "
@@ -83,7 +65,7 @@ class OrganizeError(ValueError):
 
 
 class OrganizeService:
-    """Preview and apply existing-media organization."""
+    """Preview existing-media organization."""
 
     def preview(self, params: OrganizePreviewParams) -> OrganizePreview:
         """Build the complete source-to-destination tree + collision report."""
@@ -108,67 +90,6 @@ class OrganizeService:
             totalBytes=total,
             mode=params.mode,
         )
-
-    def apply(self, params: OrganizeApplyParams) -> OrganizeResult:
-        """Perform verified, non-overwriting copies.
-
-        ``move`` and ``link`` are rejected outright (see the module
-        docstring); a collision report that includes anything already
-        present at the destination blocks execution rather than
-        overwriting it.
-        """
-        if params.mode == _MOVE:
-            raise OrganizeError(_DISABLED_MODES_MESSAGE.format(mode="move"))
-        if params.mode == _LINK:
-            raise OrganizeError(_DISABLED_MODES_MESSAGE.format(mode="link"))
-
-        preview = self.preview(
-            OrganizePreviewParams(
-                sourceRoot=params.source_root,
-                destRoot=params.dest_root,
-                entries=params.entries,
-                template=params.template,
-                mode=params.mode,
-            )
-        )
-        if preview.collisions:
-            raise OrganizeError(
-                "collisions detected; refusing to organize (existing destination "
-                "content is never replaced — review the plan and resolve conflicts)"
-            )
-
-        outcomes: list[OrganizeOutcome] = []
-        dest_root = Path(preview.dest_root)
-        for entry in preview.entries:
-            src = Path(entry.source_path)
-            dest = Path(entry.dest_path)
-            try:
-                # Containment was validated during preview; re-validate at
-                # apply time against the *root* so a symlink mutated between
-                # preview and apply cannot redirect the write.
-                render_destination(dest_root, dest.relative_to(dest_root))
-                verification: CopyVerification = copy_file_verified(src, dest)
-                outcomes.append(
-                    OrganizeOutcome(
-                        sourcePath=str(src),
-                        destPath=str(dest),
-                        operation=_COPY,
-                        ok=True,
-                        error=None,
-                        verification=_verification_payload(verification),
-                    )
-                )
-            except OSError as exc:
-                outcomes.append(
-                    OrganizeOutcome(
-                        sourcePath=str(src),
-                        destPath=str(dest),
-                        operation=_COPY,
-                        ok=False,
-                        error=str(exc),
-                    )
-                )
-        return OrganizeResult(entries=outcomes)
 
     # ---- helpers -----------------------------------------------------
 
@@ -200,16 +121,6 @@ def _template_prefix(root: object) -> tuple[str, ...]:
     if not isinstance(root, str):
         raise UnsafeDestinationError(f"template root must be a string: {root!r}")
     return validate_relpath(root).parts
-
-
-def _verification_payload(verification: CopyVerification) -> dict[str, object]:
-    return {
-        "checksumAlgo": verification.checksum_algo,
-        "sourceChecksum": verification.source_checksum,
-        "destChecksum": verification.dest_checksum,
-        "bytes": verification.bytes_copied,
-        "mtimePreserved": verification.mtime_preserved,
-    }
 
 
 _MAX_LISTED_PATHS = 10

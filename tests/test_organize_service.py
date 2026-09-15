@@ -1,19 +1,19 @@
-"""vNext organization service (plan §4.3, §7.3).
+"""vNext organization preview (plan §4.3, §7.3).
 
-Move/link apply modes are disabled pending the verified-transfer safety
-contract (destination-presets spec §1.2); copy is exclusive and
-checksum-verified. These tests pin that contract.
+R-3 withdrew the Organize screen and the ``organize.preview`` /
+``organize.apply`` RPC methods. The previewer survives because
+``profile.preview`` reuses it, and the exclusive, checksum-verified copy
+contract moved wholly to ``transfer_safety`` / ``TransferRunner`` (see
+``test_organize_safety.py`` and the transfer-runner suite for that half).
+These tests pin the preview tree and destination rendering.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
-from file_ferry.application.organize import OrganizeError, OrganizeService
+from file_ferry.application.organize import OrganizeService
 from file_ferry.service.protocol import (
-    OrganizeApplyParams,
     OrganizePreviewParams,
     SourceInventoryEntry,
 )
@@ -59,64 +59,3 @@ def test_preview_builds_tree(tmp_path: Path) -> None:
         str(resolved / "Interview/A001.mov"),
         str(resolved / "Interview/A002.mov"),
     }
-
-
-def test_apply_copy_default(tmp_path: Path) -> None:
-    src = _make_source(tmp_path)
-    dest = _dest(tmp_path)
-    result = _svc().apply(
-        OrganizeApplyParams(sourceRoot=str(src), destRoot=str(dest), entries=ENTRIES, mode="copy")
-    )
-    assert all(e.ok for e in result.entries)
-    assert (src / "Interview/A001.mov").exists()
-    assert (dest / "Interview/A001.mov").read_bytes() == b"123"
-    # Success without verification evidence is one of the confirmed
-    # baseline defects; every ok outcome must now carry its checksums.
-    for outcome in result.entries:
-        assert outcome.ok
-        assert outcome.verification is not None
-        assert outcome.verification["sourceChecksum"] == outcome.verification["destChecksum"]
-        assert outcome.verification["checksumAlgo"] in ("xxhash64", "sha256")
-
-
-def test_move_is_disabled_with_actionable_error(tmp_path: Path) -> None:
-    src = _make_source(tmp_path)
-    dest = _dest(tmp_path)
-    with pytest.raises(OrganizeError, match="organize move is disabled"):
-        _svc().apply(
-            OrganizeApplyParams(
-                sourceRoot=str(src), destRoot=str(dest), entries=ENTRIES, mode="move"
-            )
-        )
-
-
-def test_move_with_confirmation_is_still_disabled(tmp_path: Path) -> None:
-    # The old confirm_move gate is not sufficient: move unlinked the
-    # source without any checksum comparison (spec §2). Elevated
-    # confirmation must not resurrect it.
-    src = _make_source(tmp_path)
-    dest = _dest(tmp_path)
-    with pytest.raises(OrganizeError, match="organize move is disabled"):
-        _svc().apply(
-            OrganizeApplyParams(
-                sourceRoot=str(src),
-                destRoot=str(dest),
-                entries=ENTRIES,
-                mode="move",
-                confirmMove=True,
-            )
-        )
-    assert (src / "Interview/A001.mov").exists()
-    assert not (dest / "Interview/A001.mov").exists()
-
-
-def test_link_is_disabled_with_actionable_error(tmp_path: Path) -> None:
-    src = _make_source(tmp_path)
-    dest = _dest(tmp_path)
-    with pytest.raises(OrganizeError, match="organize link is disabled"):
-        _svc().apply(
-            OrganizeApplyParams(
-                sourceRoot=str(src), destRoot=str(dest), entries=ENTRIES, mode="link"
-            )
-        )
-    assert not (dest / "Interview/A001.mov").exists()

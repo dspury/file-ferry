@@ -47,6 +47,11 @@ async function createMainWindow(supervisor: SidecarSupervisor): Promise<BrowserW
     ...baseWindowOptions(),
     width: 1280,
     height: 800,
+    // R-2's floor. The operator chose 600 deliberately over 900/1000, so the
+    // layout has to cope down to it (see the breakpoint section in
+    // styles.css) rather than the window refusing to go that narrow.
+    minWidth: 600,
+    minHeight: 600,
     title: 'ferry',
     webPreferences: {
       preload: pathResolve(here, 'preload.cjs'),

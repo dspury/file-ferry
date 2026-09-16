@@ -170,7 +170,7 @@ export function App(): JSX.Element {
   const dock = useActiveTransfers();
 
   const navRef = useRef<HTMLElement>(null);
-  const followFocus = useRef(false);
+  const followFocusRef = useRef(false);
 
   const active = useMemo(() => VIEWS.find((v) => v.id === viewId) ?? VIEWS[0]!, [viewId]);
   const ActiveScreen = active.component;
@@ -186,11 +186,11 @@ export function App(): JSX.Element {
   const onNavKeyDown = (e: React.KeyboardEvent) => {
     const action = keyToAction(e.key, e.ctrlKey, e.altKey);
     if (action === 'next') {
-      followFocus.current = true;
+      followFocusRef.current = true;
       navigateTo(VIEWS[moveIndex(activeIndex, 1, VIEWS.length)]!.id);
       e.preventDefault();
     } else if (action === 'prev') {
-      followFocus.current = true;
+      followFocusRef.current = true;
       navigateTo(VIEWS[moveIndex(activeIndex, -1, VIEWS.length)]!.id);
       e.preventDefault();
     }
@@ -210,8 +210,8 @@ export function App(): JSX.Element {
    * Activity") must be allowed to leave focus in the content it came from.
    */
   useEffect(() => {
-    if (!followFocus.current) return;
-    followFocus.current = false;
+    if (!followFocusRef.current) return;
+    followFocusRef.current = false;
     navRef.current?.querySelector<HTMLButtonElement>('.nav__item--active')?.focus();
   }, [viewId]);
 

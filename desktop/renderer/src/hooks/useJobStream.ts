@@ -23,13 +23,13 @@ export interface JobStream {
 }
 
 export function useJobStream(jobs: readonly JobDetail[], onUnknownJob: () => void): JobStream {
-  const [snapshots, setSnapshots] = useState<ReadonlyMap<string, JobSnapshot>>(new Map());
+  const [snapshots, setSnapshots] = useState<ReadonlyMap<string, JobSnapshot>>(() => new Map());
 
   // The listener is attached once, so it must not close over `jobs`. These
   // refs let it see the current list without being torn down and rebuilt on
   // every render — which would drop events landing in the gap.
-  const knownIds = useRef<ReadonlySet<string>>(new Set());
-  const unknownHandler = useRef(onUnknownJob);
+  const knownIdsRef = useRef<ReadonlySet<string>>(new Set());
+  const unknownHandlerRef = useRef(onUnknownJob);
 
   // Written in an effect, not during render. A render can be thrown away
   // (React may start one and abandon it), and mutating a ref from the render
@@ -43,8 +43,8 @@ export function useJobStream(jobs: readonly JobDetail[], onUnknownJob: () => voi
   // over IPC as a macrotask, and the worst case is one spurious
   // `onUnknownJob()`, which just refetches the list.
   useEffect(() => {
-    knownIds.current = new Set(jobs.map((job) => job.id));
-    unknownHandler.current = onUnknownJob;
+    knownIdsRef.current = new Set(jobs.map((job) => job.id));
+    unknownHandlerRef.current = onUnknownJob;
   });
 
   useEffect(() => {
@@ -53,12 +53,12 @@ export function useJobStream(jobs: readonly JobDetail[], onUnknownJob: () => voi
       // assumed — the same guard Electron main records the snapshot with.
       if (!isJobUpdatedParams(frame.params)) return;
       const snapshot = frame.params.snapshot;
-      if (!knownIds.current.has(snapshot.id)) {
+      if (!knownIdsRef.current.has(snapshot.id)) {
         // A job created elsewhere (the Transfer workspace, another window, or a
         // recovery sweep) cannot be rendered from a snapshot alone: it has
         // no command or project. Ask for a fresh list instead of inventing
         // a half-populated row.
-        unknownHandler.current();
+        unknownHandlerRef.current();
         return;
       }
       setSnapshots((prev) => {

@@ -124,6 +124,18 @@ class JobScheduler:
         """Run an already-"running" job through its runner and finish it."""
         if runner is None:
             self._cancelled.discard(job.id)
+            # A runner can be withdrawn (the `offload` kind was, B-6) while a
+            # job of that kind still exists in a user's database. Fail it
+            # safe, but say why: an unexplained "needs attention" reads as a
+            # stall the operator cannot act on. Recorded before the
+            # transition, so the job's own state-change event carries the
+            # reason too.
+            self._jobs.mark_error(
+                job.id,
+                f"no runner is registered for job command {job.command!r}; this "
+                "job kind has been withdrawn. Start the transfer from the "
+                "Transfer workspace instead.",
+            )
             return self._transition(job.id, "running", "needs_attention")
         try:
             outcome = runner(job, self)

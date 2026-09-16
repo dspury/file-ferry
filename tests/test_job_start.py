@@ -75,6 +75,10 @@ def _setup(tmp_path: Path) -> Fixture:
             AddDestinationParams(intakeSessionId=session.id, kind=kind, rootPath=str(root))
         )
     svc.intake_adopt_source(session.id, inspected.source_id, inspected.entries, str(working))
+    # The offload runner was withdrawn (B-6). These tests are about the
+    # generic dispatcher machinery, so a stub runner stands in for any real
+    # one; the job's command only has to name something registered.
+    svc._scheduler_service().register_runner("copy", lambda job, scheduler: "succeeded")
     return Fixture(svc, pid, session.id)
 
 
@@ -124,7 +128,7 @@ class TestAReviewedJobRuns:
             job = svc.job_create(
                 CreateJobParams(
                     projectId=fixture.project_id,
-                    command="offload",
+                    command="copy",
                     sessionId=fixture.session_id,
                     reviewed=True,
                 )
@@ -142,7 +146,7 @@ class TestAReviewedJobRuns:
             job = svc.job_create(
                 CreateJobParams(
                     projectId=fixture.project_id,
-                    command="offload",
+                    command="copy",
                     sessionId=fixture.session_id,
                 )
             )
@@ -161,7 +165,7 @@ class TestAReviewedJobRuns:
             job = svc.job_create(
                 CreateJobParams(
                     projectId=fixture.project_id,
-                    command="offload",
+                    command="copy",
                     sessionId=fixture.session_id,
                     reviewed=True,
                 )
@@ -181,7 +185,7 @@ class TestQueueingWakesTheDispatcher:
             job = svc.job_create(
                 CreateJobParams(
                     projectId=fixture.project_id,
-                    command="offload",
+                    command="copy",
                     sessionId=fixture.session_id,
                 )
             )

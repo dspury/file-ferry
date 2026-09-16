@@ -112,19 +112,70 @@ Every `--fs-*` token is already `rem` on main (`styles.css:192-198`), and
 actually scales, then close it with that evidence. **No code expected** — if
 something does not scale, that is a finding, report it.
 
-## B-4 — dependency majors
+## B-4a — eslint 10: drop `eslint-plugin-react`, add `@eslint-react`
 
-Three open dependabot PRs, all majors: #149 TypeScript 6→7, #150 eslint
-9→10, #151 @eslint/js 9→10. #121 records that the grouping produces
-unmergeable PRs.
+**Decided.** #150 and #151 are the same eslint major and go together as one
+PR. The only thing blocking them is `eslint-plugin-react`.
 
-**One PR per upgrade, and #149 alone first** — a TypeScript major can change
-what typechecks across the whole codebase, and bundling it with lint changes
-makes a failure impossible to attribute. #150 and #151 are the same eslint
-major and should go together as one PR.
+Upstream is not going to fix this. `eslint-plugin-react@7.37.5` is the
+**latest published version** — there is no newer release — and it peers
+`eslint: ^3 || … || ^9.7`. Holding the upgrade waits on something that is
+not queued.
 
-If an upgrade needs source changes to pass, that is fine — but say so
-explicitly rather than folding it in silently.
+Nothing else in the toolchain objects:
+
+| package | eslint peer | blocks 10? |
+| --- | --- | --- |
+| `eslint-plugin-react-hooks` 7.1.1 | `… \|\| ^10.0.0` | no |
+| `@typescript-eslint/*` 8.70.0 | `^8.57 \|\| ^9 \|\| ^10` | no |
+| `eslint-plugin-react` 7.37.5 | `… \|\| ^9.7` | **yes** |
+
+**Do:** remove `eslint-plugin-react`, keep `eslint-plugin-react-hooks` (it
+is the valuable one — `rules-of-hooks` and `exhaustive-deps`), and add
+`@eslint-react/eslint-plugin` (5.19.1, peers `eslint: '*'`, TypeScript-first,
+actively maintained) to replace what is lost.
+
+**What is lost is less than it looks.** `eslint.config.js:69-70` already
+disables `react/react-in-jsx-scope` and `react/prop-types`, the two largest
+rules in `recommended`. Of the remainder, most is class-component era
+(`no-direct-mutation-state`, `no-is-mounted`, `no-string-refs`,
+`require-render-return`, `no-find-dom-node`) and irrelevant here, and several
+more (`jsx-no-undef`, `jsx-no-duplicate-props`, `jsx-uses-vars`) are already
+caught by TypeScript in strict mode.
+
+The one rule with unique value is **`react/jsx-key`** — TypeScript does not
+catch a missing `key` in a `.map()`, and there are ~60 `.map(` sites in the
+`.tsx` files. It reports nothing today (the lint job is green on main), so it
+guards against a future mistake rather than holding a current bug back.
+`@eslint-react`'s `no-missing-key` covers it.
+
+**The config header comment is now wrong** — it says eslint is pinned to 9.x
+because of this plugin. Update it to record what happened instead.
+
+**Two PRs, not one.** The bump and the swap land together in one PR; any
+source changes the new ruleset demands go in a **separate follow-up**. The
+new plugin will surface findings the old ruleset never produced — that is
+expected and is not a reason to weaken the config. Do not silently fold
+fixes into the dependency bump, and do not reach for `--legacy-peer-deps`.
+
+**Acceptance:** eslint 10 installs with no `ERESOLVE` and no
+`--legacy-peer-deps`; `npm run lint` passes; a deliberately unkeyed `.map()`
+is reported by the new plugin (prove the replacement works, do not assume
+it); the stale config comment is corrected.
+
+## B-4b — TypeScript 7 (#149): hold, and say why
+
+**Blocked upstream, genuinely.** `@typescript-eslint` 8.70.0 — the latest —
+peers `typescript >=4.8.4 <6.1.0`. TypeScript 7 is outside it, and
+`typescript-eslint` is the type-aware lint engine for the whole codebase, so
+dropping it is not an option the way dropping `eslint-plugin-react` is.
+
+**Do not force it.** Leave #149 open. Add a comment recording the exact peer
+range and that the block is `@typescript-eslint`, not the codebase, so the
+next person does not re-derive it. Re-check when `typescript-eslint` ships TS
+7 support.
+
+Nothing is broken by waiting — the version is merely old.
 
 ## B-5 — R-9: stop surfacing CLI-only options in the desktop
 

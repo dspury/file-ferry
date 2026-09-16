@@ -10,7 +10,7 @@
  * packaged runtime; they are the floor B3 screens build on, not the
  * ceiling.
  */
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -118,6 +118,51 @@ describe('App shell', () => {
     ]);
     // Work is the body; Library and Setup are the two pinned footer runs.
     expect(nav.querySelector('.nav__footer')?.querySelectorAll('.nav__group')).toHaveLength(2);
+  });
+
+  it('shows the transfer dock in flight, and cancels through job.cancel (R-4)', async () => {
+    const cancel = vi.fn(() => Promise.resolve({}));
+    // SAFETY: tsc checks the fixture against the wire type.
+    const running: JobDetail = {
+      id: 'job-t1',
+      projectId: null,
+      sessionId: null,
+      command: 'transfer',
+      argsFingerprint: null,
+      state: 'running',
+      currentStep: 'transfer',
+      totalSteps: 2,
+      startedAt: '2026-09-15T00:00:00Z',
+      updatedAt: '2026-09-15T00:01:00Z',
+      finishedAt: null,
+      error: null,
+      resumable: false,
+    };
+    vi.stubGlobal('ferry', {
+      ...api,
+      app: {
+        ...api.app,
+        getStatus: () =>
+          Promise.resolve({ sidecarVersion: '0.3.0', protocolVersion: 1, capabilities: [] }),
+      },
+      job: { ...api.job, list: () => Promise.resolve({ jobs: [running] }), cancel },
+      source: { ...api.source, listVolumes: () => Promise.resolve({ volumes: [] }) },
+      project: { ...api.project, list: () => Promise.resolve({ projects: [] }) },
+    });
+    render(<App />);
+    await screen.findByText('Sidecar · protocol v1');
+
+    const dock = await screen.findByRole('complementary', { name: 'Active transfer' });
+    expect(dock.textContent).toContain('Transferring');
+    fireEvent.click(within(dock).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(cancel).toHaveBeenCalledWith('job-t1'));
+  });
+
+  it('has no dock when nothing is in flight (R-4)', async () => {
+    stubFerry();
+    render(<App />);
+    await screen.findByText('Sidecar · protocol v1');
+    expect(screen.queryByRole('complementary', { name: 'Active transfer' })).toBeNull();
   });
 
   it('collapses the header to one line (R-6)', async () => {

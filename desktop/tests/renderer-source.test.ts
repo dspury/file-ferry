@@ -54,6 +54,16 @@ describe('resolveRendererSource', () => {
     expect(source.devServer).toBe(true);
   });
 
+  it('ignores the override once packaged, so a shipped app cannot be redirected', () => {
+    const source = resolveRendererSource({
+      isPackaged: true,
+      overrideUrl: 'http://elsewhere.example/index.html',
+      distRendererPath: DIST,
+    });
+    expect(source.url).toBe(pathToFileURL(DIST).href);
+    expect(source.devServer).toBe(false);
+  });
+
   it('ignores a blank override', () => {
     const source = resolveRendererSource({
       isPackaged: true,

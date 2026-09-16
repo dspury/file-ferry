@@ -6,7 +6,8 @@
  * See ADR-0001 (desktop shell) and ADR-0002 (IPC protocol).
  */
 import { app, BrowserWindow, ipcMain, type IpcMainInvokeEvent } from 'electron';
-import { resolve as pathResolve } from 'node:path';
+import { dirname, resolve as pathResolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { SidecarSupervisor, type SidecarSupervisorOptions } from './sidecar.js';
 import { resolveSidecarCommand } from './sidecar-command.js';
 import { showPicker } from './dialogs.js';
@@ -24,6 +25,9 @@ import { PROTOCOL_VERSION } from '../shared/version.js';
 import { getReleaseInfo, releaseSummary } from '../shared/release.js';
 import type { PickRequest } from '../shared/dialog.js';
 
+// The compiled main runs as an ES module (package `"type": "module"`, #138),
+// where `__dirname` does not exist; this is its equivalent.
+const here = dirname(fileURLToPath(import.meta.url));
 interface SidecarRequestEnvelope {
   readonly method: string;
   readonly params: unknown;
@@ -45,7 +49,7 @@ async function createMainWindow(supervisor: SidecarSupervisor): Promise<BrowserW
     height: 800,
     title: 'ferry',
     webPreferences: {
-      preload: pathResolve(__dirname, 'preload.js'),
+      preload: pathResolve(here, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -119,7 +123,7 @@ async function main(): Promise<void> {
   const dbPath = pathResolve(appDataDir, 'ferry.db');
   // In development __dirname is <repo>/desktop/dist/electron, so the repo root
   // is three levels up. Packaged builds ignore it and use resourcesPath.
-  const workspaceRoot = pathResolve(__dirname, '..', '..', '..');
+  const workspaceRoot = pathResolve(here, '..', '..', '..');
   const { executable, args, cwd } = resolveSidecarCommand({
     isPackaged: app.isPackaged,
     resourcesPath: process.resourcesPath,

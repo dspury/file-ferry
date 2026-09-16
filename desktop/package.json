@@ -3,6 +3,7 @@
   "productName": "ferry",
   "version": "0.0.0",
   "description": "Electron desktop shell for file-ferry (vNext foundation)",
+  "type": "module",
   "main": "dist/electron/main.js",
   "private": true,
   "license": "MIT",

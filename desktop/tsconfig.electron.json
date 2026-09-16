@@ -21,6 +21,6 @@
     "rootDir": "./electron",
     "composite": true
   },
-  "include": ["electron/**/*.ts"],
+  "include": ["electron/**/*.ts", "electron/**/*.cts"],
   "references": [{ "path": "./tsconfig.shared.json" }]
 }

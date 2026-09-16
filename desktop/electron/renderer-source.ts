@@ -7,11 +7,15 @@
  * `electron-builder` package, so the built path went unverified — the gap
  * #95 and the desktop verification work kept running into.
  *
- * `FERRY_RENDERER_URL` now overrides the source (mirroring `FERRY_PYTHON` for
- * the sidecar interpreter), so a checkout can boot the built renderer:
+ * `FERRY_RENDERER_URL` overrides the source (mirroring `FERRY_PYTHON` for the
+ * sidecar interpreter), so a checkout can boot the built renderer:
  *
  *   FERRY_RENDERER_URL=file:///…/dist/renderer/index.html electron .
  *   (or `npm run start:built`).
+ *
+ * It is a **development affordance only**: a packaged build ignores it, so
+ * the shipped app cannot be redirected to other content through the
+ * environment.
  *
  * The CSP follows the *source*, not `app.isPackaged`: the built renderer runs
  * under the production policy even from a checkout, because loading it under
@@ -44,16 +48,17 @@ function isDevServer(url: string): boolean {
 /**
  * Pick the renderer source.
  *
- * `FERRY_RENDERER_URL` wins when set (blank/whitespace ignored). Otherwise an
- * unpackaged run uses the Vite dev server, and a packaged run uses the built
- * renderer beside the compiled main process (`dist/renderer/index.html`).
+ * Unpackaged, `FERRY_RENDERER_URL` wins when set (blank/whitespace ignored);
+ * otherwise the Vite dev server. Packaged, the override is ignored and the
+ * built renderer beside the compiled main process is used
+ * (`dist/renderer/index.html`).
  */
 export function resolveRendererSource(options: {
   readonly isPackaged: boolean;
   readonly overrideUrl: string | undefined;
   readonly distRendererPath: string;
 }): RendererSource {
-  const override = options.overrideUrl?.trim();
+  const override = options.isPackaged ? undefined : options.overrideUrl?.trim();
   const url =
     override !== undefined && override !== ''
       ? override

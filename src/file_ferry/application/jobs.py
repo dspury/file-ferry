@@ -171,6 +171,24 @@ class JobService:
         assert updated is not None
         return self._to_detail(updated)
 
+    def mark_error(self, job_id: str, error: str) -> JobDetail:
+        """Record why a job is being held, so a stalled job explains itself.
+
+        Used when the scheduler finds no runner for a job's command: a job
+        kind can be withdrawn (the `offload` runner was, B-6) while a job of
+        that kind still exists in a user's database. The reason rides on the
+        same ``error`` field a runner-set failure uses, so the screen states
+        it rather than showing a bare "needs attention".
+        """
+        with transaction(self._db_path) as conn:
+            row = job_repo.get_job(conn, job_id)
+            if row is None:
+                raise JobNotFoundError(job_id)
+            job_repo.update_job(conn, job_id, error=error, updated_at=_now_iso())
+            updated = job_repo.get_job(conn, job_id)
+        assert updated is not None
+        return self._to_detail(updated)
+
     # ---- step / item helpers (consumed by later packages) ------------
 
     def snapshot(self, job_id: str) -> JobSnapshot:

@@ -15,6 +15,8 @@
  * (see `desktop/build/electron-builder.yml` extraResources).
  */
 
+import { existsSync } from 'node:fs';
+
 export interface SidecarCommand {
   readonly executable: string;
   readonly args: string[];
@@ -41,13 +43,10 @@ export interface SidecarCommandInput {
 }
 
 function defaultExists(path: string): boolean {
-  // Injected at call sites in the real main; default lazily requires fs.
-  // SAFETY: 'node:fs' is a builtin, so `require` returns exactly the module
-  // whose type is being named here. It is required lazily rather than
-  // imported so this module stays loadable in the renderer-side tests.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const fs = require('node:fs') as typeof import('node:fs');
-  return fs.existsSync(path);
+  // Injected at call sites in the real main. This used a lazy `require` to
+  // stay loadable outside Node; the package is ESM now (#138), where
+  // `require` is undefined, so it is a plain import of the builtin.
+  return existsSync(path);
 }
 
 /**

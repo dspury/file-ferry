@@ -8,8 +8,6 @@
 import type { AppSettings, UpdateSettingsParams } from '../../../shared/ipc-methods.js';
 
 export const VALID_CHECKSUM_ALGOS = ['xxhash64', 'sha256'];
-export const VALID_MODES = ['copy', 'move', 'link'];
-export const VALID_CONFLICTS = ['skip', 'overwrite', 'rename'];
 export const VALID_CODECS = ['ProRes422Proxy', 'H264', 'H265', 'ProRes422HQ', 'ProRes4444'];
 
 export interface SettingsValidation {
@@ -27,20 +25,11 @@ export function validateSettings(settings: AppSettings): SettingsValidation {
   if (!VALID_CHECKSUM_ALGOS.includes(settings.checksumAlgo)) {
     errors.push(`unknown checksum algorithm: ${settings.checksumAlgo}`);
   }
-  if (!VALID_MODES.includes(settings.organizeMode)) {
-    errors.push(`unknown organize mode: ${settings.organizeMode}`);
-  }
-  if (!VALID_CONFLICTS.includes(settings.organizeOnConflict)) {
-    errors.push(`unknown conflict policy: ${settings.organizeOnConflict}`);
-  }
   if (!VALID_CODECS.includes(settings.proxyCodec)) {
     errors.push(`unknown proxy codec: ${settings.proxyCodec}`);
   }
   if (!Number.isInteger(settings.proxyHeight) || settings.proxyHeight < 1) {
     errors.push('proxy height must be a positive integer');
-  }
-  if (settings.organizeTemplate.trim().length === 0) {
-    errors.push('organize template must not be empty');
   }
   return { valid: errors.length === 0, errors };
 }
@@ -53,9 +42,6 @@ export function toUpdateParams(settings: AppSettings): UpdateSettingsParams {
     checksumAlgo: settings.checksumAlgo,
     resolvePath: settings.resolvePath,
     ffmpegPath: settings.ffmpegPath,
-    organizeTemplate: settings.organizeTemplate,
-    organizeMode: settings.organizeMode,
-    organizeOnConflict: settings.organizeOnConflict,
   };
 }
 

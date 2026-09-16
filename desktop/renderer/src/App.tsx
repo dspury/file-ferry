@@ -347,7 +347,12 @@ function NavItem({ view, active }: { view: ViewDef; active: boolean }): JSX.Elem
       aria-current={active ? 'page' : undefined}
     >
       <Glyph size={16} />
-      {view.label}
+      {/*
+        The label is a span so the collapsed rail (R-2, <=999px) can hide it
+        visually while the button keeps its accessible name — the nav must
+        stay named at every width.
+      */}
+      <span className="nav__label">{view.label}</span>
     </button>
   );
 }

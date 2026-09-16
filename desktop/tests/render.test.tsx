@@ -165,6 +165,28 @@ describe('App shell', () => {
     expect(screen.queryByRole('complementary', { name: 'Active transfer' })).toBeNull();
   });
 
+  it('keeps every nav item named for assistive tech (R-2 relies on it)', async () => {
+    // The collapsed rail hides the labels *visually*; if the label were
+    // removed instead, the buttons would lose their names at <=999px.
+    stubFerry();
+    render(<App />);
+    await screen.findByText('Sidecar · protocol v1');
+    const nav = screen.getByRole('navigation', { name: 'Primary' });
+    for (const label of [
+      'Dashboard',
+      'Transfer',
+      'Activity',
+      'Projects',
+      'Assets',
+      'Destinations',
+      'Presets',
+      'Environment',
+      'Settings',
+    ]) {
+      expect(within(nav).getByRole('button', { name: label })).toBeTruthy();
+    }
+  });
+
   it('collapses the header to one line (R-6)', async () => {
     stubFerry();
     render(<App />);

@@ -529,12 +529,18 @@ code,
 }
 
 /* R-6: the kicker and the fixed subtitle are gone, so the header is one
-   line and the title stands alone against the status readout. */
+   line and the title stands alone against the status readout. R-2: the title
+   gives way first — it truncates rather than pushing the status out or
+   overlapping it, so the two never collide at the 600px floor. */
 .header__title {
   font-size: var(--fs-xl);
   font-weight: 650;
   letter-spacing: -0.015em;
   line-height: 1.1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .header__actions {
@@ -542,6 +548,8 @@ code,
   display: flex;
   align-items: center;
   gap: var(--sp-2);
+  /* The status readout must not be squeezed out by a long title (R-2). */
+  flex: none;
 }
 
 /* ---- connection indicator ----
@@ -673,12 +681,18 @@ code,
   grid-column: 2;
   grid-row: 2;
   overflow-y: auto;
+  /* R-2: a grid item defaults to `min-width: auto`, so a wide table would
+     widen the column and force the whole page to scroll horizontally. With
+     `min-width: 0` the column can shrink, and the table's own scroll
+     container (`.table-wrap`) takes the overflow instead. */
+  min-width: 0;
 }
 
 .content__inner {
   max-width: 1080px;
   padding: var(--sp-6) var(--sp-6) var(--sp-8);
   margin: 0 auto;
+  min-width: 0;
 }
 
 /* A screen body. Sections are separated by one consistent rhythm rather
@@ -776,7 +790,10 @@ code,
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  /* R-2: 3-up when there is room, dropping to 2-up rather than squeezing the
+     labels until one wraps and the cards go uneven. 180px is wide enough for
+     "NEEDS ATTENTION" at the micro-label size. */
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--sp-3);
 }
 
@@ -1735,6 +1752,86 @@ textarea:focus-visible {
   }
   100% {
     transform: translateX(263%);
+  }
+}
+
+/* ===================== narrow width (R-2) ======================= */
+
+/*
+ * The operator's floor is a 600px window, so the layout has to cope down to
+ * it rather than the window refusing to go narrower. Below ~1000px the rail
+ * collapses to an icon-only strip: labels are visually hidden (not removed)
+ * so every button keeps its accessible name, and the content area gets the
+ * width back — which is also what keeps the stat row legible and lets the
+ * transfer dock fit (R-4).
+ *
+ * One breakpoint, not several: it is the nav that has to change shape, and
+ * everything else reflows from the width it frees.
+ */
+@media (max-width: 999px) {
+  :root {
+    --nav-w: 64px;
+  }
+
+  .nav {
+    padding: var(--sp-4) 0 var(--sp-3);
+    gap: var(--sp-4);
+  }
+
+  .nav__brand {
+    justify-content: center;
+    padding: 0 0 var(--sp-3);
+  }
+
+  .nav__mark {
+    width: 32px;
+  }
+
+  /* Brand text and group headings are decoration, and the rail is too narrow
+     to show them; the group's name is on the role="group" regardless. */
+  .nav__wordmark,
+  .nav__group-label {
+    display: none;
+  }
+
+  .nav__item {
+    justify-content: center;
+    gap: 0;
+    padding: 0;
+  }
+
+  /* Visually hidden, not removed: this text is the button's accessible name,
+     and R-2 requires the nav to stay named at every width. */
+  .nav__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* The active plate's left-to-right gradient needs a row's width to read;
+     as a square, the plain raised plate says the same thing — and it drops
+     the accent left edge that would otherwise be a lone bar on the rail. */
+  .nav__item--active {
+    background: var(--c-surface-2);
+    border-left-color: transparent;
+  }
+
+  /* The dock is present at this width (R-4): let its parts take a second
+     line rather than overflow the window. */
+  .dock {
+    flex-wrap: wrap;
+    row-gap: var(--sp-2);
+  }
+
+  .dock__track {
+    order: 3;
+    flex-basis: 100%;
   }
 }
 

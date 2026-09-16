@@ -81,6 +81,12 @@ def _setup(tmp_path: Path, files: dict[str, bytes]) -> Fixture:
             AddDestinationParams(intakeSessionId=session.id, kind=kind, rootPath=str(root))
         )
     svc.intake_adopt_source(session.id, inspected.source_id, inspected.entries, str(working))
+    # The background dispatcher drains the queue as soon as a job is created;
+    # parking it keeps dispatch explicit and ordered here. Without this the
+    # dispatcher can claim the job between the test's own `job_dispatch` call
+    # and its assertion, which is a flaky ``queued != succeeded``.
+    assert svc._dispatcher is not None
+    svc._dispatcher.stop()
     return Fixture(svc, pid, session.id, src)
 
 

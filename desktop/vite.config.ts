@@ -1,6 +1,12 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// `__dirname` does not exist in an ES module. The package declares
+// `"type": "module"` (#138), so the config is loaded as ESM and this is how
+// its own directory is recovered.
+const here = dirname(fileURLToPath(import.meta.url));
 
 /**
  * Relax the page's `<meta>` CSP while Vite is serving.
@@ -42,10 +48,10 @@ function devCspPlugin(): Plugin {
 
 export default defineConfig({
   plugins: [react(), devCspPlugin()],
-  root: resolve(__dirname, 'renderer'),
+  root: resolve(here, 'renderer'),
   base: './',
   build: {
-    outDir: resolve(__dirname, 'dist/renderer'),
+    outDir: resolve(here, 'dist/renderer'),
     emptyOutDir: true,
     target: 'chrome120',
   },

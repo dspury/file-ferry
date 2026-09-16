@@ -29,7 +29,7 @@ export default [
   js.configs.recommended,
 
   {
-    files: ['**/*.ts', '**/*.tsx'],
+    files: ['**/*.ts', '**/*.tsx', '**/*.cts'],
     languageOptions: {
       parser: tsParser,
       ecmaVersion: 2022,

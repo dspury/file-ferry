@@ -14,9 +14,6 @@ function settings(over: Partial<AppSettings> = {}): AppSettings {
     checksumAlgo: 'xxhash64',
     resolvePath: null,
     ffmpegPath: null,
-    organizeTemplate: '{root}/{source_relpath}/{filename}{ext}',
-    organizeMode: 'copy',
-    organizeOnConflict: 'skip',
     ...over,
   };
 }
@@ -52,21 +49,23 @@ describe('validateSettings', () => {
     expect(validateSettings(settings({ proxyHeight: 0 })).valid).toBe(false);
     expect(validateSettings(settings({ proxyHeight: -5 })).valid).toBe(false);
   });
-
-  it('rejects an empty organize template', () => {
-    expect(validateSettings(settings({ organizeTemplate: '  ' })).valid).toBe(false);
-  });
-
-  it('rejects an unknown mode', () => {
-    expect(validateSettings(settings({ organizeMode: 'delete' })).valid).toBe(false);
-  });
 });
 
 describe('toUpdateParams / hasChanges', () => {
-  it('toUpdateParams carries every field', () => {
+  it('toUpdateParams carries every desktop field', () => {
     const p = toUpdateParams(settings());
     expect(p.proxyCodec).toBe('ProRes422Proxy');
-    expect(p.organizeMode).toBe('copy');
+    expect(p.resolvePath).toBeNull();
+  });
+
+  it('carries no organize fields, so no desktop path writes them (R-9)', () => {
+    // The CLI/TUI own the `[organize]` settings; the desktop must not be able
+    // to read or write them, or it would silently move a setting that does
+    // not affect a desktop transfer.
+    const p = toUpdateParams(settings());
+    expect('organizeTemplate' in p).toBe(false);
+    expect('organizeMode' in p).toBe(false);
+    expect('organizeOnConflict' in p).toBe(false);
   });
 
   it('hasChanges detects a real change and ignores identity', () => {

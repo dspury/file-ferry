@@ -1042,15 +1042,20 @@ export interface ProfilePreviewParams {
   readonly mutationPolicy?: string;
 }
 
+/*
+ * The desktop's view of settings. The sidecar still returns and accepts the
+ * `[organize]` fields (`organizeTemplate` / `organizeMode` /
+ * `organizeOnConflict`), but the desktop no longer surfaces them: they belong
+ * to the `ferry organize` CLI and the TUI, not to desktop transfers (R-9).
+ * The fields are deliberately absent here, so no desktop code can read or
+ * write them; the wire objects simply carry extra keys the renderer ignores.
+ */
 export interface AppSettings {
   readonly proxyCodec: string;
   readonly proxyHeight: number;
   readonly checksumAlgo: string;
   readonly resolvePath: string | null;
   readonly ffmpegPath: string | null;
-  readonly organizeTemplate: string;
-  readonly organizeMode: string;
-  readonly organizeOnConflict: string;
 }
 
 export interface UpdateSettingsParams {
@@ -1059,9 +1064,6 @@ export interface UpdateSettingsParams {
   readonly checksumAlgo?: string;
   readonly resolvePath?: string | null;
   readonly ffmpegPath?: string | null;
-  readonly organizeTemplate?: string;
-  readonly organizeMode?: string;
-  readonly organizeOnConflict?: string;
 }
 
 export interface ToolCheck {

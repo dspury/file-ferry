@@ -23,8 +23,6 @@ import type { AppSettings } from '../../../shared/ipc-methods.js';
 
 const CODECS = ['ProRes422Proxy', 'H264', 'H265', 'ProRes422HQ', 'ProRes4444'];
 const CHECKSUM_ALGOS = ['xxhash64', 'sha256'];
-const MODES = ['copy', 'move', 'link'];
-const CONFLICTS = ['skip', 'overwrite', 'rename'];
 
 export function Settings(): JSX.Element {
   const loaded = useAsync(() => window.ferry.settings.get());
@@ -77,9 +75,6 @@ export function Settings(): JSX.Element {
         checksumAlgo: form.checksumAlgo,
         resolvePath: form.resolvePath,
         ffmpegPath: form.ffmpegPath,
-        organizeTemplate: form.organizeTemplate,
-        organizeMode: form.organizeMode,
-        organizeOnConflict: form.organizeOnConflict,
       });
       // Reflect the persisted result, not an optimistic value.
       setEdits(updated);
@@ -145,41 +140,6 @@ export function Settings(): JSX.Element {
             onChange={(e) => set('resolvePath', e.target.value || null)}
           />
         </Field>
-      </Panel>
-
-      <Panel
-        title="Organize command"
-        description="Used by the ferry organize command line and the TUI. These do not affect transfers in this app — a preset-routed destination routes by its own organization profile."
-      >
-        <Field label="Template" hint="Tokens are expanded per file, e.g. {date}/{camera}">
-          <input
-            value={form.organizeTemplate}
-            onChange={(e) => set('organizeTemplate', e.target.value)}
-          />
-        </Field>
-        <div className="field-grid">
-          <Field label="Mode">
-            <select value={form.organizeMode} onChange={(e) => set('organizeMode', e.target.value)}>
-              {MODES.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field label="On conflict">
-            <select
-              value={form.organizeOnConflict}
-              onChange={(e) => set('organizeOnConflict', e.target.value)}
-            >
-              {CONFLICTS.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </div>
       </Panel>
 
       {/*

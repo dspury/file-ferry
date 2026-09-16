@@ -40,7 +40,7 @@ async function createMainWindow(supervisor: SidecarSupervisor): Promise<BrowserW
   const renderer = resolveRendererSource({
     isPackaged: app.isPackaged,
     overrideUrl: process.env.FERRY_RENDERER_URL,
-    distRendererPath: pathResolve(__dirname, '../renderer/index.html'),
+    distRendererPath: pathResolve(here, '../renderer/index.html'),
   });
 
   const window = new BrowserWindow({

@@ -178,6 +178,10 @@ export function Settings(): JSX.Element {
 function DiagnosticsPanel(): JSX.Element {
   const diag = useAsync(() => window.ferry.app.diagnostics());
   const [copied, setCopied] = useState(false);
+  // Stamped once, at mount, via a state initializer: `new Date()` in the
+  // render body would be impure (a re-render would change the report's
+  // timestamp out from under the panel).
+  const [generatedAt] = useState(() => new Date().toISOString());
 
   if (diag.loading) {
     return (
@@ -195,7 +199,7 @@ function DiagnosticsPanel(): JSX.Element {
   }
   const report = {
     summary: diag.data?.summary ?? '',
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     appVersion: 'desktop',
   };
   const text = buildReportText(report);

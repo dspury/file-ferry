@@ -1323,8 +1323,8 @@ function ReceiptPanel({ planId }: { planId: string }): JSX.Element {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, i) => (
-                <tr key={`${row.destRelPath}-${i}`}>
+              {rows.map((row) => (
+                <tr key={row.destRelPath}>
                   <td>
                     <Chip
                       tone={

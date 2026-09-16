@@ -639,6 +639,11 @@ export function Field({
     // already supplied one); under exactOptionalPropertyTypes it cannot be
     // passed as an explicit undefined.
     const idProp: ControlProps = { id: controlId };
+    // Deliberate: the field names its single child by cloning the label id
+    // and describedby onto it (WCAG 1.3.1 / 4.1.2). There is no non-clone
+    // alternative that wires assistive tech to the control without wrapping
+    // it, which would change the layout the screens rely on.
+    // eslint-disable-next-line @eslint-react/no-clone-element
     control = cloneElement(
       single,
       describedBy === null ? idProp : { ...idProp, 'aria-describedby': describedBy },

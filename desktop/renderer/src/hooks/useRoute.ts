@@ -15,6 +15,10 @@ export function useRoute(defaultId: string): Route {
   const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash, defaultId));
 
   useEffect(() => {
+    // The hash is an external store, not React state: this is a subscription,
+    // and the one synchronous set below only closes the gap between the
+    // render that read `window.location.hash` and this effect running.
+    // eslint-disable-next-line @eslint-react/set-state-in-effect
     const onHashChange = () => setRoute(parseRoute(window.location.hash, defaultId));
     // The hash may already have moved between the initial render and this
     // effect running, so re-read once rather than waiting for the next event.

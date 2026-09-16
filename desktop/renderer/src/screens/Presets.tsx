@@ -607,7 +607,7 @@ function PresetEditor({
           ) : (
             draft.rules.map((r, i) => (
               <RouteRow
-                key={i}
+                key={r.id}
                 heading={`Rule ${i + 1}`}
                 row={r}
                 count={draft.rules.length}
@@ -652,7 +652,7 @@ function PresetEditor({
           ) : (
             draft.groups.map((g, i) => (
               <RouteRow
-                key={i}
+                key={g.id}
                 heading={`Group ${i + 1}`}
                 row={g}
                 count={draft.groups.length}
@@ -696,7 +696,7 @@ function PresetEditor({
           ) : (
             draft.exclusions.map((e, i) => (
               <ExclusionRow
-                key={i}
+                key={e.id}
                 heading={`Exclusion ${i + 1}`}
                 row={e}
                 onChange={(next) => {

@@ -42,10 +42,10 @@ describe('R-2 narrow-width breakpoints', () => {
     expect(narrow).toMatch(/\.nav__label\s*\{[^}]*clip:/);
   });
 
-  it('drops the left-edge accent bar on the collapsed active item', () => {
-    // SR-1: no lone coloured edge, and on a square cell the gradient plate
-    // has no width to read anyway.
-    expect(narrow).toMatch(/\.nav__item--active\s*\{[^}]*border-left-color:\s*transparent/);
+  it('gives the collapsed active item a plain raised plate', () => {
+    // On a square cell the left-to-right gradient has no width to read; the
+    // R-1 removal of the accent edge is guarded separately in edge-bars.
+    expect(narrow).toMatch(/\.nav__item--active\s*\{[^}]*background:\s*var\(--c-surface-2\)/);
   });
 
   it('lets the dock wrap at the floor instead of overflowing', () => {

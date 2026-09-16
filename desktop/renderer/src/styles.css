@@ -458,19 +458,18 @@ code,
   display: flex;
   align-items: center;
   gap: var(--sp-3);
-  /* The extra left padding is the gutter the active/hover rail lives in, so
-     the label does not shift by 2px when the rail appears. */
-  padding: 0 var(--sp-3) 0 calc(var(--sp-4) - 2px);
+  /* R-1: the 2px transparent left border that reserved the active rail is
+     gone; the left padding it was compensating for is now the full gutter,
+     so the icons and labels keep their x-position. */
+  padding: 0 var(--sp-3) 0 var(--sp-4);
   height: 36px;
   cursor: pointer;
   font-size: var(--fs-md);
   font-family: inherit;
   width: 100%;
-  border-left: 2px solid transparent;
   transition:
     background var(--motion),
-    color var(--motion),
-    border-color var(--motion);
+    color var(--motion);
 }
 
 .nav__item svg {
@@ -481,19 +480,18 @@ code,
 .nav__item:hover {
   background: var(--c-surface-2);
   color: var(--c-text);
-  border-left-color: var(--c-border-indicator);
 }
 
 /*
- * The active view is marked three ways: an accent rail on the rail's own
- * edge, a plate that fades out toward the right, and heavier type. The
- * gradient is CinePrompt's "mounted on the rig" treatment — the tint sits
- * where the eye enters the row and releases before the label ends, so it
- * never washes out the text it is behind.
+ * The active view is marked two ways now (R-1): a plate that fades out
+ * toward the right, and heavier type. The gradient is CinePrompt's "mounted
+ * on the rig" treatment — the tint sits where the eye enters the row and
+ * releases before the label ends, so it never washes out the text it is
+ * behind. The accent rail that used to sit on the rail's edge is gone: a
+ * lone coloured edge is never the state indicator (SR-1).
  */
 .nav__item--active {
   background: linear-gradient(90deg, var(--c-accent-soft), var(--c-surface) 55%);
-  border-left-color: var(--c-accent);
   color: var(--c-text);
   font-weight: 600;
 }
@@ -805,28 +803,10 @@ code,
   display: flex;
   flex-direction: column;
   gap: var(--sp-1);
-  /* The tone is carried by this rail *and* by the value colour, so the
-     tile never depends on hue alone -- the label always names the state. */
-  border-left: 3px solid var(--c-border-strong);
-}
-
-.stat--active {
-  border-left-color: var(--c-accent);
-}
-.stat--ok {
-  border-left-color: var(--c-ok);
-}
-.stat--warn {
-  border-left-color: var(--c-warn);
-}
-.stat--danger {
-  border-left-color: var(--c-danger);
-}
-.stat--cancelled {
-  border-left-color: var(--c-cancelled);
-}
-.stat--attention {
-  border-left-color: var(--c-attention);
+  /* R-1: a uniform bordered cell, like a stage-rail cell. The 3px left rail
+     that used to carry the tone is gone; the state signal is the value text
+     (`.stat--X .stat__value`), which is SR-1's preferred indicator, and the
+     label always names the state in words. */
 }
 
 .stat__label {
@@ -1578,11 +1558,10 @@ textarea:focus-visible {
   align-items: flex-start;
   padding: var(--sp-3) var(--sp-4);
   border-radius: var(--radius);
+  /* R-1: the severity left edge is gone. Each modifier already sets a full
+     border-color, a tinted background, *and* the text colour, so the bar was
+     a fourth cue on top of three. */
   border: 1px solid var(--c-border);
-  /* The severity rule. A 3px edge on the reading side is CinePrompt's
-     pull-quote idiom, and it is what makes a banner findable as a block on
-     a screen that is already full of bordered cards. */
-  border-left: 3px solid var(--c-border-strong);
   background: var(--c-surface);
   font-size: var(--fs-md);
 }
@@ -1609,21 +1588,18 @@ textarea:focus-visible {
 
 .banner--danger {
   border-color: var(--c-danger-line);
-  border-left-color: var(--c-danger);
   background: var(--c-danger-soft);
   color: var(--c-danger);
 }
 
 .banner--warn {
   border-color: var(--c-warn-line);
-  border-left-color: var(--c-warn);
   background: var(--c-warn-soft);
   color: var(--c-warn);
 }
 
 .banner--ok {
   border-color: var(--c-ok-line);
-  border-left-color: var(--c-ok);
   background: var(--c-ok-soft);
   color: var(--c-ok);
 }
@@ -1637,14 +1613,12 @@ textarea:focus-visible {
  */
 .banner--attention {
   border-color: var(--c-attention-line);
-  border-left-color: var(--c-attention);
   background: var(--c-attention-soft);
   color: var(--c-attention);
 }
 
 .banner--info {
   border-color: var(--c-border-strong);
-  border-left-color: var(--c-border-indicator);
   background: var(--c-surface-2);
   color: var(--c-text-dim);
 }
@@ -1815,11 +1789,11 @@ textarea:focus-visible {
   }
 
   /* The active plate's left-to-right gradient needs a row's width to read;
-     as a square, the plain raised plate says the same thing — and it drops
-     the accent left edge that would otherwise be a lone bar on the rail. */
+     as a square, the plain raised plate says the same thing. (The accent
+     left edge that used to mark it was removed in R-1; only the plate and
+     the heavier type remain.) */
   .nav__item--active {
     background: var(--c-surface-2);
-    border-left-color: transparent;
   }
 
   /* The dock is present at this width (R-4): let its parts take a second
@@ -2382,22 +2356,9 @@ textarea:focus-visible {
     border-style: dashed;
   }
 
-  /*
-   * The nav rail. Idle items reserve the active item's 2px marker in
-   * `transparent` so the label does not shift when it appears — and
-   * `transparent` is repainted as CanvasText here, so all eight items grew
-   * the marker that means "you are here". Style, not colour, hides it.
-   */
-  .nav__item {
-    border-left-style: none;
-    padding-left: var(--sp-4);
-  }
-
-  .nav__item:hover,
-  .nav__item--active {
-    border-left-style: solid;
-    padding-left: calc(var(--sp-4) - 2px);
-  }
+  /* The nav rail's old transparent-left-border trick is gone (R-1): the
+     active marker is a plate and heavier type, neither of which is affected
+     by forced colours, so there is nothing to re-hide here. */
 }
 
 /* ========================= utilities ============================ */

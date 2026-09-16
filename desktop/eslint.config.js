@@ -1,22 +1,28 @@
 /**
- * Flat config (ESLint 9+). Replaces `.eslintrc.cjs`, which the eslintrc
- * format made unusable past ESLint 8.
+ * Flat config (ESLint 10).
  *
- * This is a like-for-like port, not a re-think: same parser, same four
- * shared configs, same three rule overrides, same ignores. Effective rule
- * parity with the old config was checked per file with
- * `eslint --print-config` before and after, so nothing was silently
- * dropped or newly enabled -- a migration that quietly loses rules is worse
- * than not migrating.
+ * Originally a flat port of `.eslintrc.cjs` (ESLint 9), which the eslintrc
+ * format made unusable past ESLint 8. That port was like-for-like: same
+ * parser, same shared configs, same rule overrides, verified per file with
+ * `eslint --print-config`.
  *
- * ESLint is pinned to 9.x rather than 10 because `eslint-plugin-react`
- * (7.37.5, its latest) peers on `<=9.7`. See #121.
+ * ESLint 10 landed by dropping `eslint-plugin-react`. Its latest release
+ * (7.37.5) peers `eslint <=9.7` and no newer one is queued, so holding the
+ * upgrade waited on nothing. It is also largely class-component era and
+ * irrelevant here, and its two largest recommended rules
+ * (`react-in-jsx-scope`, `prop-types`) were already switched off below.
+ *
+ * `eslint-plugin-react-hooks` stays — `rules-of-hooks` and
+ * `exhaustive-deps` are the valuable ones. `@eslint-react/eslint-plugin`
+ * (TypeScript-first) replaces what is genuinely lost, notably
+ * `jsx-key` -> `@eslint-react/no-missing-key`, which TypeScript does not
+ * catch. See the work order B-4a and #121.
  */
 import js from '@eslint/js';
 import globals from 'globals';
 import tsParser from '@typescript-eslint/parser';
 import tsPlugin from '@typescript-eslint/eslint-plugin';
-import reactPlugin from 'eslint-plugin-react';
+import eslintReact from '@eslint-react/eslint-plugin';
 import reactHooks from 'eslint-plugin-react-hooks';
 
 export default [
@@ -46,11 +52,8 @@ export default [
     },
     plugins: {
       '@typescript-eslint': tsPlugin,
-      react: reactPlugin,
+      '@eslint-react': eslintReact,
       'react-hooks': reactHooks,
-    },
-    settings: {
-      react: { version: 'detect' },
     },
     rules: {
       // `plugin:@typescript-eslint/recommended` in eslintrc form pulled in
@@ -62,12 +65,12 @@ export default [
       // there for.
       ...tsPlugin.configs['eslint-recommended'].overrides[0].rules,
       ...tsPlugin.configs.recommended.rules,
-      ...reactPlugin.configs.flat.recommended.rules,
       ...reactHooks.configs.recommended.rules,
+      // The TypeScript variant: it turns off the rules TypeScript already
+      // covers, so this adds JSX-correctness checks (no-missing-key among
+      // them) without duplicating the compiler.
+      ...eslintReact.configs['recommended-typescript'].rules,
 
-      // The three overrides carried over verbatim.
-      'react/react-in-jsx-scope': 'off',
-      'react/prop-types': 'off',
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },

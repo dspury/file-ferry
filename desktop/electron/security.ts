@@ -88,8 +88,10 @@ export const DEVELOPMENT_CSP: readonly string[] = [
 /**
  * Set the Content-Security-Policy on the session.
  *
- * @param isDev must mirror `!app.isPackaged`; a packaged build always gets
- *   {@link PRODUCTION_CSP}.
+ * @param isDev whether the renderer is the Vite dev server (see
+ *   `renderer-source.ts`), not whether the app is packaged: a checkout can
+ *   load the built renderer via `FERRY_RENDERER_URL`, and that must get
+ *   {@link PRODUCTION_CSP} or it verifies less than it appears to.
  */
 export function applyContentSecurityPolicy(session: Session, isDev = false): void {
   const header = cspHeaderValue(isDev ? DEVELOPMENT_CSP : PRODUCTION_CSP);

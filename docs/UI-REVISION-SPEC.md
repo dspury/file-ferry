@@ -119,7 +119,21 @@ luminance over a 7px grid, sRGB linearised, `0.2126R + 0.7152G + 0.0722B`.
 **The floor is relative, not absolute.** Measure the same screen at the same
 window size on `main` and on the branch, and report both. A pass that lowers
 the number is a regression regardless of how it looks; a pass that raises it
-has done the work. R-7 measured, at 1280×800:
+has done the work.
+
+**Exception: a reduction another item explicitly required is not a
+regression.** R-10d mandated muting the progress bar on a settled job, which
+cost Activity 0.64%. Draining colour out of finished work is the point of
+that item, so the rule cannot also forbid it. When a spec item requires a
+change that lowers the number, say which item and by how much — the reduction
+is then accounted for rather than excused. Anything not traceable to an item
+is still a regression.
+
+**Comparisons are only valid between builds showing the same content.** The
+measurement is sensitive to what is on screen: a mounted volume, an extra
+job row or an empty state moves it more than most styling does. Measure both
+builds back to back against the same app data, and report the pair, never a
+single absolute. R-7 measured, at 1280×800:
 
 | screen | before | after | |
 | --- | --- | --- | --- |
@@ -655,6 +669,7 @@ sheet, so there was nowhere else for the issue to appear.
 | 2026-09-17 | Uppercase survives only in the micro-label tier; all 17 rules classified (R-10c) |
 | 2026-09-17 | SR-10 amended: `ok` is green; a settled progress bar is muted instead (R-10d) |
 | 2026-09-17 | The display numeral is the sans display tier, not mono (R-11) |
+| 2026-09-17 | SR-7 exempts a luminance reduction that another item requires, when named |
 
 ---
 

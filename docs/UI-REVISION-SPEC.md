@@ -168,7 +168,7 @@ and never depends on hue alone:
 | state | glyph | tint |
 | --- | --- | --- |
 | running / active | filled triangle | accent |
-| done / ok | filled dot | muted grey |
+| done / ok | filled dot | `--c-ok` green (amended by R-10d) |
 | needs review / attention | hollow ring | amber |
 | failed | filled hexagon | danger |
 | cancelled | horizontal bar | muted |
@@ -525,38 +525,63 @@ dividers stay exempt (`.pathpick .btn`, the `.tabs__item` hairline) because
 they are full-height rules between controls, not marks on one edge of a
 row.
 
-### R-10c — Everything is uppercase · NEEDS A DECISION
+### R-10c — Everything is uppercase · DECIDED
 
 17 `text-transform: uppercase` rules. Tabs read `SCAN / PLAN / PREFLIGHT`,
 the wordmark `FERRY / MEDIA MANAGER`, panel titles `SOURCES`. The reference
-is title case throughout — `Scan`, lowercase `ferry`, `Plan`.
+is title case throughout. This is the largest single reason the app reads
+more utilitarian than the mockup.
 
-This is the largest single reason the app reads more utilitarian than the
-mockup, and it is a taste call rather than a defect.
+**Decided: follow the reference.** Uppercase survives only in the
+**micro-label tier** — the small, letterspaced, muted labels that sit above
+or beside data and are read as annotation rather than as language. Anything
+a person reads as a word goes to sentence or title case.
 
-**Recommended:** follow the reference — title case for tabs, panel titles
-and buttons; keep uppercase only for the micro-label tier (the small
-letterspaced grey labels above numerals), which is where it earns its
-keep. Lowercase `ferry` in the wordmark, per the brand guide.
+All 17 are classified here so none is left to judgement:
 
-**Not to be decided by the builder.**
+| keep uppercase (micro-label tier) | line |
+| --- | --- |
+| `.eyebrow` | 391 |
+| `.nav__group-label` (WORK / LIBRARY / SETUP) | 488 |
+| `.stat__label` | 878 |
+| `.table th` | 1190 |
+| `.field label` | 1337 |
+| `.kv dt` | 2114 |
+| `.dock__state` (TRANSFERRING) | 688 |
+| `.banner__label` (the stamped severity word) | 1595 |
+| `.status` (SIDECAR · PROTOCOL V1) | 610 |
 
-### R-10d — `ok` renders green; SR-10 says muted grey · NEEDS A DECISION
+| drop uppercase | line | becomes |
+| --- | --- | --- |
+| `.nav__wordmark` | 460 | lowercase `ferry`, per the brand guide |
+| `.nav__tagline` | 470 | sentence case |
+| `.card__title` | 809 | title case — `Sources`, `Plan` |
+| `.tabs__item` | 1908 | title case — `Scan`, `Preflight` |
+| `.seg__item` | 1138 | title case |
+| `.chip` | 944 | lowercase — the reference shows `running`, `done`, `review` |
+| `.progress-cell__note` | 2073 | lowercase |
+| `.confirm__title` | 2182 | title case |
+
+Letterspacing goes with the casing: a title-case label keeps normal
+tracking, since `--tr-label` exists to make uppercase legible.
+
+### R-10d — `ok` renders green; SR-10 said muted grey · DECIDED
 
 `--c-ok: #35a96c` drives the `SUCCEEDED` chip, its dot, and the progress
-bar. SR-10's table says `done / ok -> filled dot, muted grey`. The app and
-this document disagree.
+bar. SR-10's table said `done / ok -> filled dot, muted grey`.
 
-Three filled green bars on Activity also strain SR-6's one-emitting-element
-budget, even though none of them glows.
+**Decided: amend SR-10, not the app.** Green for success is a strong
+convention, and SR-10's actual requirement — that state survives greyscale —
+is already met by the distinct dot shape. Draining the colour out of a
+success state to satisfy a table entry would make the app worse. **SR-10's
+`done / ok` row now reads `filled dot, ok green`.**
 
-**Recommended:** amend SR-10, not the app. Green for success is a strong
-convention and the chip carries a distinct dot shape already, so SR-10's
-real requirement — state survives greyscale — is met. But mute the
-**progress bar** on a settled job: a finished transfer is not live, and it
-should not be the loudest thing on the screen.
-
-**Not to be decided by the builder.**
+**But mute a settled progress bar.** Three filled green bars on Activity
+strain SR-6: a finished transfer is not live and must not be the loudest
+thing on the screen. A progress bar at 100% on a settled job renders in a
+muted tone; only a bar that is actually moving carries `--c-ok` or the
+accent. The chip stays green either way — it is the state, the bar is only
+its magnitude.
 
 ### Acceptance
 
@@ -589,6 +614,8 @@ should not be the loudest thing on the screen.
 | 2026-09-14 | R-3 resolved: Organize withdrawn (screen + RPC), Offload absorbed as a source type |
 | 2026-09-17 | SR-1 amended: no edge mark in any state, hover included (R-10b) |
 | 2026-09-17 | Where this spec and its reference images disagree, the reference wins (R-10a) |
+| 2026-09-17 | Uppercase survives only in the micro-label tier; all 17 rules classified (R-10c) |
+| 2026-09-17 | SR-10 amended: `ok` is green; a settled progress bar is muted instead (R-10d) |
 
 ---
 

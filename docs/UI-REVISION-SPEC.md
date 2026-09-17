@@ -151,7 +151,7 @@ already appeared once in review.
 
 ---
 
-## R-1 — Remove the left-edge colour bars · OPEN (folded into R-7)
+## R-1 — Remove the left-edge colour bars · DONE — #186 (first slice), folded into #192
 
 Applies SR-1 to what exists today. 19 declarations across 5 selectors;
 all are accounted for below.
@@ -203,7 +203,7 @@ bar is a fourth cue on top of three. Nothing is lost.
 
 ---
 
-## R-2 — Responsiveness and a minimum width · OPEN
+## R-2 — Responsiveness and a minimum width · DONE — #185
 
 > "Responsiveness at different dimensions is poor. Even if it's small, a
 > min width needs to be established."
@@ -337,7 +337,7 @@ stays for already-created jobs; no new UI path creates one.
 
 ---
 
-## R-4 — Persistent transfer dock · OPEN
+## R-4 — Persistent transfer dock · DONE — #177
 
 There is no always-visible representation of work in flight. A running
 transfer lives in the Transfers hash; navigate away and the route back is
@@ -394,7 +394,7 @@ moves to a tooltip or is dropped; the nav already says where you are.
 
 ---
 
-## R-7 — Surface and material migration · OPEN
+## R-7 — Surface and material migration · DONE — #192
 
 Apply SR-5 through SR-10 to the existing stylesheet. This is the visual
 pass, and it depends on R-8 for the accent token.

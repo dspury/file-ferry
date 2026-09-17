@@ -24,8 +24,10 @@ app looks or whether it boots. Run it.
 | P7 desktop shell | in progress — this document |
 | Packaging | Stage A landed (#167); unsigned local builds work |
 
-Merged from the UI spec: R-3 (#172), R-5 and R-6 (#174), R-8 (#171).
-Remaining: R-1 (folded into R-7), R-2, R-4, R-7.
+Merged from the UI spec: R-1 (#186), R-2 (#185), R-3 (#172), R-4 (#177),
+R-5 and R-6 (#174), R-7 (#192), R-8 (#171). **Track A is complete.**
+Track B's remaining items are B-3 (#101, verify and close) and B-4b
+(#149, held on `@typescript-eslint`). Track C waits on this landing.
 
 ---
 

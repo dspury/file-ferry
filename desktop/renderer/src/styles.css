@@ -18,17 +18,28 @@
  */
 
 :root {
-  /* --- surfaces, back to front.
-     The ink-navy family, recessed to raised: a darker rail behind the nav,
-     the page itself, then panel / plate / plate-hover. The relative
-     lightness steps of the previous palette are preserved in order and
-     roughly in size, so every depth relationship this sheet already relied
-     on still reads. --- */
-  --c-rail: #0A0E16;
-  --c-bg: #0F1622; /* ink */
-  --c-surface: #151E2D;
-  --c-surface-2: #1C283B;
-  --c-surface-3: #223046;
+  /* --- surfaces, back to front (R-7: luminous glass).
+     The ink-navy family, recessed to raised. Two things changed from the
+     #160 palette this replaces. The rail is now a genuinely recessed plate
+     (`#0A1A2F`, darker than the content at every height), which is what
+     lifts the muted rail labels to 5.73:1 — on the old near-black rail
+     they sat at 3.34:1 where the wash was brightest, a WCAG failure. And
+     the canvas is no longer one flat fill: `--c-bg` is the darkest end of
+     a large single-direction wash (`--c-wash`, applied on `.app`), so
+     every panel sits on a surface that is brighter toward the upper left
+     of the content area.
+
+     Panel fill differs from the canvas by ~1.16:1 — deliberately too
+     little to define an edge on its own. The silhouette comes from the
+     `--c-rim` hairline, not the fill (SR-5). --- */
+  --c-rail: #0A1A2F;
+  --c-bg: #142035; /* canvas base — darkest end of the wash */
+  --c-wash: #1E3350; /* canvas wash highlight — upper-left of the content */
+  --c-surface: #1D2B47; /* panel base (bottom of a panel's own gradient) */
+  --c-panel-top: #1E2C48; /* panel gradient top — imperceptibly lighter */
+  --c-rim: #3D4F74; /* the 1px perimeter that gives a panel its silhouette */
+  --c-surface-2: #1F2C46;
+  --c-surface-3: #28375A;
 
   /* --- lines.
      Three tiers, and the third one exists for an accessibility reason
@@ -36,31 +47,32 @@
 
      `--c-border` and `--c-border-strong` are *delineation*: the edge of a
      card, the rule between table rows, the hairline under a group of
-     fields. At 1.00-2.02:1 against the surfaces they sit on they are
+     fields. At 1.1-1.9:1 against the surfaces they sit on they are
      deliberately almost subliminal, which is what makes the sheet feel
      restrained, and WCAG 1.4.11 does not ask anything of them — a rule
-     that merely groups content is decoration. `--c-border-strong` is brand
-     `steel` (1.89:1 on ink): its one legitimate role is a visible edge
-     like this, and it must never carry text, a meaningful boundary, or a
-     focus ring.
+     that merely groups content is decoration. `--c-border-strong` is a
+     steel-adjacent blue (1.72:1 on `--c-surface`): its one legitimate role
+     is a visible edge like this, and it must never carry text, a meaningful
+     boundary, or a focus ring.
 
      `--c-border-indicator` is for the borders that are load-bearing: the
      edge that tells you *this is a control you can type in or press*
      (button, input, select, textarea, path picker, segmented control) and
      the ring on a pending stage marker. Those are exactly the cases 1.4.11
-     covers, so they need 3:1. #687687 clears it against every surface a
-     control actually rests on: `--c-rail` 4.17, `--c-bg` 3.91,
-     `--c-surface` 3.61, `--c-surface-2` 3.20. Against `--c-surface-3` it is
-     2.87 — under — but no indicator edge ever renders there: every
-     `--c-surface-3` background (`.btn:hover`, `.seg__item--active`,
-     `.pathpick .btn:hover`) is a hover state whose border is already
-     `--c-accent`. Keep that true if you add a `--c-surface-3` control. Going
-     lighter would only make the UI noisier for margin the spec does not
-     ask for; blanket-applying it to the decorative tiers would wreck the
-     restraint the palette is built on. --- */
-  --c-border: #243042;
-  --c-border-strong: #36465D; /* steel */
-  --c-border-indicator: #687687;
+     covers, so they need 3:1. #6E7C90 clears it against every surface a
+     control actually rests on: `--c-rail` 4.12, `--c-bg` 3.84,
+     `--c-surface` 3.32, `--c-surface-2` 3.28, and the brightest wash
+     `--c-wash` 3.01 (controls do sit directly on the canvas — the page
+     intro's action row). Against `--c-surface-3` it is 2.77 — under — but no
+     indicator edge ever renders there: every `--c-surface-3` background
+     (`.btn:hover`, `.seg__item--active`, `.pathpick .btn:hover`) is a hover
+     state whose border is already `--c-accent`. Keep that true if you add a
+     `--c-surface-3` control. Going lighter would only make the UI noisier
+     for margin the spec does not ask for; blanket-applying it to the
+     decorative tiers would wreck the restraint the palette is built on. --- */
+  --c-border: #26334B;
+  --c-border-strong: #3B4C68; /* steel-adjacent, one visible hairline */
+  --c-border-indicator: #6E7C90;
 
   /* --- text.
      `body` is the product text tier; brand `bone` (#F6F5F2) is reserved for
@@ -69,13 +81,16 @@
      and the plan/review/execute/verify stage labels. None of those are WCAG
      "large text" (that needs 24px, or 18.66px bold), so all of them need the
      full 4.5:1. Check a foreground token against the surface it renders on,
-     not just against ink: `--c-text-faint` clears it on `--c-bg` (5.95:1),
-     `--c-surface` (5.49:1), `--c-rail` (6.33:1) and — where the table column
-     heads sit — `--c-surface-2` (4.86:1). `--c-surface-3` looks under-AA for
-     it on paper, but nothing renders text-faint there: every surface-3
-     background is a hover state whose text is `--c-text`. The three tiers
-     are also separated by weight (600 vs 400), casing, and tracking, so
-     lightness is not carrying the hierarchy alone. --- */
+     not just against ink: `--c-text-faint` clears it on `--c-rail` (5.73:1),
+     `--c-bg` (5.35:1), `--c-surface` (4.63:1) and — where the table column
+     heads sit — `--c-surface-2` (4.57:1). It is 4.19:1 on the brightest wash
+     (`--c-wash`), which is why no faint tier renders directly on the canvas:
+     the stat labels sit there and use `--c-text-dim` (5.29:1 on the same
+     wash). `--c-surface-3` is under-AA for it on paper (3.86:1), but nothing
+     renders text-faint there: every surface-3 background is a hover state
+     whose text is `--c-text`. The three tiers are also separated by weight
+     (600 vs 400), casing, and tracking, so lightness is not carrying the
+     hierarchy alone. --- */
   --c-text: #EDEBE6; /* body */
   --c-text-dim: #A6A7A7;
   --c-text-faint: #919497;
@@ -187,8 +202,11 @@
      text setting, so text-only zoom scales the whole UI. Absolute px here
      is what defeated OS text scaling (#101). Each rem is the size the
      previous px rendered at the 16px default root.
-     `--fs-2xs` is the engraved-label tier; nothing in this sheet needs it
-     yet, but it exists so the shared primitives do not hand-roll it. --- */
+     `--fs-display` is R-7's new top of the ramp (SR-9): a hero numeral at
+     roughly 6x the micro-label tier (`--fs-display` 4rem against
+     `--fs-2xs` 0.625rem is 6.4x), which is the dramatic contrast the
+     middling old ramp could not produce. `--fs-2xs` is the engraved-label
+     tier the labels around a hero now use. --- */
   --fs-2xs: 0.625rem; /* 10px */
   --fs-xs: 0.6875rem; /* 11px */
   --fs-sm: 0.75rem; /* 12px */
@@ -196,6 +214,7 @@
   --fs-lg: 0.9375rem; /* 15px */
   --fs-xl: 1.1875rem; /* 19px */
   --fs-2xl: 1.625rem; /* 26px */
+  --fs-display: 4rem; /* 64px — one hero numeral per view (SR-9) */
 
   /* --- tracking. CinePrompt letterspaces uppercase labels hard; `--tr-wide`
      is the mono-eyebrow step, and `--tr-wordmark` is the widest step, used
@@ -217,25 +236,35 @@
   /* --- shape.
      Tightened onto CinePrompt's radii: 3px for engraved plates (chips,
      stage markers, gauges), 4px for small controls, 6px for buttons and
-     panels, 10px for the one dialog. Softer corners than this read as a
-     web admin template; this app should read as a piece of equipment. --- */
+     small plates, 14px for the one raised panel scale (cards, the dock,
+     the dialog) — R-7. Softer corners than this read as a web admin
+     template; this app should read as a piece of equipment. --- */
   --radius-xs: 3px;
   --radius-sm: 4px;
   --radius: 6px;
-  --radius-lg: 10px;
+  --radius-lg: 14px;
   --radius-pill: 999px;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 14px 40px rgba(0, 0, 0, 0.55);
+  /* The panel's ambient shadow: soft, and close enough to the panel that it
+     reads as the panel sitting on the canvas rather than a drop shadow. */
+  --shadow-panel: 0 8px 24px rgba(0, 0, 0, 0.32);
 
   /* --- atmosphere.
-     Three decorative tokens, deliberately few. `--glow-accent` is the
-     filament glow CinePrompt puts behind a lit accent element;
-     `--fill-ticks` is its lens-barrel tick rule, reused here as the scale
-     behind a progress gauge; `--scrim-blur` softens what is behind a modal
-     so the dialog reads as the only live surface. None of them carry
-     information — every one can be removed without changing what a screen
-     says. --- */
-  --glow-accent: 0 0 10px rgba(117, 161, 198, 0.3);
+     A few decorative tokens, deliberately few. `--glow-accent` is the
+     filament glow behind a lit accent element — R-8 repointed the three
+     elements that use it to `--c-accent-interactive`, so the token now
+     carries that hue too, and SR-6's budget cut it to about a third of the
+     old neon (8px blur at 0.22 alpha). It is only ever the progress fill
+     or a hovered primary button that emits; everything else is lit.
+     `--grad-wash` is the one canvas wash and `--grad-panel` the one panel
+     fill, so a screen never hand-rolls either. `--fill-ticks` is the
+     lens-barrel tick rule behind a progress gauge; `--scrim-blur` softens
+     what is behind a modal so the dialog reads as the only live surface.
+     None of them carry information — every one can be removed without
+     changing what a screen says. --- */
+  --glow-accent: 0 0 9px rgba(84, 164, 231, 0.22);
+  --grad-wash: radial-gradient(115% 115% at 0% 0%, var(--c-wash) 0%, var(--c-bg) 68%);
+  --grad-panel: linear-gradient(var(--c-panel-top), var(--c-surface));
 
   /*
    * The "this did not happen" hatch, ruled across the empty part of a meter
@@ -344,17 +373,20 @@ code,
 }
 
 /*
- * The engraved label tier: mono, uppercase, hard-tracked, faint. CinePrompt
- * uses it for anything that names a value rather than being one, and this
- * sheet applies it to the nav group headings, the header kicker, table
- * column heads, stat-tile labels, field labels, and key/value keys. It is
- * exposed as a class as well so a screen that needs one more of them does
- * not hand-roll the five declarations.
+ * The engraved label tier: uppercase, hard-tracked, faint. It names a value
+ * rather than being one, and this sheet applies it to the nav group
+ * headings, table column heads, stat-tile labels, field labels, and
+ * key/value keys. It is exposed as a class as well so a screen that needs
+ * one more of them does not hand-roll the declarations.
+ *
+ * SR-8: this used to be mono. A label is not data — mono is for file paths,
+ * byte counts, durations, hashes and ids — so the tier is the sans face now
+ * and keeps only casing and tracking. That is also what stops the entire
+ * interface from reading as a terminal.
  */
 .eyebrow {
-  font-family: var(--ff-mono);
   font-size: var(--fs-2xs);
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: var(--tr-wide);
   text-transform: uppercase;
   color: var(--c-text-faint);
@@ -370,6 +402,13 @@ code,
      while the dock is present (R-4: the dock shortens, never covers). */
   grid-template-rows: var(--header-h) 1fr auto;
   height: 100vh;
+  /* R-7: the canvas wash, one large single-direction gradient brighter
+     toward the upper left of the content area. It lives on the shell grid,
+     behind the opaque rail and every opaque panel — no string sits directly
+     on it where a faint tier would have to be contrast-checked against a
+     moving value (SR-3/SR-5). */
+  background-color: var(--c-bg);
+  background-image: var(--grad-wash);
 }
 
 /* ============================= nav ============================== */
@@ -377,6 +416,10 @@ code,
 .nav {
   grid-column: 1;
   grid-row: 1 / span 2;
+  /* R-7: the rail is a genuinely recessed plate — `--c-rail` #0A1A2F is
+     darker than the canvas wash at every height, including the top, so the
+     muted rail labels clear AA instead of sitting on the brightest part of
+     a flat background (the old 3.34:1 failure). */
   background: var(--c-rail);
   border-right: 1px solid var(--c-border);
   /* No right padding: an active item's plate runs to the rail's edge, the
@@ -422,9 +465,8 @@ code,
 .nav__tagline {
   display: block;
   margin-top: 4px;
-  font-family: var(--ff-mono);
   font-size: var(--fs-2xs);
-  font-weight: 400;
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: var(--tr-label);
   color: var(--c-text-faint);
@@ -440,9 +482,8 @@ code,
    grouping is carried by the role="group" + aria-label on the container,
    so this is aria-hidden in the markup. */
 .nav__group-label {
-  font-family: var(--ff-mono);
   font-size: var(--fs-2xs);
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: var(--tr-wide);
   text-transform: uppercase;
   color: var(--c-text-faint);
@@ -519,7 +560,10 @@ code,
   grid-column: 2;
   grid-row: 1;
   border-bottom: 1px solid var(--c-border);
-  background: var(--c-bg);
+  /* Transparent so the shell's canvas wash runs from the top of the
+     content area down, the way the approved direction has it — the header
+     is lit by the same wash as the content, not a separate flat band. */
+  background: transparent;
   padding: 0 var(--sp-6);
   display: flex;
   align-items: center;
@@ -553,19 +597,20 @@ code,
 /* ---- connection indicator ----
    A recessed readout plate, not loose grey text: this is the one piece of
    hardware status on screen, and it should look like it is engraved on the
-   chassis rather than typed into the page. */
+   chassis rather than typed into the page. SR-5/SR-8: it is a status word,
+   so it gets a lit plate and no rim, and it is set in the sans face — a
+   protocol version is chrome, not a data field. */
 .status {
   display: inline-flex;
   align-items: center;
   gap: var(--sp-2);
-  font-family: var(--ff-mono);
   font-size: var(--fs-xs);
+  font-weight: 500;
   letter-spacing: var(--tr-label);
   text-transform: uppercase;
   color: var(--c-text-dim);
   padding: var(--sp-1) var(--sp-3);
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-pill);
   background: var(--c-surface);
 }
 
@@ -607,9 +652,14 @@ code,
   align-items: center;
   gap: var(--sp-4);
   padding: var(--sp-3) var(--sp-5);
-  background: linear-gradient(var(--c-surface-2), var(--c-surface));
-  border: 1px solid var(--c-border-indicator);
-  border-radius: var(--radius) var(--radius) 0 0;
+  /* R-7 SR-5: the same raised-panel material as a card — vertical fill
+     lighter at the top, a full-perimeter `--c-rim`, 14px top corners, and
+     an ambient shadow thrown upward. SR-6: the fill of the progress bar is
+     the screen's one emitting element while the dock is present; the plate
+     itself only reflects. */
+  background: var(--grad-panel);
+  border: 1px solid var(--c-rim);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.45);
 }
 
@@ -632,8 +682,8 @@ code,
 }
 
 .dock__state {
-  font-family: var(--ff-mono);
   font-size: var(--fs-2xs);
+  font-weight: 600;
   letter-spacing: var(--tr-wide);
   text-transform: uppercase;
   color: var(--c-text-faint);
@@ -722,11 +772,18 @@ code,
 
 /* =========================== cards ============================== */
 
+/* The raised panel material (R-7 SR-5). The fill is a vertical gradient
+   that is imperceptibly lighter at the top, the radius is the panel scale
+   (14px), and the silhouette is the `--c-rim` hairline around the whole
+   perimeter — the fill alone is only ~1.16:1 against the canvas and cannot
+   define an edge. Element-scale content inside a panel (rows, chips, the
+   statistics in a hero) gets none of this; SR-1's preferred indicators
+   carry their state instead. */
 .card {
-  background: var(--c-surface);
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  background: var(--grad-panel);
+  border: 1px solid var(--c-rim);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-panel);
 }
 
 .card__header {
@@ -796,41 +853,44 @@ code,
 }
 
 .stat {
-  background: var(--c-surface);
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius);
-  padding: var(--sp-3) var(--sp-4);
+  /* R-7 SR-5: an individual statistic is element-scale — it gets no rim and
+     no box, so the row is separated by spacing alone (the reference's
+     unboxed statistic band). The state signal stays the value text
+     (`.stat--X .stat__value`), SR-1's preferred indicator, and the label
+     always names the state in words. */
+  padding: var(--sp-2) 0;
   display: flex;
   flex-direction: column;
   gap: var(--sp-1);
-  /* R-1: a uniform bordered cell, like a stage-rail cell. The 3px left rail
-     that used to carry the tone is gone; the state signal is the value text
-     (`.stat--X .stat__value`), which is SR-1's preferred indicator, and the
-     label always names the state in words. */
 }
 
 .stat__label {
   /* Two lines are reserved so a tile whose label wraps ("Unverified
      replicas") keeps its number on the same baseline as its neighbours. */
-  min-height: calc(2 * 1.45 * var(--fs-xs));
-  line-height: 1.45;
-  font-family: var(--ff-mono);
-  font-size: var(--fs-xs);
-  font-weight: 500;
+  min-height: calc(2 * 1.35 * var(--fs-2xs));
+  line-height: 1.35;
+  /* SR-8: a label, not data — sans, uppercase, tracked. `--c-text-dim`
+     rather than faint: with the stat row unboxed it can sit on the
+     brightest wash, where faint would fall to 4.19:1 (SR-3). */
+  font-size: var(--fs-2xs);
+  font-weight: 600;
   letter-spacing: var(--tr-wide);
   text-transform: uppercase;
-  color: var(--c-text-faint);
+  color: var(--c-text-dim);
 }
 
 /* A counted quantity is spec data, so it is set in mono like every other
    number in the app — and mono digits are all one width, which is what
-   keeps a row of tiles from jittering as counts change. */
+   keeps a row of tiles from jittering as counts change. R-7 SR-9: it is
+   the hero numeral, at display scale (~6x the micro-label it sits under)
+   rather than one more middling size. */
 .stat__value {
   font-family: var(--ff-mono);
-  font-size: var(--fs-2xl);
+  font-size: var(--fs-display);
   font-weight: 600;
-  line-height: 1.05;
+  line-height: 1;
   letter-spacing: -0.03em;
+  overflow-wrap: anywhere;
 }
 
 .stat--active .stat__value {
@@ -866,11 +926,10 @@ code,
  * state pill from being mistaken for a button, which the old sans-serif
  * rounded pill did at a glance.
  *
- * The border stays on the decorative tier for the neutral chip. A chip is
- * not an interactive control and its state is spelled out in its own text,
- * so 1.4.11 does not apply to its outline; the tone variants below carry a
- * hue border only because a coloured plate needs an edge to survive on any
- * surface.
+ * SR-5: the rim is removed. A chip is element-scale and is separated from
+ * what surrounds it by spacing and the faintest hairlines, not a box; its
+ * state is carried by the tinted fill, the tone-coloured text, and the
+ * SR-10 glyph — three channels, none of them an edge.
  */
 .chip {
   display: inline-flex;
@@ -883,104 +942,55 @@ code,
   font-weight: 500;
   letter-spacing: var(--tr-label);
   text-transform: uppercase;
-  border: 1px solid var(--c-border-strong);
   background: var(--c-neutral-soft);
   color: var(--c-text-dim);
   white-space: nowrap;
 }
 
 /*
- * The leading marker, and the chip's non-colour channel.
- *
- * It used to be one circle for every tone, which made it decoration: the
- * only thing separating MISSING from VERIFIED in greyscale was reading the
- * word. Now the silhouette differs per tone and the shapes are chosen to
- * mean what the tone means -- a play triangle for work in flight, a bar for
- * a run that halted, a hollow ring for something waiting on a person, a
- * hexagon for danger. At 7px none of these is a picture, but a column of
- * fifty rows sorts into groups by shape alone, which is the job.
+ * The leading mark is the canonical state glyph (`StateGlyph`), the same
+ * component a banner renders, so one state has one silhouette everywhere
+ * (SR-10) instead of a clip-path here and an alert icon there. It inherits
+ * the chip's tone colour; at 8px it is not a picture, but a column of fifty
+ * rows sorts into groups by shape alone, which is the job.
  */
 .chip__dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
   flex: none;
 }
 
-/* In flight: pointing forward. */
-.chip--active .chip__dot {
-  border-radius: 0;
-  clip-path: polygon(0 0, 100% 50%, 0 100%);
-}
-
-/* Caution: the standard warning triangle, upright. */
-.chip--warn .chip__dot {
-  border-radius: 0;
-  clip-path: polygon(50% 0, 100% 100%, 0 100%);
-}
-
-/* Danger: a hexagonal plate, the one silhouette here with no round edge. */
-.chip--danger .chip__dot {
-  border-radius: 0;
-  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
-}
-
-/* Waiting on a person: hollow, so the row reads as unfinished business. */
-.chip--attention .chip__dot {
-  background: transparent;
-  box-shadow: inset 0 0 0 2px currentColor;
-}
-
-/* Stopped: a bar, not a dot -- the same "halt" mark as the dashed edge. */
-.chip--cancelled .chip__dot {
-  height: 2px;
-  border-radius: 1px;
-}
-
 /*
- * The six operational states. A tone chip is a recessed hue-tinted plate
- * with a hue border, so its outline survives on any surface -- the old
- * transparent border left the chip's shape to the fill alone. The tone is
- * still never the only signal: the chip always spells the state out, and
- * `.chip__dot` gives it a non-colour marker.
+ * The six operational states, each a recessed hue-tinted plate with no rim
+ * (SR-5). The tone is never the only signal: the chip spells the state out,
+ * and the glyph carries the silhouette. Cancelled is inert, not severe — it
+ * says "this run stopped" through the bar glyph rather than a dashed edge.
  */
 .chip--active {
   color: var(--c-accent);
-  border-color: var(--c-accent-line);
   background: var(--c-accent-soft);
 }
 
 .chip--ok {
   color: var(--c-ok);
-  border-color: var(--c-ok-line);
   background: var(--c-ok-soft);
 }
 
 .chip--warn {
   color: var(--c-warn);
-  border-color: var(--c-warn-line);
   background: var(--c-warn-soft);
 }
 
 .chip--danger {
   color: var(--c-danger);
-  border-color: var(--c-danger-line);
   background: var(--c-danger-soft);
 }
 
-/* Cancelled is inert, not severe: the dashed edge says "this run stopped"
-   without borrowing danger's weight. */
 .chip--cancelled {
   color: var(--c-cancelled);
-  border-color: var(--c-cancelled-line);
-  border-style: dashed;
   background: var(--c-cancelled-soft);
 }
 
 .chip--attention {
   color: var(--c-attention);
-  border-color: var(--c-attention-line);
   background: var(--c-attention-soft);
 }
 
@@ -1099,12 +1109,13 @@ code,
 /* ===================== segmented control ======================== */
 
 /*
- * A mode switch on a camera body: mono uppercase legends in a recessed
- * housing, with the engaged position lit from below. The selected option is
+ * A mode switch on a camera body: uppercase legends in a recessed housing,
+ * with the engaged position lit from below. The selected option is
  * distinguished four ways — plate, weight, text colour, and the accent
  * underscore — so no single channel is carrying it, and `aria-checked` on
  * the radio carries it for assistive tech. The housing edge is on the
- * indicator tier because the group is an interactive control.
+ * indicator tier because the group is an interactive control. SR-8: an
+ * option label is a button label, so it is sans, not mono.
  */
 .seg {
   display: inline-flex;
@@ -1121,9 +1132,8 @@ code,
   background: transparent;
   color: var(--c-text-dim);
   font: inherit;
-  font-family: var(--ff-mono);
   font-size: var(--fs-xs);
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: var(--tr-label);
   text-transform: uppercase;
   height: 26px;
@@ -1174,8 +1184,7 @@ code,
 .table th {
   text-align: left;
   color: var(--c-text-faint);
-  font-family: var(--ff-mono);
-  font-weight: 500;
+  font-weight: 600;
   font-size: var(--fs-xs);
   letter-spacing: var(--tr-wide);
   text-transform: uppercase;
@@ -1322,9 +1331,8 @@ code,
 }
 
 .field label {
-  font-family: var(--ff-mono);
   font-size: var(--fs-xs);
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: var(--tr-wide);
   text-transform: uppercase;
   color: var(--c-text-faint);
@@ -1350,7 +1358,9 @@ code,
  * The phrase itself gets a plate. It is a literal the operator has to
  * reproduce character for character, not an emphasised word in a sentence,
  * and as bare bold mono a short lowercase phrase like `move` was easy to
- * skim straight past on the way to the input.
+ * skim straight past on the way to the input. SR-5: element-scale, so the
+ * plate keeps its fill and drops the rim; the danger fill and mono are what
+ * make it read as a literal.
  */
 .confirm .field label strong {
   display: inline-block;
@@ -1359,7 +1369,6 @@ code,
   color: var(--c-danger);
   letter-spacing: var(--tr-label);
   padding: 0 5px;
-  border: 1px solid var(--c-danger-line);
   border-radius: var(--radius-xs);
   background: var(--c-danger-soft);
 }
@@ -1576,12 +1585,12 @@ textarea:focus-visible {
   word-break: break-word;
 }
 
-/* The severity word is stamped, not italicised: mono uppercase reads as a
-   label on the message rather than as the first word of it. */
+/* The severity word is stamped, not italicised: uppercase with hard tracking
+   reads as a label on the message rather than as the first word of it.
+   SR-8: a label, so it is sans — mono is reserved for data. */
 .banner__label {
-  font-family: var(--ff-mono);
   font-size: var(--fs-sm);
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: var(--tr-label);
   text-transform: uppercase;
 }
@@ -1822,7 +1831,8 @@ textarea:focus-visible {
 }
 
 /* The glyph gets its own plate so it reads as an icon rather than as a
-   stray line drawing floating in the middle of a panel. */
+   stray line drawing floating in the middle of a panel. SR-5: the plate is
+   a lit fill with no rim at this scale. */
 .empty__frame {
   display: grid;
   place-items: center;
@@ -1830,7 +1840,6 @@ textarea:focus-visible {
   height: 44px;
   flex: none;
   margin-bottom: var(--sp-2);
-  border: 1px solid var(--c-border);
   border-radius: var(--radius-sm);
   background: var(--c-surface);
   color: var(--c-text-faint);
@@ -1878,7 +1887,7 @@ textarea:focus-visible {
   display: flex;
   align-items: stretch;
   border: 1px solid var(--c-border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   background: var(--c-surface);
   overflow: hidden;
 }
@@ -1965,6 +1974,16 @@ textarea:focus-visible {
 .progress__fill {
   height: 100%;
   background: var(--c-accent-interactive);
+}
+
+/*
+ * SR-6: the glow budget is one emitting element per screen. A meter is lit
+ * by default — a table of twenty running rows must not spend the whole
+ * budget on chrome. The dock's fill is the one that emits, because the dock
+ * is the app's single persistent statement that work is in flight; the
+ * primary button emits only while it is hovered.
+ */
+.dock .progress__fill {
   box-shadow: var(--glow-accent);
 }
 
@@ -2089,9 +2108,8 @@ textarea:focus-visible {
    lets the eye run straight down the value column on Environment's
    "Data location" block without re-reading the labels. */
 .kv dt {
-  font-family: var(--ff-mono);
   font-size: var(--fs-xs);
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: var(--tr-wide);
   text-transform: uppercase;
   color: var(--c-text-faint);
@@ -2158,9 +2176,8 @@ textarea:focus-visible {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  font-family: var(--ff-mono);
-  font-size: var(--fs-md);
-  font-weight: 600;
+  font-size: var(--fs-lg);
+  font-weight: 700;
   letter-spacing: var(--tr-wide);
   text-transform: uppercase;
   color: var(--c-danger);

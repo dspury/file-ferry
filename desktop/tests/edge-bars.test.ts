@@ -5,8 +5,13 @@
  * apply the stylesheet, so this is a textual guard over `styles.css` (the
  * same approach the brand-token test uses): the three selectors and their
  * state modifiers must not reach for `border-left`, and the replacement
- * signals must exist — the stat value's tone colour, and full-perimeter
- * borders on the stat tile and the banner.
+ * signals must exist — the stat value's tone colour, and a full-perimeter
+ * border on the banner.
+ *
+ * R-7 moved the stat tile further: SR-5 makes an individual statistic
+ * element-scale, so it now has no border at all, and its state is carried
+ * entirely by the value text. The banner is a message plate and keeps its
+ * full perimeter for the same reason it always did.
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -37,8 +42,11 @@ describe('R-1 no left-edge colour bars', () => {
     }
   });
 
-  it('keeps a full-perimeter border on the stat tile and the banner', () => {
-    expect(/\.stat\s*\{[^}]*border:\s*1px solid/.test(css)).toBe(true);
+  it('leaves the stat tile unboxed (R-7) and the banner with a full perimeter', () => {
+    // SR-5: element-scale statistics get no rim and no box; their state is
+    // the value colour asserted above.
+    expect(/\.stat\s*\{[^}]*border:\s*1px solid/.test(css)).toBe(false);
+    // The banner is a message plate, not an element-scale chip.
     expect(/\.banner\s*\{[^}]*border:\s*1px solid/.test(css)).toBe(true);
   });
 

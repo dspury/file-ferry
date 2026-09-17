@@ -606,7 +606,7 @@ its magnitude.
 
 ---
 
-## R-11 — The hero numeral is set in monospace · DONE
+## R-11 — The hero numeral is set in monospace · DONE — #195
 
 `.stat__value` — the SR-9 display numeral — computed to IBM Plex Mono at
 64px/600, which is why Dashboard's zeros read as a terminal font at display

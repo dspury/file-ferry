@@ -606,6 +606,34 @@ its magnitude.
 
 ---
 
+## R-11 — The hero numeral is set in monospace · DONE
+
+`.stat__value` — the SR-9 display numeral — computed to IBM Plex Mono at
+64px/600, which is why Dashboard's zeros read as a terminal font at display
+size. It predates R-7, so it is not a defect in that pass, but SR-9's display
+tier exists for exactly this element, and it was the last thing on the screen
+that did not match `docs/ui-refs/dashboard.jpg`.
+
+**SR-8 is explicit about what mono is for** — file paths, byte counts,
+durations, hashes and ids. A display numeral is none of those. The old
+comment defended mono on tabular-alignment grounds, but the three Dashboard
+numerals sit in separate columns with nothing to align.
+
+**Resolution:** `.stat__value` is the display sans (Archivo) at a heavy
+weight, and keeps `font-variant-numeric: tabular-nums` so a future column of
+hero numerals still aligns. It is the only `--fs-display` consumer in the
+sheet, so there was nowhere else for the issue to appear.
+
+### Acceptance
+
+- The hero numeral renders in the sans display face at a heavy weight, and
+  `tabular-nums` remains on the element
+- Compared against `docs/ui-refs/dashboard.jpg` by booting, not by reading
+  the diff
+- Mean frame luminance re-measured per SR-7, both numbers reported
+
+---
+
 ## Decisions log
 
 | Date | Decision |
@@ -626,6 +654,7 @@ its magnitude.
 | 2026-09-17 | Where this spec and its reference images disagree, the reference wins (R-10a) |
 | 2026-09-17 | Uppercase survives only in the micro-label tier; all 17 rules classified (R-10c) |
 | 2026-09-17 | SR-10 amended: `ok` is green; a settled progress bar is muted instead (R-10d) |
+| 2026-09-17 | The display numeral is the sans display tier, not mono (R-11) |
 
 ---
 

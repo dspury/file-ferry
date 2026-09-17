@@ -16,7 +16,7 @@ whatever order suits, unless one says otherwise.
 Rules outlive the item that produced them. A new component that breaks one
 of these is wrong even if no `R-` item mentions it.
 
-### SR-1 — No left-edge colour bars
+### SR-1 — No edge marks
 
 > "The little braces being used are terrible. I've never liked those and
 > don't want to see any version of them in the app. If we need to identify
@@ -24,8 +24,9 @@ of these is wrong even if no `R-` item mentions it.
 > as the indicator — never those brace things."
 > — operator, 2026-09-14
 
-A single coloured edge is never the state indicator. Use, in order of
-preference:
+A single coloured edge is never the state indicator — **in any state**,
+resting or hovered, and whether it is drawn as a `border-left` or an
+`inset` box-shadow. Use, in order of preference:
 
 1. **The primary text** in the state colour (`.stat__value`, a label)
 2. **The full outline** — `border-color` on all four sides
@@ -34,9 +35,14 @@ preference:
 The reference for the look that *is* wanted: the stage-rail cell
 (`.step`) — a uniform bordered chip.
 
-**Structural dividers are not braces** and are exempt: a 1px rule
+**Structural dividers are not braces** and are exempt: a full-height rule
 separating two controls, or marking a boundary, carries no state. Exempt
-today: `.step--gate`, `.pathpick .btn`.
+today: `.pathpick .btn` (the divider between the input and its Browse
+button) and the `.tabs__item` hairline between stage cells.
+
+**Amended by R-10b (2026-09-17):** the original scoping to three
+selectors treated a hover mark as an exemption. It is not. Hover is a
+state.
 
 ### SR-2 — Token values are frozen
 
@@ -320,7 +326,11 @@ them apart.** That is the defect; the visual merge is downstream of it.
   Approve, Copy — become a **segmented tab bar**, not a wizard: a stage
   already reached stays clickable, and leaving a stage never discards it.
   Segments are divided by thin vertical hairlines so the five read as
-  discrete countable cells.
+  discrete countable cells. Cell legends are title case. The active cell
+  is a **solid accent-filled pill with dark text** (`--c-accent-interactive`
+  fill, `--c-on-accent` text) — the reference treatment, added by R-10a,
+  which supersedes the raised plate plus inset underline this item shipped
+  with.
 - The transfer is a **context** the tabs are views onto. The route hash
   already carries everything needed to restore it; keep that.
 

@@ -876,15 +876,18 @@ code,
   color: var(--c-text-dim);
 }
 
-/* A counted quantity is spec data, so it is set in mono like every other
-   number in the app — and mono digits are all one width, which is what
-   keeps a row of tiles from jittering as counts change. R-7 SR-9: it is
-   the hero numeral, at display scale (~6x the micro-label it sits under)
-   rather than one more middling size. */
+/* R-11: the hero numeral is the display tier (SR-9), not data. SR-8 keeps
+   mono for paths, byte counts, durations, hashes and ids, and a display
+   numeral is none of those; at 64px Plex Mono read as a terminal rather than
+   the reference (`docs/ui-refs/dashboard.jpg`). It is the sans face at a
+   heavy weight now, but keeps `tabular-nums` so a future column of hero
+   numerals still aligns — the reference's three sit in separate columns with
+   nothing to align. */
 .stat__value {
-  font-family: var(--ff-mono);
+  font-family: var(--ff-sans);
   font-size: var(--fs-display);
-  font-weight: 600;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
   line-height: 1;
   letter-spacing: -0.03em;
   overflow-wrap: anywhere;

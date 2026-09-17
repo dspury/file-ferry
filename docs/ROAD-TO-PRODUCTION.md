@@ -234,25 +234,51 @@ stated reason; no `OffloadRunner` reference remains.
 
 ---
 
-# Track C — accessibility, after A-3
+# Track C — accessibility · DECLINED 2026-09-17
 
-Do not start these before the reskin lands. Auditing a UI that is about to
-be restyled wastes the audit.
+**The operator declined the screen-reader pass.** Ferry is a single-operator
+studio tool, not a product shipped to an audience, and the "should gate a
+release" framing this document used assumed an external release it is not
+having. Track C is closed, not deferred — nothing downstream waits on it.
 
-## C-1 — #95: the screen-reader pass
+## C-1 — #95: the screen-reader pass · WILL NOT DO
 
-No VoiceOver pass has ever been run against the reskin. This is the issue
-that most plausibly should gate a release and currently does not.
+Close #95 with this reason rather than leaving it open to look forgotten.
 
-Cover, at minimum: the nav and its three groups, the stage tab bar, the
-transfer dock, every banner and state chip, and the plan table. Record what
-was tested and what was found — a pass with no written record is not a pass.
+**What this means in practice, so it is on the record.** The app asserts
+accessibility it has never verified: `aria-current` on the active nav item,
+`role="tablist"` with roving tabindex on the stage tabs, a live region on
+the transfer dock, `role="group"` with accessible names on the three nav
+groups, and the SR-10 shape-plus-colour state glyphs. That code exists and
+carries maintenance cost. It is now an unverified assertion rather than
+tested behaviour, and SR-10 in `UI-REVISION-SPEC.md` still requires the
+glyph discipline on new components — that rule stands on its own merits
+(state surviving greyscale helps everyone) and is not repealed by this.
 
-## C-2 — #148: Windows verification
+If ferry is ever given to someone else, this is the first thing to revisit.
 
-NVDA/Narrator, backslash path rendering, real forced-colours. Needs a
-Windows machine; if none is available, say so and leave the issue open
-rather than closing it on inference.
+## C-2 — #148: Windows verification · BLOCKED ON A PRODUCT QUESTION
+
+Not the same decision as C-1. #148 covers NVDA/Narrator **and** backslash
+path rendering and forced-colours — the middle one is a plain functional
+concern, not an accessibility one, and a media tool that mangles Windows
+paths is broken regardless of who is reading the screen.
+
+**But it is not clear Windows is a target at all.** `electron-builder.yml`
+declares `win: nsis x64` and `linux: AppImage x64`, while Stage A froze only
+an arm64 macOS sidecar and the release config's own x64 slice "builds
+without a sidecar". So two platforms are declared that nothing has ever
+produced a working artifact for.
+
+**Decide before spending anything here:**
+
+- If Windows and Linux are not targets, drop them from
+  `electron-builder.yml` and close #148. A declared target that cannot
+  build is worse than no target — it implies support that does not exist.
+- If Windows is a target, #148's path-rendering half is real work and needs
+  a Windows host; its NVDA/Narrator half follows whatever C-1 decided.
+
+Until that is settled, leave #148 open and do not spend time on it.
 
 ---
 

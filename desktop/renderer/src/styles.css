@@ -254,8 +254,10 @@
      filament glow behind a lit accent element — R-8 repointed the three
      elements that use it to `--c-accent-interactive`, so the token now
      carries that hue too, and SR-6's budget cut it to about a third of the
-     old neon (8px blur at 0.22 alpha). It is only ever the progress fill
-     or a hovered primary button that emits; everything else is lit.
+     old neon (8px blur at 0.22 alpha). It is only ever the active stage tab,
+     the dock's progress fill, or a hovered primary button that emits; and
+     the tab and the dock fill are scoped so only one of them is lit at a
+     time. Everything else is lit.
      `--grad-wash` is the one canvas wash and `--grad-panel` the one panel
      fill, so a screen never hand-rolls either. `--fill-ticks` is the
      lens-barrel tick rule behind a progress gauge; `--scrim-blur` softens
@@ -453,12 +455,13 @@ code,
   color: var(--c-accent);
 }
 
+/* R-10c: lowercase `ferry`, per the brand guide — the sidebar names the
+   command, not the `FILE-FERRY` graphical lockup, so it is no longer
+   uppercase and no longer tracked as a mark. */
 .nav__wordmark {
   display: block;
   font-size: var(--fs-sm);
   font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: var(--tr-wordmark);
   line-height: 1.2;
 }
 
@@ -467,8 +470,6 @@ code,
   margin-top: 4px;
   font-size: var(--fs-2xs);
   font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: var(--tr-label);
   color: var(--c-text-faint);
 }
 
@@ -796,18 +797,14 @@ code,
 }
 
 /*
- * Panel heads are set as tracked uppercase rather than sentence case. It is
- * CinePrompt's `.panel-head h2`, and it does real work here: on a screen
- * that is three or four stacked cards of forms and tables, the head is the
- * only thing that has to be findable from across the room, and casing plus
- * tracking separate it from the sentence of description directly beneath
- * far better than two points of size would.
+ * R-10c: panel heads are title case, per the reference. The weight and the
+ * step to the body text separate the head from the sentence of description
+ * beneath it; uppercase and tracking were doing that at the cost of the
+ * reference's casing. Only the micro-label tier keeps them.
  */
 .card__title {
   font-size: var(--fs-sm);
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: var(--tr-wide);
   color: var(--c-text);
 }
 
@@ -920,11 +917,12 @@ code,
 /* ========================== chips =============================== */
 
 /*
- * A chip is an engraved state plate: mono, uppercase, hard corners, sitting
- * in a recess. `verified` / `needs_review` / `safe to format` are values a
+ * A chip is an engraved state plate: mono, hard corners, sitting in a
+ * recess. `verified` / `needs_review` / `safe to format` are values a
  * machine produced, and setting them in mono says so — it also stops a
  * state pill from being mistaken for a button, which the old sans-serif
- * rounded pill did at a glance.
+ * rounded pill did at a glance. R-10c: the machine value keeps its own
+ * lowercase casing, matching the reference's `running` / `done` / `review`.
  *
  * SR-5: the rim is removed. A chip is element-scale and is separated from
  * what surrounds it by spacing and the faintest hairlines, not a box; its
@@ -940,8 +938,6 @@ code,
   font-family: var(--ff-mono);
   font-size: var(--fs-xs);
   font-weight: 500;
-  letter-spacing: var(--tr-label);
-  text-transform: uppercase;
   background: var(--c-neutral-soft);
   color: var(--c-text-dim);
   white-space: nowrap;
@@ -1109,13 +1105,14 @@ code,
 /* ===================== segmented control ======================== */
 
 /*
- * A mode switch on a camera body: uppercase legends in a recessed housing,
- * with the engaged position lit from below. The selected option is
- * distinguished four ways — plate, weight, text colour, and the accent
- * underscore — so no single channel is carrying it, and `aria-checked` on
- * the radio carries it for assistive tech. The housing edge is on the
- * indicator tier because the group is an interactive control. SR-8: an
- * option label is a button label, so it is sans, not mono.
+ * A mode switch on a camera body: title-case legends in a recessed housing,
+ * with the engaged position lit from below (R-10c drops the uppercase and
+ * its tracking). The selected option is distinguished four ways — plate,
+ * weight, text colour, and the accent underscore — so no single channel is
+ * carrying it, and `aria-checked` on the radio carries it for assistive
+ * tech. The housing edge is on the indicator tier because the group is an
+ * interactive control. SR-8: an option label is a button label, so it is
+ * sans, not mono.
  */
 .seg {
   display: inline-flex;
@@ -1134,8 +1131,11 @@ code,
   font: inherit;
   font-size: var(--fs-xs);
   font-weight: 600;
-  letter-spacing: var(--tr-label);
-  text-transform: uppercase;
+  /* R-10c: title case. The options are lowercase enum values in the markup
+     (`all`, `active`, …) so dropping the uppercase alone would leave them
+     lowercase; the filter is a set of button labels, which the spec puts in
+     title case, not the lowercase machine tier. */
+  text-transform: capitalize;
   height: 26px;
   padding: 0 var(--sp-3);
   border-radius: var(--radius-xs);
@@ -1230,10 +1230,6 @@ code,
   background: none;
 }
 
-.table tbody tr.row--note:hover td:first-child {
-  box-shadow: none;
-}
-
 /* The row above a note is part of the same record, so the line between them
    is dropped and the pair reads as one block. */
 .table tbody tr.row--has-note td {
@@ -1248,12 +1244,12 @@ code,
   background: var(--c-surface-2);
 }
 
-/* The hovered row gets an accent tick in the left margin, so a row being
-   pointed at in a table of a hundred near-identical filenames is findable
-   without moving the eye back to the cursor. */
-.table tbody tr:hover td:first-child {
-  box-shadow: inset 2px 0 0 var(--c-accent);
-}
+/* R-10b: the hovered row used to grow an inset accent tick on its left edge.
+   SR-1 was scoped to three selectors in R-1 and this survived review as
+   "line-like, not a fill"; the operator's words were "don't want to see any
+   version of them", and hover is not an exemption. The background change
+   above is the affordance. A coloured left edge is out in any state, border
+   or inset shadow alike. */
 
 /*
  * Paths are long and their meaningful end is the right-hand side, so the
@@ -1878,10 +1874,11 @@ textarea:focus-visible {
  * work rather than a step in a sequence.
  *
  * Thin vertical hairlines divide the cells so the five read as discrete and
- * countable. The active tab is marked three ways — a raised plate, full-
- * contrast weight, and an inset accent rule — so the state never rests on
- * hue. SR-1: the hairline between cells is a structural divider, not a
- * left-edge state bar.
+ * countable. The active tab is a solid accent pill with dark text (R-10a),
+ * following the reference; the full-contrast weight and the `aria-selected`
+ * state are the non-colour channels, so the state never rests on the fill.
+ * SR-1: the hairline between cells is a structural divider, not a left-edge
+ * state bar.
  */
 .tabs {
   display: flex;
@@ -1904,8 +1901,6 @@ textarea:focus-visible {
   font: inherit;
   font-size: var(--fs-sm);
   font-weight: 550;
-  letter-spacing: var(--tr-label);
-  text-transform: uppercase;
   white-space: nowrap;
   cursor: pointer;
   transition:
@@ -1917,18 +1912,23 @@ textarea:focus-visible {
   border-left: 0;
 }
 
-.tabs__item:hover:not(:disabled) {
+/* The hover plate is for the inactive cells only: on the active pill it would
+   replace the accent fill with a dark plate and read as "deselected". */
+.tabs__item:not(.tabs__item--active):hover:not(:disabled) {
   background: var(--c-surface-2);
   color: var(--c-text);
 }
 
 .tabs__item--active {
-  background: var(--c-surface-3);
-  color: var(--c-text);
+  background: var(--c-accent-interactive);
+  color: var(--c-on-accent);
   font-weight: 600;
-  /* R-8's interactive accent: the active stage tab is the one emitting
-     element in this design, and the resolved tab CSS predates the token. */
-  box-shadow: inset 0 -2px 0 var(--c-accent-interactive);
+  /* R-10a: the reference draws the active stage as a solid accent pill with
+     dark text, so this is a filled surface — `--c-on-accent` on
+     `--c-accent-interactive` (SR-3). It is the Transfer view's one emitting
+     element under SR-6; the glow-budget note under `.dock` scopes the dock's
+     fill back while these tabs are on screen. */
+  box-shadow: var(--glow-accent);
 }
 
 .tabs__item:disabled {
@@ -1939,6 +1939,12 @@ textarea:focus-visible {
 .tabs__item:focus-visible {
   outline: 2px solid var(--c-accent-interactive);
   outline-offset: -2px;
+}
+
+/* The ring has to survive on the filled pill: accent on accent is invisible,
+   so the active tab's ring uses the same dark tone as its text (SR-3). */
+.tabs__item--active:focus-visible {
+  outline-color: var(--c-on-accent);
 }
 
 /* ========================= progress ============================= */
@@ -1979,23 +1985,33 @@ textarea:focus-visible {
 /*
  * SR-6: the glow budget is one emitting element per screen. A meter is lit
  * by default — a table of twenty running rows must not spend the whole
- * budget on chrome. The dock's fill is the one that emits, because the dock
- * is the app's single persistent statement that work is in flight; the
- * primary button emits only while it is hovered.
+ * budget on chrome. The dock's fill carries the filament on every view
+ * except the Transfer workspace, where the active stage tab is the one
+ * emitting element (R-10a); the primary button emits only while hovered.
  */
 .dock .progress__fill {
   box-shadow: var(--glow-accent);
 }
 
+/* R-10a: while the stage tabs are mounted the active tab is the screen's one
+   emitter, so the dock's fill gives the filament up. Without this the
+   Transfer view spends the budget twice — a lit tab and a lit dock bar.
+   `:has` keys on the tab bar itself, which only the workspace renders. */
+.app:has(.tabs) .dock .progress__fill {
+  box-shadow: none;
+}
+
 /*
  * The six meter statuses.
  *
- * `--complete` is the only one that draws a full bar, and it is the only one
- * that gets the success hue, so a full green track means one thing in this
- * app: the operation was confirmed.
+ * `--complete` is the only one that draws a full bar. R-10d: it no longer
+ * carries the success hue — a settled job is not live work, and three green
+ * bars on a screen where nothing is happening is the SR-6 violation. The bar
+ * is magnitude, so a settled one goes muted; the chip and the `done` note
+ * keep the green, because the state is theirs.
  */
 .progress--complete .progress__fill {
-  background: var(--c-ok);
+  background: var(--c-text-faint);
   box-shadow: none;
 }
 
@@ -2063,14 +2079,13 @@ textarea:focus-visible {
   line-height: 1.2;
 }
 
-/* The qualifier is a stamp, not a caption: at this size it is the word that
-   does the work of separating "stopped at 25%" from "25% done". */
+/* The qualifier is the word that does the work of separating "stopped at
+   25%" from "25% done". R-10c: lowercase, matching the reference — mono and
+   the faint tier are enough to mark it as a machine qualifier. */
 .progress-cell__note {
   font-family: var(--ff-mono);
   font-size: var(--fs-2xs);
   font-weight: 600;
-  letter-spacing: var(--tr-label);
-  text-transform: uppercase;
   line-height: 1.2;
   color: var(--c-text-faint);
 }
@@ -2178,8 +2193,6 @@ textarea:focus-visible {
   gap: var(--sp-2);
   font-size: var(--fs-lg);
   font-weight: 700;
-  letter-spacing: var(--tr-wide);
-  text-transform: uppercase;
   color: var(--c-danger);
 }
 

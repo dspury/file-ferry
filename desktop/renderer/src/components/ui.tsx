@@ -18,7 +18,8 @@ import {
   type ReactElement,
   type ReactNode,
 } from 'react';
-import { IconAlert, IconCheck, IconInbox, IconInfo } from './icons.js';
+import { IconInbox, IconInfo } from './icons.js';
+import { StateGlyph } from './StateGlyph.js';
 import { splitPathTail } from '../lib/format.js';
 import type { MeterStatus, StateTone } from '../lib/job-state.js';
 
@@ -46,9 +47,9 @@ const CHIP_CLASS = {
 } satisfies Record<Tone, string>;
 
 /**
- * A state pill. The dot is decorative — the state is always spelled out in
- * the chip's own text, which is what a screen reader and a greyscale
- * display both fall back to.
+ * A state pill. The glyph is the canonical SR-10 silhouette for the tone, and
+ * the state is always spelled out in the chip's own text, which is what a
+ * screen reader and a greyscale display both fall back to.
  */
 export function Chip({
   tone = 'neutral',
@@ -59,7 +60,7 @@ export function Chip({
 }): JSX.Element {
   return (
     <span className={CHIP_CLASS[tone]}>
-      <span className="chip__dot" aria-hidden="true" />
+      <StateGlyph state={tone} className="chip__dot" />
       {children}
     </span>
   );
@@ -294,14 +295,6 @@ export function ScreenError({
   );
 }
 
-const BANNER_ICON = {
-  ok: IconCheck,
-  warn: IconAlert,
-  danger: IconAlert,
-  attention: IconAlert,
-  info: IconInfo,
-} satisfies Record<BannerTone, (props: { size?: number }) => JSX.Element>;
-
 const BANNER_LABEL = {
   ok: 'Done',
   warn: 'Warning',
@@ -325,6 +318,10 @@ export type BannerTone = 'ok' | 'warn' | 'danger' | 'attention' | 'info';
  * pill sized for one word. A banner also states its severity in words
  * ("Error: …"), so the meaning does not rest on the colour, and asserts
  * `role="alert"` when it is one so it is announced on arrival.
+ *
+ * R-7 SR-10: the leading mark is the same canonical state glyph the chip
+ * uses, so a condition has one silhouette across the whole app. `info` is not
+ * a state and keeps the informational circle.
  */
 export function Banner({
   tone = 'info',
@@ -335,11 +332,10 @@ export function Banner({
   label?: string | undefined;
   children: ReactNode;
 }): JSX.Element {
-  const Glyph = BANNER_ICON[tone];
   const prefix = label ?? BANNER_LABEL[tone];
   return (
     <div className={`banner banner--${tone}`} role={tone === 'danger' ? 'alert' : undefined}>
-      <Glyph size={16} />
+      {tone === 'info' ? <IconInfo size={16} /> : <StateGlyph state={tone} size={16} />}
       <div className="banner__body">
         <span className="banner__label">{prefix}: </span>
         {children}

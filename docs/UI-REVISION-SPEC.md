@@ -108,17 +108,44 @@ actual alarm.
 
 The interface is bright and legible. A "more restrained" pass that darkens
 the whole frame is a regression, and it is measurable — mean frame
-luminance, sampled on a 7px grid:
+luminance over a 7px grid, sRGB linearised, `0.2126R + 0.7152G + 0.0722B`.
 
-| pass | mean luminance | verdict |
-| --- | --- | --- |
-| luminous glass (adopted) | **0.0492** | the target |
-| elevated, flat canvas | 0.0311 | dimmer |
-| "converged" (rejected) | 0.0272 | dimmest — rejected for this reason |
+**The floor is relative, not absolute.** Measure the same screen at the same
+window size on `main` and on the branch, and report both. A pass that lowers
+the number is a regression regardless of how it looks; a pass that raises it
+has done the work. R-7 measured, at 1280×800:
 
-**Do not flatten the wash to chase a contrast number.** That was tried: the
-wash went from 11.2× corner-to-corner luminance down to 1.7×, and the whole
-app got darker than either option it was meant to combine.
+| screen | before | after | |
+| --- | --- | --- | --- |
+| Transfer | 0.0124 | 0.0209 | +68% |
+| Dashboard | 0.0140 | 0.0248 | +77% |
+| Activity | 0.0122 | 0.0197 | +61% |
+
+**An earlier version of this rule named an absolute target of 0.049. It was
+wrong and has been removed.** That figure was measured on the *generated
+reference images* — mockups packed edge to edge with bright panels, display
+numerals and full tables. The real app has empty space, sparse data and a
+dark canvas by design, and measures far lower on the same method. The two
+were never comparable, and the rejected-pass figures in the old table
+(0.0311, 0.0272) came from the same reference set, so they cannot be used to
+judge a screenshot of the app either.
+
+**The ceiling is the contrast floors, and it is already reached.** Brightness
+cannot be raised further without breaking SR-3. Measured on the R-7 palette:
+
+| pair | measured | floor | headroom |
+| --- | --- | --- | --- |
+| `--c-border-indicator` on `--c-wash` | **3.01:1** | 3.0 (SC 1.4.11) | +0.01 |
+| `--c-text-faint` on `--c-surface-2` | **4.57:1** | 4.5 | +0.07 |
+
+Brightening the canvas fails the first; brightening the panels fails the
+second. These two pairs are load-bearing and nothing in the suite guards
+them — treat any change to `--c-wash`, `--c-surface-2`, `--c-border-indicator`
+or `--c-text-faint` as requiring both numbers recomputed.
+
+**Do not flatten the wash to chase a contrast number.** That was tried on the
+references: the wash went from 11.2× corner-to-corner luminance down to 1.7×,
+and the result was darker than either option it was meant to combine.
 
 ### SR-8 — Monospace is for data only
 
@@ -151,7 +178,7 @@ already appeared once in review.
 
 ---
 
-## R-1 — Remove the left-edge colour bars · OPEN (folded into R-7)
+## R-1 — Remove the left-edge colour bars · DONE — #186 (first slice), folded into #192
 
 Applies SR-1 to what exists today. 19 declarations across 5 selectors;
 all are accounted for below.
@@ -203,7 +230,7 @@ bar is a fourth cue on top of three. Nothing is lost.
 
 ---
 
-## R-2 — Responsiveness and a minimum width · OPEN
+## R-2 — Responsiveness and a minimum width · DONE — #185
 
 > "Responsiveness at different dimensions is poor. Even if it's small, a
 > min width needs to be established."
@@ -337,7 +364,7 @@ stays for already-created jobs; no new UI path creates one.
 
 ---
 
-## R-4 — Persistent transfer dock · OPEN
+## R-4 — Persistent transfer dock · DONE — #177
 
 There is no always-visible representation of work in flight. A running
 transfer lives in the Transfers hash; navigate away and the route back is
@@ -394,7 +421,7 @@ moves to a tooltip or is dropped; the nav already says where you are.
 
 ---
 
-## R-7 — Surface and material migration · OPEN
+## R-7 — Surface and material migration · DONE — #192
 
 Apply SR-5 through SR-10 to the existing stylesheet. This is the visual
 pass, and it depends on R-8 for the accent token.

@@ -294,15 +294,22 @@ describe('brand tokens (the #160 migration, pinned)', () => {
   }
 
   it('carries the migrated palette values', () => {
+    // R-7 moved the surface tones and added the wash / panel-top / rim
+    // tokens the panel material is built from. This pin is updated in the
+    // same commit as the change, deliberately — exactly as R-8 added the
+    // interactive accent.
     const expected = {
-      '--c-rail': '#0A0E16',
-      '--c-bg': '#0F1622',
-      '--c-surface': '#151E2D',
-      '--c-surface-2': '#1C283B',
-      '--c-surface-3': '#223046',
-      '--c-border': '#243042',
-      '--c-border-strong': '#36465D',
-      '--c-border-indicator': '#687687',
+      '--c-rail': '#0A1A2F',
+      '--c-bg': '#142035',
+      '--c-wash': '#1E3350',
+      '--c-surface': '#1D2B47',
+      '--c-panel-top': '#1E2C48',
+      '--c-rim': '#3D4F74',
+      '--c-surface-2': '#1F2C46',
+      '--c-surface-3': '#28375A',
+      '--c-border': '#26334B',
+      '--c-border-strong': '#3B4C68',
+      '--c-border-indicator': '#6E7C90',
       '--c-text': '#EDEBE6',
       '--c-text-dim': '#A6A7A7',
       '--c-text-faint': '#919497',
@@ -330,7 +337,7 @@ describe('brand tokens (the #160 migration, pinned)', () => {
       '--c-neutral-soft': '#1D2430',
       '--c-scrim': 'rgba(6, 10, 17, 0.66)',
     } satisfies Record<string, string>;
-    expect(Object.keys(expected)).toHaveLength(34);
+    expect(Object.keys(expected)).toHaveLength(37);
     for (const [name, value] of Object.entries(expected)) {
       expect(token(name)).toBe(value);
     }
@@ -345,12 +352,14 @@ describe('brand tokens (the #160 migration, pinned)', () => {
       '--fs-lg',
       '--fs-xl',
       '--fs-2xl',
+      '--fs-display',
     ]) {
       expect(token(name)).toMatch(/rem$/);
     }
-    // The accent glow is the accent at 30% — the last orange in the sheet
-    // until the guide corrected it (BRAND-STYLE-GUIDE 6234a08).
+    // The accent glow is the interactive accent at ~22% (R-7 SR-6): the old
+    // ferry-derived filament sat on three elements R-8 had already moved to
+    // the brighter interactive hue, and the budget is a third of the neon.
     expect(css).not.toContain('255, 106, 44');
-    expect(token('--glow-accent')).toBe('0 0 10px rgba(117, 161, 198, 0.3)');
+    expect(token('--glow-accent')).toBe('0 0 9px rgba(84, 164, 231, 0.22)');
   });
 });

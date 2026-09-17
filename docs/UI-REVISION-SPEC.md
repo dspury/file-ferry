@@ -168,7 +168,7 @@ and never depends on hue alone:
 | state | glyph | tint |
 | --- | --- | --- |
 | running / active | filled triangle | accent |
-| done / ok | filled dot | muted grey |
+| done / ok | filled dot | `--c-ok` green (amended by R-10d) |
 | needs review / attention | hollow ring | amber |
 | failed | filled hexagon | danger |
 | cancelled | horizontal bar | muted |
@@ -474,6 +474,128 @@ one commit, not worked around.
 
 ---
 
+## R-10 — Reference parity · OPEN
+
+R-7 (#192) implemented this spec faithfully and still does not look like the
+reference the operator approved. Found by booting the built renderer over CDP
+at 1280x800 — not by reading the diff, which is why it took until after
+review. Two of the four items below are defects in **this document**, not in
+the code.
+
+### R-10a — The active tab is an underline, not a filled pill
+
+`.tabs__item--active` is a raised plate plus `box-shadow: inset 0 -2px 0`.
+The reference (`docs/ui-refs/transfer.jpg`) shows the active stage as a
+**solid accent-filled pill with dark text**.
+
+**The code is not wrong, and neither is the builder.** R-3 specified the tab
+bar's *behaviour* — clickable, divided, lossless — and said nothing at all
+about how the active tab should look. The implementation picked the
+underline and documented the choice honestly at `styles.css:1881` ("marked
+three ways — a raised plate, full-contrast weight, and an inset accent
+rule"). **The gap is that this document was silent where its own reference
+image was explicit**, so there was nothing to follow but the text.
+
+**Resolution: the reference wins.** The tab bar is the signature element of
+the direction and the filled pill is what was approved on sight. Change
+`.tabs__item--active` to a solid `--c-accent-interactive` fill with
+`--c-on-accent` text, update the `styles.css:1881` comment to match, and
+add the active-tab treatment to R-3's text so the next reader is not left
+choosing between a silent spec and a picture.
+
+Under SR-6 the active tab then becomes the screen's one emitting element on
+the Transfer view — which is what the reference shows. Re-scope the glow
+budget accordingly rather than having two.
+
+### R-10b — A left-edge colour bar survived, on table rows
+
+`styles.css:1254` — `.table tbody tr:hover td:first-child { box-shadow:
+inset 2px 0 0 var(--c-accent) }`. Visible on Activity.
+
+R-1 scoped removal to `.stat`, `.banner` and `.nav__item`, and this was
+waved through in review as "line-like, not a fill". Against the operator's
+actual words — *"don't want to see any version of them in the app"* — that
+was the wrong reading. Hover is not an exemption.
+
+**Resolution: remove it.** The hovered row already changes background; that
+is the affordance. **SR-1 is amended**: a coloured left edge is out
+regardless of whether it signals state or pointer position, and regardless
+of whether it is a `border-left` or an `inset` shadow. The two structural
+dividers stay exempt (`.pathpick .btn`, the `.tabs__item` hairline) because
+they are full-height rules between controls, not marks on one edge of a
+row.
+
+### R-10c — Everything is uppercase · DECIDED
+
+17 `text-transform: uppercase` rules. Tabs read `SCAN / PLAN / PREFLIGHT`,
+the wordmark `FERRY / MEDIA MANAGER`, panel titles `SOURCES`. The reference
+is title case throughout. This is the largest single reason the app reads
+more utilitarian than the mockup.
+
+**Decided: follow the reference.** Uppercase survives only in the
+**micro-label tier** — the small, letterspaced, muted labels that sit above
+or beside data and are read as annotation rather than as language. Anything
+a person reads as a word goes to sentence or title case.
+
+All 17 are classified here so none is left to judgement:
+
+| keep uppercase (micro-label tier) | line |
+| --- | --- |
+| `.eyebrow` | 391 |
+| `.nav__group-label` (WORK / LIBRARY / SETUP) | 488 |
+| `.stat__label` | 878 |
+| `.table th` | 1190 |
+| `.field label` | 1337 |
+| `.kv dt` | 2114 |
+| `.dock__state` (TRANSFERRING) | 688 |
+| `.banner__label` (the stamped severity word) | 1595 |
+| `.status` (SIDECAR · PROTOCOL V1) | 610 |
+
+| drop uppercase | line | becomes |
+| --- | --- | --- |
+| `.nav__wordmark` | 460 | lowercase `ferry`, per the brand guide |
+| `.nav__tagline` | 470 | sentence case |
+| `.card__title` | 809 | title case — `Sources`, `Plan` |
+| `.tabs__item` | 1908 | title case — `Scan`, `Preflight` |
+| `.seg__item` | 1138 | title case |
+| `.chip` | 944 | lowercase — the reference shows `running`, `done`, `review` |
+| `.progress-cell__note` | 2073 | lowercase |
+| `.confirm__title` | 2182 | title case |
+
+Letterspacing goes with the casing: a title-case label keeps normal
+tracking, since `--tr-label` exists to make uppercase legible.
+
+### R-10d — `ok` renders green; SR-10 said muted grey · DECIDED
+
+`--c-ok: #35a96c` drives the `SUCCEEDED` chip, its dot, and the progress
+bar. SR-10's table said `done / ok -> filled dot, muted grey`.
+
+**Decided: amend SR-10, not the app.** Green for success is a strong
+convention, and SR-10's actual requirement — that state survives greyscale —
+is already met by the distinct dot shape. Draining the colour out of a
+success state to satisfy a table entry would make the app worse. **SR-10's
+`done / ok` row now reads `filled dot, ok green`.**
+
+**But mute a settled progress bar.** Three filled green bars on Activity
+strain SR-6: a finished transfer is not live and must not be the loudest
+thing on the screen. A progress bar at 100% on a settled job renders in a
+muted tone; only a bar that is actually moving carries `--c-ok` or the
+accent. The chip stays green either way — it is the state, the bar is only
+its magnitude.
+
+### Acceptance
+
+- Active stage tab is a solid accent fill with dark text; R-3's text
+  corrected to match
+- No `border-left` or `inset` edge mark anywhere on a row, tile, banner or
+  nav item, in any state including hover
+- Whatever is decided for R-10c and R-10d is applied consistently and this
+  document is corrected in the same PR
+- Verified by booting and comparing against `docs/ui-refs/`, screenshots in
+  the PR — not by reading the diff
+
+---
+
 ## Decisions log
 
 | Date | Decision |
@@ -490,6 +612,10 @@ one commit, not worked around.
 | 2026-09-14 | A persistent transfer dock is adopted (R-4) |
 | 2026-09-14 | One interactive accent token added at 75% saturation; SR-2 amended (R-8) |
 | 2026-09-14 | R-3 resolved: Organize withdrawn (screen + RPC), Offload absorbed as a source type |
+| 2026-09-17 | SR-1 amended: no edge mark in any state, hover included (R-10b) |
+| 2026-09-17 | Where this spec and its reference images disagree, the reference wins (R-10a) |
+| 2026-09-17 | Uppercase survives only in the micro-label tier; all 17 rules classified (R-10c) |
+| 2026-09-17 | SR-10 amended: `ok` is green; a settled progress bar is muted instead (R-10d) |
 
 ---
 

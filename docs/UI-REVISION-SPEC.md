@@ -484,7 +484,7 @@ one commit, not worked around.
 
 ---
 
-## R-10 — Reference parity · OPEN
+## R-10 — Reference parity · DONE — #194
 
 R-7 (#192) implemented this spec faithfully and still does not look like the
 reference the operator approved. Found by booting the built renderer over CDP

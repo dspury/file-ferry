@@ -234,25 +234,72 @@ stated reason; no `OffloadRunner` reference remains.
 
 ---
 
-# Track C — accessibility, after A-3
+# Track C — accessibility · PARTLY DONE
 
-Do not start these before the reskin lands. Auditing a UI that is about to
-be restyled wastes the audit.
+**The operator declined the VoiceOver run**, on the grounds that ferry is a
+single-operator studio tool rather than a product shipped to an audience —
+and this document's "should gate a release" framing assumed an external
+release it is not having.
 
-## C-1 — #95: the screen-reader pass
+What was done instead is a **markup and keyboard audit** over CDP
+(Chromium's full accessibility tree, DOM/ARIA, real key events, computed
+focus rings). That is evidence about markup, not about what a screen reader
+says — a distinction the record itself makes, correctly.
 
-No VoiceOver pass has ever been run against the reskin. This is the issue
-that most plausibly should gate a release and currently does not.
+**It found four real defects, so the exercise paid for itself even without
+speech.** Two of them are not screen-reader-only concerns:
 
-Cover, at minimum: the nav and its three groups, the stage tab bar, the
-transfer dock, every banner and state chip, and the plan table. Record what
-was tested and what was found — a pass with no written record is not a pass.
+| | | |
+| --- | --- | --- |
+| #198 | dock is not a live region — appearance and clearing unannounced | a11y |
+| #199 | dock Cancel announced as bare "Cancel" | **destructive action, ambiguous label** |
+| #200 | non-danger banners not announced on appearance (WCAG 4.1.3) | a11y |
+| #201 | segmented filter claims `radiogroup` but has no roving tabindex or arrow keys | **costs five Tab stops for any keyboard user** |
 
-## C-2 — #148: Windows verification
+## C-1 — #95: the record · DONE — #202
 
-NVDA/Narrator, backslash path rendering, real forced-colours. Needs a
-Windows machine; if none is available, say so and leave the issue open
-rather than closing it on inference.
+`docs/a11y/C1-screen-reader-pass.md`, with a re-runnable harness at
+`docs/a11y/audit-a11y.mjs`.
+
+Passed: three named nav groups with one `aria-current` and wrapping arrow
+traversal; stage tabs with roving tabindex and Left/Right over reached tabs;
+state carried in text with the SR-10 glyph `aria-hidden`; focus visible at
+every Tab stop across ten route states, including the R-10a pill where an
+accent-on-accent ring would have vanished; skip link; `h1`→`h2`;
+`role="status"` on the sidecar readout.
+
+Not covered, and named as such: VoiceOver speech (the central gap), Windows
+(#148), forced-colours and zoom, the typed-move dialog in a live flow, the
+sidecar-unreachable path, and the packaged build.
+
+**#95 stays open** — the speech pass it asks for has not happened. The
+record says what was and was not tested, which is the point.
+
+**The four defects are filed, not fixed**, which was the instruction. Fixing
+them is a separate scoped item and is not required by anything downstream.
+
+## C-2 — #148: Windows verification · BLOCKED ON A PRODUCT QUESTION
+
+Not the same decision as C-1. #148 covers NVDA/Narrator **and** backslash
+path rendering and forced-colours — the middle one is a plain functional
+concern, not an accessibility one, and a media tool that mangles Windows
+paths is broken regardless of who is reading the screen.
+
+**But it is not clear Windows is a target at all.** `electron-builder.yml`
+declares `win: nsis x64` and `linux: AppImage x64`, while Stage A froze only
+an arm64 macOS sidecar and the release config's own x64 slice "builds
+without a sidecar". So two platforms are declared that nothing has ever
+produced a working artifact for.
+
+**Decided 2026-09-17: Windows and Linux are not targets.** Both blocks are
+removed from `electron-builder.yml`, along with the `package:win` /
+`package:linux` scripts (#203), and #148 closes with them.
+
+**Still open, same class of problem:** `mac` declares `arch: [arm64, x64]`,
+and #167 already recorded that the x64 slice "builds without a sidecar"
+because only arm64 is frozen. Either freeze an x64 sidecar or drop the arch
+— a declared arch that produces an engine-less bundle is the same defect
+that just cost two platforms.
 
 ---
 

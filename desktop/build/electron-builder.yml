@@ -43,16 +43,3 @@ mac:
 
 dmg:
   sign: true
-
-win:
-  target:
-    - target: nsis
-      arch:
-        - x64
-
-linux:
-  target:
-    - target: AppImage
-      arch:
-        - x64
-  category: Video

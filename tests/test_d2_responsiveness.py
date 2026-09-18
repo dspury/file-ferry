@@ -22,7 +22,7 @@ import pytest
 from pydantic import ValidationError
 
 from file_ferry.application.service import ApplicationService
-from file_ferry.application.transfer_runner import peak_rss_bytes
+from file_ferry.application.transfer_runner import sidecar_peak_rss_bytes
 from file_ferry.service.protocol import (
     CancelJobParams,
     CreateJobParams,
@@ -139,7 +139,7 @@ def test_100k_entry_planning_is_bounded(tmp_path: Path) -> None:
         scanned = svc.inventory_status(InventoryStatusParams(id=inv.inventory_id))
         assert scanned.file_count == dirs * per_dir
 
-        rss_before = peak_rss_bytes()
+        rss_before = sidecar_peak_rss_bytes()
         started = time.monotonic()
         plan = svc.transfer_plan_create(
             PlanCreateParams.model_validate(
@@ -147,7 +147,7 @@ def test_100k_entry_planning_is_bounded(tmp_path: Path) -> None:
             )
         )
         plan_seconds = time.monotonic() - started
-        rss_after = peak_rss_bytes()
+        rss_after = sidecar_peak_rss_bytes()
 
         first = svc.transfer_plan_entries(PlanEntriesParams(id=plan.id, limit=1000))
         assert len(first.entries) <= 1000

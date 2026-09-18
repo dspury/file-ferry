@@ -64,10 +64,15 @@ CLI runs the same service contracts and is often easier for long runs:
 
 ## 3. Start the collector before each transfer
 
-The app records duration, average throughput and the sidecar's peak RSS in
-the receipt. The collector records what a long run needs that a receipt
-cannot: the throughput curve, DB/job state sampled over time, and both
-processes' memory.
+The app records duration, average throughput and `sidecarPeakRssBytes` in the
+receipt. **`sidecarPeakRssBytes` is peak RSS since the sidecar started, not
+this run alone** — the sidecar is long-lived across jobs, so a second, smaller
+transfer inherits the first one's high-water mark. **Restart the sidecar
+before a timed gate** (quit and relaunch the app) so that field means what a
+reader will assume; for every gate, take the run's own peak from the
+collector's timeline rather than the receipt. The collector records what a
+receipt cannot: the per-run throughput curve, DB/job state sampled over time,
+and both processes' memory.
 
 ```sh
 python scripts/d2_metrics.py \

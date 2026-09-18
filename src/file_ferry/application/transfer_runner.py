@@ -124,14 +124,19 @@ def _parse_iso(value: str | None) -> datetime | None:
         return None
 
 
-def peak_rss_bytes() -> int | None:
-    """This process's peak resident set size in bytes, or None.
+def sidecar_peak_rss_bytes() -> int | None:
+    """Peak RSS of this (the sidecar) process **since it started**, or None.
 
-    ``ru_maxrss`` is a high-water mark, so reading it once when a run ends is
-    the peak over the whole run, not a momentary sample. macOS reports bytes
-    and Linux kibibytes; Windows has no ``resource`` module and gets None.
-    This is the sidecar process — the one holding every file buffer — and is
-    what §12.2's "peak memory" asks a run to record.
+    ``ru_maxrss`` is a high-water mark over the process lifetime, and the
+    sidecar is long-lived across jobs — so on the second and later runs in a
+    session this is the peak of *some* run, possibly an earlier, larger one,
+    not necessarily this transfer. It is therefore named for what it is and
+    must not be read as this run's memory. macOS reports bytes, Linux
+    kibibytes, Windows has no ``resource`` and gets None.
+
+    The D-2 collector samples the real per-run curve from outside, which is
+    where a run's own peak belongs; restarting the sidecar before a timed
+    gate makes this number mean what a reader will assume.
     """
     if sys.platform == "win32":
         return None
@@ -146,10 +151,11 @@ def _performance_block(execution: Any, committed: list[Any]) -> dict[str, Any]:
     """The §12.2 performance fields a receipt can honestly carry.
 
     Duration and sustained (average) throughput come from the run's own
-    start/finish; peak memory is the process high-water mark. The *timeline*
-    — throughput and DB state sampled over time, and the host's peak across
-    both processes — is not something a receipt written at the end can
-    reconstruct; the D-2 collector records that alongside the run.
+    start/finish. Peak memory is the sidecar's high-water mark *since sidecar
+    start*, not a per-run figure — see ``sidecar_peak_rss_bytes``. The
+    *timeline* — throughput and DB state over time, and the per-run peak
+    across both processes — cannot be reconstructed by a receipt written at
+    the end; the D-2 collector records it alongside the run.
     """
     started = _parse_iso(execution.started_at)
     finished = datetime.now(UTC)
@@ -164,7 +170,8 @@ def _performance_block(execution: Any, committed: list[Any]) -> dict[str, Any]:
         "durationSeconds": duration,
         "bytesCommitted": bytes_committed,
         "bytesPerSecond": rate,
-        "peakRssBytes": peak_rss_bytes(),
+        # Named for what it is: since sidecar start, not this run alone.
+        "sidecarPeakRssBytes": sidecar_peak_rss_bytes(),
     }
 
 

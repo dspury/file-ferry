@@ -25,6 +25,12 @@ This template is designed so following it does not:
 The procedure that produces each field is in
 [`D2-operator-procedure.md`](D2-operator-procedure.md).
 
+One measurement caveat, repeated here because it is a receipt a later reader
+will trust: a receipt's `sidecarPeakRssBytes` is the sidecar's peak **since it
+started**, not this run's. The sidecar is long-lived, so restart it before a
+timed gate, and take every **per-run** peak in this file from the collector
+timeline, never from the receipt's single number.
+
 ---
 
 ## Campaign provenance

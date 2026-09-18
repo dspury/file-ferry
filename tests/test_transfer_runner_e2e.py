@@ -266,6 +266,15 @@ def test_scan_to_receipt_copies_verifies_and_receipts(rpc: Rpc) -> None:
             assert entry["sourceChecksum"]
             assert entry["destChecksum"] == entry["sourceChecksum"]
 
+    # §12.2 performance block. Peak RSS is *since sidecar start* and is named
+    # so on purpose; it must not be read as this run's memory.
+    performance = body["performance"]
+    assert performance["durationSeconds"] is not None
+    assert performance["durationSeconds"] >= 0
+    assert performance["bytesPerSecond"] is not None
+    assert "sidecarPeakRssBytes" in performance
+    assert "peakRssBytes" not in performance
+
     # The receipt was exported to disk as well as to the database (A22).
     exported = Path(receipt["exportedPath"])
     assert exported.is_file()

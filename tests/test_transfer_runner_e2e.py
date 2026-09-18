@@ -285,6 +285,31 @@ def test_scan_to_receipt_copies_verifies_and_receipts(rpc: Rpc) -> None:
     assert rpc.reservations() == []
 
 
+def test_receipt_distinguishes_committed_files_from_directories(rpc: Rpc) -> None:
+    """#207: `committed` counts ledger entries, files and directories alike.
+
+    A source of two files and one empty directory reports `committed: 3`, not
+    "2", so the receipt states the file and directory counts rather than
+    leaving a later reader to reconcile 3 against a file count of 2.
+    """
+    source, dest = _tree(rpc, {"A001.MOV": b"movie", "notes.txt": b"notes"})
+    (source / "empty").mkdir()
+    inventory = rpc.inventory(source, "Card with an empty dir")
+    destination = rpc.call("destination.save", {"name": "NAS dirs", "path": str(dest)})
+    plan = rpc.call(
+        "transfer.planCreate",
+        {"destinationId": destination["id"], "inventoryIds": [inventory["id"]]},
+    )
+    rpc.approve(plan)
+    started = rpc.call("transfer.start", {"id": plan["id"], "fingerprint": plan["fingerprint"]})
+    assert rpc.run(started["job"]["id"]) == "succeeded"
+    actual = rpc.call("transfer.receipt", {"planId": plan["id"]})["receipt"]["actual"]
+    assert actual["files"] == 2
+    assert actual["directories"] == 1
+    assert actual["committed"] == 3
+    assert actual["committed"] == actual["files"] + actual["directories"]
+
+
 def test_start_is_idempotent_while_the_job_is_alive(rpc: Rpc) -> None:
     """A double-click must not queue the same plan twice."""
     ctx = _approved_plan(rpc, {"a.txt": b"a"})

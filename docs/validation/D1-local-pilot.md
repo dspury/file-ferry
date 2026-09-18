@@ -8,6 +8,13 @@ physical gate there is `NOT RUN`.
 
 Harness: `docs/validation/d1/run-pilot.mjs` (re-runnable; see below).
 
+The harness **exits non-zero** unless every required condition holds —
+`verified-identical` equals the expected file count, zero `MISMATCH`, zero
+`missing-at-destination`, zero `not-in-plan`, `extra` empty, every empty
+directory recreated, and the ledger reconciles — and it names each failing
+check. A gate nobody has seen fail is not known to be a gate, so a negative
+control is recorded below.
+
 ---
 
 ## Provenance — packaged release, not a checkout
@@ -204,6 +211,29 @@ verified-identical**, 0 extra; ledger reconciled 16 = 15 + 1; empty directory
 recreated. The CLI and the app agree on the contracts and the result.
 
 ---
+
+### Negative control — the gate can fail
+
+A tally that only gets read by eye exits 0 on a bad run. The gate was shown to
+fail on a real defect rather than asserted:
+
+```sh
+node docs/validation/d1/run-pilot.mjs --simulate-missing DOCS/notes.txt
+```
+
+`--simulate-missing` deletes the named destination file immediately before the
+independent walk (a normal run never passes it). Observed:
+
+```
+[d1] negative control: removed /tmp/d1-pilot/dest/Sources/<label>/DOCS/notes.txt before the verification walk
+[d1] GATE FAIL — packaged app: verified-identical 14 != expected 15 (statuses {"verified-identical":14,"missing-at-destination":1})
+[d1] GATE FAIL — packaged app: missing-at-destination DOCS/notes.txt -> Sources/<label>/DOCS/notes.txt
+NEGATIVE_EXIT=1
+```
+
+The two failures name the count and the file. The same harness on the clean
+tree, run the same way, exits **0** with `gate {"pass": true, "failures": []}`
+(`POSITIVE_EXIT=0`). The recorded run above is the clean one.
 
 ## Findings
 

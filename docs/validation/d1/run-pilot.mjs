@@ -48,6 +48,10 @@ const FERRY_CLI = arg('ferry', process.env.D1_FERRY) ?? join(repoRoot, '.venv', 
 const PORT = Number(arg('port', process.env.D1_PORT ?? '9224'));
 const KEEP = process.argv.includes('--keep');
 const REPORT = arg('report', join(ROOT, 'report.json'));
+// Negative-control hook: delete one verified destination file before the walk,
+// so the gate can be shown to fail and to name the file. Not used in a normal
+// run. Takes a source-relative path (e.g. DOCS/notes.txt).
+const SIMULATE_MISSING = arg('simulate-missing', process.env.D1_SIMULATE_MISSING ?? null);
 
 const SOURCE = join(ROOT, 'source');
 const DEST = join(ROOT, 'dest');
@@ -482,6 +486,68 @@ function cliFlow(report) {
   return { plan: plan.parsed, entries: entries.parsed ?? { entries: [] } };
 }
 
+/**
+ * The gate. A pilot that prints a tally and exits 0 cannot be depended on, so
+ * every required condition is checked and each failure is named. Returns the
+ * list of failures (empty = pass).
+ */
+function gateFailures(label, verify, expectedCount) {
+  const failures = [];
+  const byStatus = (s) => verify.results.filter((r) => r.status === s);
+  const identical = byStatus('verified-identical').length;
+  if (identical !== expectedCount) {
+    const statuses = {};
+    for (const r of verify.results) statuses[r.status] = (statuses[r.status] ?? 0) + 1;
+    failures.push(
+      `${label}: verified-identical ${identical} != expected ${expectedCount} (statuses ${JSON.stringify(statuses)})`,
+    );
+  }
+  for (const r of byStatus('MISMATCH')) {
+    failures.push(`${label}: MISMATCH ${r.source} (source ${r.sourceSha256} != dest ${r.destSha256})`);
+  }
+  for (const r of byStatus('missing-at-destination')) {
+    failures.push(`${label}: missing-at-destination ${r.source} -> ${r.destRelPath}`);
+  }
+  for (const r of byStatus('not-in-plan')) {
+    failures.push(`${label}: not-in-plan ${r.source}`);
+  }
+  for (const rel of verify.extra) {
+    failures.push(`${label}: residual at destination: ${rel}`);
+  }
+  for (const d of verify.dirChecks) {
+    if (d.status !== 'directory-recreated') failures.push(`${label}: ${d.status}: ${d.source}`);
+  }
+  if (!verify.ledger.reconciled) {
+    failures.push(`${label}: ledger not reconciled: ${JSON.stringify(verify.ledger)}`);
+  }
+  return failures;
+}
+
+function finish(report, failures) {
+  report.finishedAt = new Date().toISOString();
+  report.gate = { pass: failures.length === 0, failures };
+  writeFileSync(REPORT, JSON.stringify(report, null, 2));
+  if (failures.length > 0) {
+    for (const f of failures) console.error('[d1] GATE FAIL —', f);
+    console.log(JSON.stringify({ report: REPORT, gate: 'FAIL', failures }, null, 2));
+    process.exit(1);
+  }
+  console.log(
+    JSON.stringify(
+      {
+        report: REPORT,
+        gate: 'PASS',
+        tally: report.verification.tally,
+        cliTally: report.cliVerification?.tally,
+        jobState: report.packagedApp.jobState,
+        restart: report.restart,
+      },
+      null,
+      2,
+    ),
+  );
+}
+
 // ---------------------------------------------------------------------------
 
 async function main() {
@@ -545,6 +611,13 @@ async function main() {
     receiptRaw: flow.receipt.receipt,
   };
 
+  if (SIMULATE_MISSING !== null) {
+    const entry = flow.entryPage.entries.find((x) => x.relPath === SIMULATE_MISSING);
+    const abs = entry ? join(DEST, entry.destRelPath) : join(DEST, SIMULATE_MISSING);
+    rmSync(abs, { force: true });
+    log(`negative control: removed ${abs} before the verification walk`);
+  }
+
   log('independent sha256 verification of the destination');
   const verify = independentVerify(
     fixtures.hashes,
@@ -562,6 +635,17 @@ async function main() {
     ledger: verify.ledger,
     results: verify.results,
   };
+
+  // If the packaged-app leg already failed, the gate is decided: record it and
+  // stop rather than spending the restart and CLI legs on a known-bad run.
+  const appFailures = gateFailures('packaged app', verify, fixtures.files.length);
+  if (appFailures.length > 0) {
+    child.kill('SIGTERM');
+    spawnSync('pkill', ['-f', 'ferry.app/Contents/MacOS/ferry']);
+    spawnSync('pkill', ['-f', 'ferry-service']);
+    finish(report, appFailures);
+    return;
+  }
 
   log('restarting the packaged app against the same app data');
   child.kill('SIGTERM');
@@ -604,12 +688,8 @@ async function main() {
   spawnSync('pkill', ['-f', 'ferry-service']);
   await sleep(1000);
 
-  report.finishedAt = new Date().toISOString();
-  writeFileSync(REPORT, JSON.stringify(report, null, 2));
-  if (!KEEP) {
-    // keep the report; the throwaway trees can be removed by the operator
-  }
-  console.log(JSON.stringify({ report: REPORT, tally: report.verification.tally, extra: report.verification.extra, cliTally: report.cliVerification.tally, jobState: report.packagedApp.jobState, restart: report.restart }, null, 2));
+  const cliFailures = gateFailures('CLI', cliVerify, fixtures.files.length);
+  finish(report, [...appFailures, ...cliFailures]);
 }
 
 main().catch((err) => {

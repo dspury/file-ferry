@@ -47,6 +47,7 @@ import json
 import logging
 import os
 import stat as stat_module
+import sys
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -111,6 +112,67 @@ _PROGRESS_FLUSH_BYTES = 16 * 1024 * 1024
 
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _parse_iso(value: str | None) -> datetime | None:
+    """Parse an ISO-8601 stamp, returning None rather than raising."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def sidecar_peak_rss_bytes() -> int | None:
+    """Peak RSS of this (the sidecar) process **since it started**, or None.
+
+    ``ru_maxrss`` is a high-water mark over the process lifetime, and the
+    sidecar is long-lived across jobs — so on the second and later runs in a
+    session this is the peak of *some* run, possibly an earlier, larger one,
+    not necessarily this transfer. It is therefore named for what it is and
+    must not be read as this run's memory. macOS reports bytes, Linux
+    kibibytes, Windows has no ``resource`` and gets None.
+
+    The D-2 collector samples the real per-run curve from outside, which is
+    where a run's own peak belongs; restarting the sidecar before a timed
+    gate makes this number mean what a reader will assume.
+    """
+    if sys.platform == "win32":
+        return None
+    import resource
+
+    usage = resource.getrusage(resource.RUSAGE_SELF)
+    factor = 1 if sys.platform == "darwin" else 1024
+    return int(usage.ru_maxrss) * factor
+
+
+def _performance_block(execution: Any, committed: list[Any]) -> dict[str, Any]:
+    """The §12.2 performance fields a receipt can honestly carry.
+
+    Duration and sustained (average) throughput come from the run's own
+    start/finish. Peak memory is the sidecar's high-water mark *since sidecar
+    start*, not a per-run figure — see ``sidecar_peak_rss_bytes``. The
+    *timeline* — throughput and DB state over time, and the per-run peak
+    across both processes — cannot be reconstructed by a receipt written at
+    the end; the D-2 collector records it alongside the run.
+    """
+    started = _parse_iso(execution.started_at)
+    finished = datetime.now(UTC)
+    duration = None
+    if started is not None:
+        if started.tzinfo is None:
+            started = started.replace(tzinfo=UTC)
+        duration = (finished - started).total_seconds()
+    bytes_committed = sum(i.bytes_copied for i in committed)
+    rate = bytes_committed / duration if duration and duration > 0 else None
+    return {
+        "durationSeconds": duration,
+        "bytesCommitted": bytes_committed,
+        "bytesPerSecond": rate,
+        # Named for what it is: since sidecar start, not this run alone.
+        "sidecarPeakRssBytes": sidecar_peak_rss_bytes(),
+    }
 
 
 class TransferRunnerError(ValueError):
@@ -1140,6 +1202,8 @@ class TransferRunner:
             "finalState": final_state,
             "startedAt": execution.started_at,
             "finishedAt": _now_iso(),
+            # §12.2: duration, sustained (average) throughput, peak RSS.
+            "performance": _performance_block(execution, committed),
         }
 
     def _lineage(self, execution_id: str) -> list[dict[str, str]]:

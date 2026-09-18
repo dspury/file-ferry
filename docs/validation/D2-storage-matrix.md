@@ -53,8 +53,8 @@ timeline, never from the receipt's single number.
 
 | # | gate (§12.2) | status |
 | --- | --- | --- |
-| 1 | External local drive → a separate local destination volume | `NOT RUN` |
-| 2 | External local drive → an already-mounted network share | `NOT RUN` |
+| 1 | External local drive → a separate local destination volume | **`PASS`** — see below |
+| 2 | External local drive → an already-mounted network share | **`FAIL`** — #211 |
 | 3 | Populated destination with overlaps, and two sequential source drives | `NOT RUN` |
 | 4 | ≥10,001 entries and one file ≥10 GiB across the campaign | `NOT RUN` |
 | 5 | ≥2 h prolonged transfer (or a full representative drive offload) | `NOT RUN` |
@@ -293,3 +293,44 @@ sub-gate `NOT RUN` and say why — do not substitute a simulation.
 | Signing / notarization | follows release policy (D-4); an unsigned pilot is not a stable release |
 | Remaining risks | |
 | Operator / date | |
+
+---
+
+## Recorded runs — 2026-09-17
+
+Provenance: ferry `4338982`, packaged macOS arm64 (unsigned local), sidecar
+`0.3.0`, macOS 15.7.4 arm64. Source filesystem `exfat`; destinations `apfs`
+and `smbfs`. Labels are opaque; no private addresses or real filenames here.
+
+### Gate 1 — external (exFAT) → local volume (APFS) · PASS
+
+| field | value |
+| --- | --- |
+| entries scanned | 243 |
+| bytes | 608.3 MiB |
+| duration | 3.0 s |
+| average throughput | ~200 MiB/s |
+| independent hash walk | **243/243 verified-identical**, 0 mismatch, 0 missing |
+
+The source carries 263 AppleDouble `._*` sidecars (exFAT written by macOS).
+The scan excluded all 263 and planned the 243 real files — system-artifact
+exclusion confirmed against real-world debris rather than fixtures.
+
+### Gate 2 — external (exFAT) → network share (SMB) · FAIL
+
+Blocked by **#211**: `os.link` returns `ENOTSUP` on macOS SMB, and
+`publish_exclusive` has no non-overwriting alternative, so no file can be
+published. Job reached `needs_attention` with zero files published and the
+remaining items `pending` — the engine failed safe and claimed nothing.
+
+Recorded as `FAIL`, not `NOT RUN`: the gate ran, on real hardware, and the
+product cannot satisfy it today.
+
+Related: **#212** (the `ENOTSUP` errno gap makes this surface as a raw
+`OSError` rather than `PublicationUnsupportedError`).
+
+### Gates 3-6 — still `NOT RUN`
+
+Gate 3 needs a second source drive; gates 4 and 5 need volume beyond what the
+operator's laptop could spare; gate 6's network half depends on gate 2 and on
+authorization for real disruption.

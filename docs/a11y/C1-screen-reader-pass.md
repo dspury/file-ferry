@@ -7,7 +7,7 @@ This is the written record for C-1. It is an **accessibility-tree and keyboard
 audit**, not a VoiceOver session. See "Method and limits" before drawing
 conclusions from it.
 
-**Follow-up pass (2026-09-17, this PR):** #199 and #201 were fixed and the
+**Follow-up pass (2026-09-17, #205):** #199 and #201 were fixed and the
 harness was re-run — both stop being reported. #198 and #200 are deliberately
 left open: they are live-region announcements that only matter with speech, and
 the operator has decided speech is not a concern. The re-run surfaced a second
@@ -95,7 +95,7 @@ Settings.
   #198 — **left open** (speech-only).
 - **Cancel names the job** — the button's accessible name is now
   `Cancel transfer <short-id>` (visible text unchanged: "Cancel"), so a
-  buttons list no longer offers a bare "Cancel". Fixed in this PR; see
+  buttons list no longer offers a bare "Cancel". Fixed in #205; see
   "Follow-up pass re-run" below.
 - The progress meter is present in the tree
   (`progressbar "Transfer progress for <id>"`); the dock's `View` button is
@@ -152,7 +152,7 @@ Settings.
   the keyboard contract its role promises — **one Tab stop**, all four arrows
   and Home/End move selection (verified: `all → active` on Right, `finished`
   on End, `all` on Home), and the search box is `searchbox "Search jobs"`.
-  Fixed in this PR (#201).
+  Fixed in #205 (#201).
 - The re-run found a **second radiogroup with the same gap**: the Scan
   "Source type" choice (`Transfers.tsx`) is a hand-rolled
   `role="radiogroup"` with two `tabindex 0` radios and no arrow keys. It is
@@ -166,12 +166,12 @@ Settings.
 | issue | summary | status |
 | --- | --- | --- |
 | #198 | transfer dock is not a live region; appearance and clearing are not announced | **open** — speech-only, deprioritised |
-| #199 | dock Cancel is announced as bare "Cancel" | **fixed in this PR** |
+| #199 | dock Cancel is announced as bare "Cancel" | **fixed in #205** |
 | #200 | non-danger banners are not announced when they appear (WCAG 4.1.3) | **open** — speech-only, deprioritised |
-| #201 | segmented filter announces `radiogroup` but has no roving tabindex or arrow keys | **fixed in this PR** |
+| #201 | segmented filter announces `radiogroup` but has no roving tabindex or arrow keys | **fixed in #205** |
 | #204 | Scan "Source type" radiogroup has the same gap as #201 | open — found by the re-run |
 
-### Follow-up pass re-run (2026-09-17, this PR)
+### Follow-up pass re-run (2026-09-17, #205)
 
 `docs/a11y/audit-a11y.mjs` re-run against the fixed renderer:
 

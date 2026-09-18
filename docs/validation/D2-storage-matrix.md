@@ -54,7 +54,7 @@ timeline, never from the receipt's single number.
 | # | gate (§12.2) | status |
 | --- | --- | --- |
 | 1 | External local drive → a separate local destination volume | **`PASS`** — see below |
-| 2 | External local drive → an already-mounted network share | **`FAIL`** — #211 |
+| 2 | External local drive → an already-mounted network share | **`PASS`** — after #216 |
 | 3 | Populated destination with overlaps, and two sequential source drives | `NOT RUN` |
 | 4 | ≥10,001 entries and one file ≥10 GiB across the campaign | `NOT RUN` |
 | 5 | ≥2 h prolonged transfer (or a full representative drive offload) | `NOT RUN` |
@@ -316,26 +316,55 @@ The source carries 263 AppleDouble `._*` sidecars (exFAT written by macOS).
 The scan excluded all 263 and planned the 243 real files — system-artifact
 exclusion confirmed against real-world debris rather than fixtures.
 
-### Gate 2 — external (exFAT) → network share (SMB) · FAIL
+### Gate 2 — external (exFAT) → network share (SMB) · PASS (re-run after #216)
 
-Blocked by **#211**: `os.link` returns `ENOTSUP` on macOS SMB, and
-`publish_exclusive` has no non-overwriting alternative, so no file can be
-published. Job reached `needs_attention` with zero files published and the
-remaining items `pending` — the engine failed safe and claimed nothing.
+**First run: FAIL.** `os.link` returns `ENOTSUP` on macOS SMB, and
+`publish_exclusive` had no non-overwriting alternative, so no file could be
+published. The job reached `needs_attention` with zero files published and
+the remaining items `pending` — the engine failed safe and claimed nothing.
+Filed as **#211**, with **#212** for the errno gap that made it surface as a
+raw `OSError` (fixed).
 
-Recorded as `FAIL`, not `NOT RUN`: the gate ran, on real hardware, and the
-product cannot satisfy it today.
+**Re-run after #216: PASS.** Packaged app built from the fallback branch,
+isolated profile (`--user-data-dir=`), same source drive and share.
 
-Related: **#212** (the `ENOTSUP` errno gap made this surface as a raw
-`OSError` rather than `PublicationUnsupportedError`; fixed).
+| field | value |
+| --- | --- |
+| entries scanned | 243 |
+| bytes committed | 637,833,912 |
+| duration | 882.6 s |
+| average throughput | 722,637 B/s (~0.7 MiB/s) |
+| sidecar peak RSS | 62,832,640 (62.8 MB) |
+| publish strategy | `reserve_rename`, recorded on the execution |
+| independent hash walk | **243/243 verified-identical**, 0 mismatch, 0 missing |
+| destination debris | none — no reservation or temp files left behind |
 
-**Re-run pending.** #211 adds a reserve-then-rename publish fallback for
-filesystems that refuse hard links, and the preflight refusal from #215
-becomes a per-destination strategy choice, recorded in the receipt as
-`publication.strategy`. This gate stays `FAIL` until the operator re-runs
-it on the real share — procedure in
-[`D2-operator-procedure.md`](D2-operator-procedure.md) §"Gate 2 re-run".
-A local, monkeypatched run proves the code path but not the gate.
+The receipt carries `actual.files 243 / directories 0`, the `performance`
+block, and a `publication.note` explaining the fallback and its cost, so a
+destination published this way is identifiable after the fact.
+
+#### The throughput is the share, not ferry
+
+0.7 MiB/s against ~200 MiB/s locally invites a performance bug report. It is
+not one. Plain `cp` of the same 243 files to the same share, measured back to
+back:
+
+| | duration |
+| --- | --- |
+| `cp -R` | 856 s |
+| ferry | 884 s (**+3%**) |
+
+Ferry is within 3% of the filesystem's own speed *while additionally* hashing
+the source, reading every written byte back to verify it, and fsyncing. The
+share itself is slow; that is a network question, not an engine one. Measure
+the baseline before reporting throughput as a defect.
+
+**This matters for gate 5.** At ~0.7 MiB/s a two-hour transfer to this share
+moves roughly 5 GiB, so gate 5 over SMB is duration-bound rather than
+volume-bound, and cannot also satisfy gate 4's ≥10 GiB file. Either run gate
+5 against a faster destination, or run the two gates separately and record
+why.
+
 
 ### Gates 3-6 — still `NOT RUN`
 

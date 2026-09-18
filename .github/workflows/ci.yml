@@ -56,15 +56,24 @@ jobs:
   #
   # Kept as its own job rather than an `os:` entry in the matrix above so
   # the existing check names — which branch protection on `main` requires
-  # — stay stable. Add the three names this job produces to the required
-  # contexts after this lands.
+  # — stay stable.
+  #
+  # One Python version, not three. macOS runners bill at 10x ubuntu, so this
+  # job was the bulk of the spend while adding the least: it is the same
+  # suite as the ubuntu matrix on a second OS, and the OS is what it exists
+  # to cover, not the interpreter. The ubuntu matrix keeps all three versions.
+  #
+  # Dropping a version REMOVES A REQUIRED CHECK NAME. `test (macos, py3.11)`
+  # and `test (macos, py3.12)` must come out of the required contexts on
+  # `main` in the same change, or every PR blocks forever waiting on a check
+  # that no longer reports.
   test-macos:
     name: test (macos, py${{ matrix.python-version }})
     runs-on: macos-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.11', '3.12', '3.13']
+        python-version: ['3.13']
 
     steps:
       - uses: actions/checkout@v7

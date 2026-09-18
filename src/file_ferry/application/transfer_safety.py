@@ -10,8 +10,15 @@ routes its writes through this module so that one implementation owns:
 - **Exclusive publication.** A file is published by creating a hard link
   from a job-owned temporary sibling to the final name. Link creation is
   atomic and fails if the target exists, so an externally created file at
-  a planned path can never be replaced. Where the filesystem cannot
-  support that, the failure is explicit — there is no overwrite fallback.
+  a planned path can never be replaced. A filesystem that refuses hard
+  links (macOS SMB, for one) falls back to reserving the final name with
+  ``O_CREAT | O_EXCL`` and renaming the verified temporary over that own
+  zero-byte reservation; the reserve reports the same "already exists"
+  condition the link would. The fallback is weaker — a zero-byte
+  placeholder exists at the final name while its copy runs, and a narrow
+  reserve-to-rename race remains — so it is chosen by *probing the
+  primitive* (:func:`publish_strategy_for`), never by guessing the
+  filesystem type, and the choice is recorded in the receipt.
 - **Verified copy.** Bytes are streamed through an incremental checksum,
   flushed and fsynced, read back from the temporary file, and compared
   before publication. The source is stat-checked before and after so a
@@ -31,6 +38,7 @@ import stat as stat_module
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -73,6 +81,19 @@ class SourceChangedError(OSError):
         self.source = source
         self.before = before
         self.after = after
+
+
+class PublishStrategy(str, Enum):  # noqa: UP042 - matches models.py's enums
+    """How a verified temporary is made visible at its final name.
+
+    ``LINK`` is the default and strictly stronger primitive: atomic, and
+    it publishes nothing until the bytes are whole. ``RESERVE_RENAME`` is
+    the fallback for filesystems that refuse hard links; it is opted into
+    per destination by :func:`publish_strategy_for`.
+    """
+
+    LINK = "link"
+    RESERVE_RENAME = "reserve_rename"
 
 
 @dataclass(frozen=True)
@@ -154,15 +175,46 @@ def render_destination(dest_root: Path, rel: str | Path) -> Path:
     return candidate
 
 
-def publish_exclusive(tmp: Path, dest: Path) -> None:
+#: ``os.link`` errnos that mean the destination filesystem cannot hard
+#: link — as opposed to a transient fault worth another attempt. ``ENOTSUP``
+#: and ``EOPNOTSUPP`` are one value on Linux and differ on macOS, where the
+#: network filesystem most likely to lack hard links — SMB — returns
+#: ``ENOTSUP`` (errno 45). ``EXDEV`` is a cross-device link.
+LINK_UNSUPPORTED_ERRNOS = frozenset(
+    {
+        errno.EXDEV,
+        errno.EMLINK,
+        errno.ENOSYS,
+        errno.EPERM,
+        errno.EACCES,
+        errno.ENOTSUP,
+        errno.EOPNOTSUPP,
+    }
+)
+
+
+def publish_exclusive(
+    tmp: Path, dest: Path, *, strategy: PublishStrategy = PublishStrategy.LINK
+) -> None:
     """Publish ``tmp`` at ``dest`` without replacing existing content.
 
-    Uses ``os.link`` so publication is atomic and fails with
+    ``LINK`` creates a hard link so publication is atomic and fails with
     ``DestinationExistsError`` if ``dest`` already exists; the temporary
-    sibling is then removed. A filesystem that cannot support hard links
-    raises ``PublicationUnsupportedError`` rather than falling back to an
-    overwrite-capable rename.
+    sibling is then removed. A filesystem that cannot hard-link raises
+    ``PublicationUnsupportedError`` rather than silently degrading — the
+    fallback is chosen up front by :func:`publish_strategy_for`, never
+    slipped in per file.
+
+    ``RESERVE_RENAME`` renames ``tmp`` over a reservation the caller
+    already holds at ``dest`` (see :func:`reserve_destination`). The
+    exclusivity guarantee is the reservation's, not the rename's; the
+    rename is what makes the file appear whole rather than growing.
     """
+    if strategy is PublishStrategy.RESERVE_RENAME:
+        # Over our own zero-byte reservation. Unlike the link path there
+        # is nothing to clean up afterwards: the rename consumed ``tmp``.
+        os.rename(tmp, dest)
+        return
     try:
         os.link(tmp, dest)
     except FileExistsError as exc:
@@ -170,18 +222,7 @@ def publish_exclusive(tmp: Path, dest: Path) -> None:
             errno.EEXIST, f"destination already exists: {dest}", str(dest)
         ) from exc
     except OSError as exc:
-        if exc.errno in (
-            errno.EXDEV,
-            errno.EMLINK,
-            errno.ENOSYS,
-            errno.EPERM,
-            errno.EACCES,
-            # ENOTSUP and EOPNOTSUPP are the same value on Linux and differ
-            # on macOS, where the network filesystem most likely to lack
-            # hard links — SMB — returns ENOTSUP (errno 45).
-            errno.ENOTSUP,
-            errno.EOPNOTSUPP,
-        ):
+        if exc.errno in LINK_UNSUPPORTED_ERRNOS:
             # EPERM/EACCES can be a hard-link restriction (some network
             # filesystems, restricted directories) rather than a missing
             # write permission; distinguish only what we can prove.
@@ -203,6 +244,64 @@ def publish_exclusive(tmp: Path, dest: Path) -> None:
             pass
 
 
+def reserve_destination(dest: Path) -> None:
+    """Reserve ``dest`` with ``O_CREAT | O_EXCL`` for the fallback strategy.
+
+    The zero-byte reservation *is* the no-overwrite guarantee on a
+    link-less filesystem: a second reserve of the same name fails with
+    ``DestinationExistsError`` — the same condition ``os.link`` reports on
+    the default path, so a caller cannot tell which strategy ran.
+    """
+    try:
+        fd = os.open(dest, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError as exc:
+        raise DestinationExistsError(
+            errno.EEXIST, f"destination already exists: {dest}", str(dest)
+        ) from exc
+    except OSError as exc:
+        if exc.errno in LINK_UNSUPPORTED_ERRNOS:
+            raise PublicationUnsupportedError(
+                dest, f"filesystem cannot reserve the destination name: {exc}"
+            ) from exc
+        raise
+    else:
+        os.close(fd)
+
+
+def publish_strategy_for(root: Path) -> PublishStrategy:
+    """Probe the publish primitive *inside* ``root`` and choose a strategy.
+
+    Hard links are a property of the mounted filesystem, so this probes
+    the operation rather than the filesystem type: branching on ``smbfs``
+    would be wrong for NFS, some FUSE mounts, and the SMB servers that do
+    support links. Cost is one file create and one link attempt, and it
+    leaves nothing behind on either outcome.
+
+    Raises ``OSError`` when the probe cannot run at all — a read-only or
+    unsearchable root — so the caller reports that instead of reading
+    silence as a supported destination.
+    """
+    source: Path | None = None
+    linked: Path | None = None
+    try:
+        fd, name = tempfile.mkstemp(prefix=".ferry-publish-probe.", dir=root)
+        source = Path(name)
+        os.close(fd)
+        linked = source.with_name(f"{source.name}.link")
+        try:
+            os.link(source, linked)
+        except OSError as exc:
+            if exc.errno in LINK_UNSUPPORTED_ERRNOS:
+                return PublishStrategy.RESERVE_RENAME
+            raise
+        return PublishStrategy.LINK
+    finally:
+        for path in (linked, source):
+            if path is not None:
+                with contextlib.suppress(OSError):
+                    path.unlink()
+
+
 def copy_file_verified(
     source: Path,
     dest: Path,
@@ -211,6 +310,7 @@ def copy_file_verified(
     on_progress: Callable[[int], None] | None = None,
     cancel_check: Callable[[], bool] | None = None,
     tmp_path: Path | None = None,
+    strategy: PublishStrategy = PublishStrategy.LINK,
 ) -> CopyVerification:
     """Copy ``source`` to ``dest`` verified and without replacing content.
 
@@ -231,6 +331,12 @@ def copy_file_verified(
     the written-but-unpublished crash window on resume. It is created
     with ``O_CREAT | O_EXCL`` — a leftover temp at that exact name is the
     caller's to remove first, never something the copier overwrites.
+
+    ``strategy`` selects how publication happens. Under
+    ``RESERVE_RENAME`` the final name is reserved (``O_EXCL``) *before*
+    the bytes move, so a zero-byte placeholder exists there for the whole
+    copy; that reservation is owned state, removed on any failure after
+    it is taken and never left for the next attempt to trip over.
     """
     source = Path(source)
     dest = Path(dest)
@@ -240,15 +346,25 @@ def copy_file_verified(
         raise UnsafeDestinationError(f"source is not a regular file: {source}")
 
     dest.parent.mkdir(parents=True, exist_ok=True)
-    if tmp_path is None:
-        fd, tmp_name = tempfile.mkstemp(
-            prefix=f".{dest.name}.", suffix=TEMP_SUFFIX, dir=dest.parent
-        )
-        tmp = Path(tmp_name)
-    else:
-        tmp = Path(tmp_path)
-        fd = os.open(tmp, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    tmp: Path | None = None
+    fd: int | None = None
+    reservation_held = False
     try:
+        if strategy is PublishStrategy.RESERVE_RENAME:
+            reserve_destination(dest)
+            reservation_held = True
+        if tmp_path is None:
+            fd, tmp_name = tempfile.mkstemp(
+                prefix=f".{dest.name}.", suffix=TEMP_SUFFIX, dir=dest.parent
+            )
+            tmp = Path(tmp_name)
+        else:
+            candidate = Path(tmp_path)
+            fd = os.open(candidate, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            # Only after the O_EXCL open succeeds is this name ours to
+            # clean; a pre-existing file there is never ours to remove.
+            tmp = candidate
+        assert tmp is not None and fd is not None  # both branches set them
         read_hash = _hasher_for(algo)
         with os.fdopen(fd, "wb") as out:
             with open(source, "rb") as src:
@@ -297,7 +413,10 @@ def copy_file_verified(
             raise SourceChangedError(source, before, after)
 
         mtime_preserved = _preserve_mtime(source, tmp)
-        publish_exclusive(tmp, dest)
+        publish_exclusive(tmp, dest, strategy=strategy)
+        # The rename consumed the reservation; the link path created no
+        # reservation at all. Either way it is no longer ours to clean up.
+        reservation_held = False
         return CopyVerification(
             bytes_copied=total,
             checksum_algo=algo.lower(),
@@ -307,9 +426,19 @@ def copy_file_verified(
         )
     except BaseException:
         # Cleanup for every failure path, including cancellation. The
-        # published destination is never touched by a failure here.
-        with contextlib.suppress(OSError):
-            tmp.unlink()
+        # published destination is never touched — but a reservation we
+        # took and did not consume must be, or the next attempt would
+        # collide with its own leftover and be told the destination
+        # "already exists".
+        if fd is not None:
+            with contextlib.suppress(OSError):
+                os.close(fd)
+        if reservation_held:
+            with contextlib.suppress(OSError):
+                dest.unlink()
+        if tmp is not None:
+            with contextlib.suppress(OSError):
+                tmp.unlink()
         raise
 
 
@@ -434,10 +563,12 @@ def validate_dest_root(dest_root: Path) -> Path:
 
 __all__ = [
     "CHUNK_BYTES",
+    "LINK_UNSUPPORTED_ERRNOS",
     "TEMP_SUFFIX",
     "CopyVerification",
     "DestinationExistsError",
     "PublicationUnsupportedError",
+    "PublishStrategy",
     "PureRel",
     "SourceChangedError",
     "UnsafeDestinationError",
@@ -446,7 +577,9 @@ __all__ = [
     "destination_exists",
     "existing_destination_collisions",
     "publish_exclusive",
+    "publish_strategy_for",
     "render_destination",
+    "reserve_destination",
     "validate_dest_root",
     "validate_relpath",
 ]

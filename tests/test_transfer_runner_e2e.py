@@ -20,6 +20,7 @@ partial resume reuse rather than recopy).
 
 from __future__ import annotations
 
+import errno
 import io
 import json
 import os
@@ -695,6 +696,120 @@ def test_a_source_edited_during_the_copy_is_caught(
     receipt = rpc.call("transfer.receipt", {"planId": plan["id"]})
     assert receipt["finalState"] == "needs_attention"
     assert receipt["receipt"]["actual"]["committed"] == 0
+
+
+# --- #211: publishing to a destination that refuses hard links ----------
+
+
+def _link_raising(code: int) -> Any:
+    def link(src: object, dst: object, **kwargs: object) -> None:
+        raise OSError(code, os.strerror(code), str(dst))
+
+    return link
+
+
+def test_a_link_less_destination_publishes_via_the_fallback(
+    rpc: Rpc, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A plan to a link-less destination completes, not needs_attention.
+
+    CI cannot reach a real link-less filesystem, so ``os.link`` is
+    monkeypatched to the errno macOS SMB returns; only the errno is real.
+    """
+    ctx = _approved_plan(rpc, {"a.txt": b"aaa", "b.txt": b"bbb"})
+    plan, dest, source = ctx["plan"], ctx["dest"], ctx["source"]
+    monkeypatch.setattr(os, "link", _link_raising(errno.ENOTSUP))
+
+    started = rpc.call("transfer.start", {"id": plan["id"], "fingerprint": plan["fingerprint"]})
+    assert rpc.run(started["job"]["id"]) == "succeeded"
+
+    for rel, dest_rel in rpc.order(plan["id"]):
+        assert (dest / dest_rel).read_bytes() == (source / rel).read_bytes()
+    assert set(rpc.items(started["executionId"]).values()) == {"committed"}
+
+    receipt = rpc.call("transfer.receipt", {"planId": plan["id"]})
+    assert receipt["finalState"] == "succeeded"
+    publication = receipt["receipt"]["publication"]
+    assert publication["strategy"] == "reserve_rename"
+    assert "placeholder" in publication["note"], "the fallback's cost is documented"
+
+    leftovers = [p.name for p in dest.rglob("*") if not p.is_dir()]
+    assert not any("ferry" in name for name in leftovers), leftovers
+
+
+def test_a_local_destination_records_the_link_strategy(rpc: Rpc) -> None:
+    """The stronger primitive is the default and is named in the receipt."""
+    ctx = _approved_plan(rpc, {"a.txt": b"aaa"})
+    plan = ctx["plan"]
+    started = rpc.call("transfer.start", {"id": plan["id"], "fingerprint": plan["fingerprint"]})
+    assert rpc.run(started["job"]["id"]) == "succeeded"
+    receipt = rpc.call("transfer.receipt", {"planId": plan["id"]})
+    assert receipt["receipt"]["publication"]["strategy"] == "link"
+
+
+def _force_reservation(
+    rpc: Rpc, execution_id: str, dest_rel: str, reserved: Path, *, state: str = "copying"
+) -> None:
+    """Leave an item mid-copy with a fallback reservation on the ledger."""
+    with transaction(rpc.service._db_path) as conn:
+        conn.execute(
+            "UPDATE transfer_execution_items SET state = ?, temp_path = NULL, "
+            "reservation_path = ? WHERE execution_id = ? AND dest_rel_path = ?",
+            (state, str(reserved), execution_id, dest_rel),
+        )
+
+
+def test_recovery_removes_an_abandoned_reservation_and_re_arms(rpc: Rpc) -> None:
+    """A crash under the fallback leaves a zero-byte placeholder, not a file."""
+    ctx = _approved_plan(rpc, {"a.txt": b"aaa", "b.txt": b"bbb"})
+    dest, source = ctx["dest"], ctx["source"]
+    execution_id, job_id, stuck_dest = _stall_after_first(rpc, ctx)
+
+    reserved = dest / stuck_dest
+    reserved.parent.mkdir(parents=True, exist_ok=True)
+    reserved.write_bytes(b"")  # the placeholder the crash left behind
+    _force_reservation(rpc, execution_id, stuck_dest, reserved)
+
+    assert rpc.service.job_resume(job_id).state == "succeeded"
+    assert rpc.items(execution_id)[stuck_dest] == "committed"
+    assert reserved.read_bytes() == (source / Path(stuck_dest).name).read_bytes()
+
+
+def test_a_completed_reservation_is_verified_rather_than_recopied(rpc: Rpc) -> None:
+    """The rename ran but the commit did not land: verify, do not re-copy."""
+    ctx = _approved_plan(rpc, {"a.txt": b"aaa", "b.txt": b"bbb"})
+    plan, dest, source = ctx["plan"], ctx["dest"], ctx["source"]
+    execution_id, job_id, stuck_dest = _stall_after_first(rpc, ctx)
+
+    reserved = dest / stuck_dest
+    reserved.parent.mkdir(parents=True, exist_ok=True)
+    reserved.write_bytes((source / Path(stuck_dest).name).read_bytes())
+    mtime = reserved.stat().st_mtime_ns
+    _force_reservation(rpc, execution_id, stuck_dest, reserved)
+
+    assert rpc.service.job_resume(job_id).state == "succeeded"
+    assert reserved.stat().st_mtime_ns == mtime, "verified in place, not re-copied"
+    receipt = rpc.call("transfer.receipt", {"planId": plan["id"]})
+    assert any(
+        e["state"] == "committed" and (e["warning"] or "").startswith("verified after")
+        for e in receipt["receipt"]["entries"]
+    )
+
+
+def test_a_reservation_holding_wrong_bytes_refuses_to_overwrite(rpc: Rpc) -> None:
+    """A non-empty reservation that is not our output stops the job."""
+    ctx = _approved_plan(rpc, {"a.txt": b"aaa", "b.txt": b"bbb"})
+    dest = ctx["dest"]
+    execution_id, job_id, stuck_dest = _stall_after_first(rpc, ctx)
+
+    reserved = dest / stuck_dest
+    reserved.parent.mkdir(parents=True, exist_ok=True)
+    reserved.write_bytes(b"WRONG-BYTES")
+    _force_reservation(rpc, execution_id, stuck_dest, reserved)
+
+    assert rpc.service.job_resume(job_id).state == "needs_attention"
+    assert reserved.read_bytes() == b"WRONG-BYTES", "refused, not overwritten"
+    assert rpc.reservations() == []
 
 
 # --- the real dispatcher, not the test's synchronous stand-in ------------

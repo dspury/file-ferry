@@ -326,8 +326,16 @@ remaining items `pending` — the engine failed safe and claimed nothing.
 Recorded as `FAIL`, not `NOT RUN`: the gate ran, on real hardware, and the
 product cannot satisfy it today.
 
-Related: **#212** (the `ENOTSUP` errno gap makes this surface as a raw
-`OSError` rather than `PublicationUnsupportedError`).
+Related: **#212** (the `ENOTSUP` errno gap made this surface as a raw
+`OSError` rather than `PublicationUnsupportedError`; fixed).
+
+**Re-run pending.** #211 adds a reserve-then-rename publish fallback for
+filesystems that refuse hard links, and the preflight refusal from #215
+becomes a per-destination strategy choice, recorded in the receipt as
+`publication.strategy`. This gate stays `FAIL` until the operator re-runs
+it on the real share — procedure in
+[`D2-operator-procedure.md`](D2-operator-procedure.md) §"Gate 2 re-run".
+A local, monkeypatched run proves the code path but not the gate.
 
 ### Gates 3-6 — still `NOT RUN`
 

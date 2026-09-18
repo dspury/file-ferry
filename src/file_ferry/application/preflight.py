@@ -25,6 +25,12 @@ What it checks, and why each one exists:
   must resolve ``available`` *now*, at the binding the plan recorded. An
   unplugged drive, a swapped drive, a share that unmounted and left its
   directory behind — all of them refuse here.
+- **The publish primitive, probed at the destination.** Ferry publishes
+  every file with a hard link so it can never replace existing content.
+  A filesystem that cannot link — macOS SMB, for one — has no publish
+  path at all, so it is refused here rather than at the first item
+  mid-transfer (#211). The *operation* is probed, never guessed from the
+  filesystem type.
 - **No new content at a planned target.** A file that appeared at a
   reserved path after planning invalidates that entry (§6.4); it must be
   replanned, never quietly replaced or renamed around.
@@ -43,8 +49,10 @@ preflight bounds the window, it does not close it.
 from __future__ import annotations
 
 import contextlib
+import errno
 import json
 import os
+import tempfile
 import threading
 import time
 from collections.abc import Callable
@@ -312,7 +320,25 @@ class PreflightService:
                 f"was built for {plan.destination_binding_path}; rebuild and review"
             )
             return resolution.binding_path, resolution.status, None
-        free = _free_bytes(Path(plan.destination_binding_path))
+        binding = Path(plan.destination_binding_path)
+        try:
+            if not _supports_exclusive_publish(binding):
+                findings.add(
+                    f"the destination {binding} cannot support ferry's non-overwriting "
+                    "publish: this filesystem does not allow hard links, which ferry uses "
+                    "so it can never replace an existing file. No files will be written "
+                    "there; choose a different destination"
+                )
+        except OSError as exc:
+            # Fail closed. Not being able to test the publish primitive is
+            # not evidence that it works, and #211 was exactly a publish
+            # that only failed once files were already moving.
+            findings.add(
+                f"ferry could not check whether {binding} supports its non-overwriting "
+                f"publish ({exc.strerror or exc}); a destination that is read-only or "
+                "not writable cannot be approved"
+            )
+        free = _free_bytes(binding)
         if free is None:
             if not (plan.capacity_override_reason or "").strip():
                 findings.add(
@@ -490,6 +516,59 @@ def _exists_including_broken_links(path: Path) -> bool:
     except OSError:
         return False
     return True
+
+
+#: ``os.link`` errnos that mean the destination filesystem cannot publish
+#: exclusively — as opposed to a transient fault worth another attempt.
+#: ``ENOTSUP`` and ``EOPNOTSUPP`` are one value on Linux and differ on
+#: macOS, where the network filesystem most likely to lack hard links —
+#: SMB — returns ``ENOTSUP``.
+_UNSUPPORTED_LINK_ERRNOS = frozenset(
+    {
+        errno.ENOTSUP,
+        errno.EOPNOTSUPP,
+        errno.EPERM,
+        errno.EACCES,
+        errno.ENOSYS,
+        errno.EMLINK,
+    }
+)
+
+
+def _supports_exclusive_publish(root: Path) -> bool:
+    """Whether ``os.link`` — the primitive every publish uses — works at ``root``.
+
+    Hard links are a property of the *mounted filesystem*, so this probes
+    inside ``root`` rather than a system temp directory, and it probes the
+    operation rather than the filesystem type: branching on ``smbfs``
+    would be wrong for NFS, some FUSE mounts, and the SMB servers that do
+    support links. The cost is one file create and one link attempt; it
+    never walks.
+
+    The probe leaves nothing behind on either outcome. It raises
+    ``OSError`` when it cannot run at all — a read-only or unsearchable
+    root — so the caller reports that frankly instead of reading silence
+    as a pass.
+    """
+    source: Path | None = None
+    linked: Path | None = None
+    try:
+        fd, name = tempfile.mkstemp(prefix=".ferry-publish-probe.", dir=root)
+        source = Path(name)
+        os.close(fd)
+        linked = source.with_name(f"{source.name}.link")
+        try:
+            os.link(source, linked)
+        except OSError as exc:
+            if exc.errno in _UNSUPPORTED_LINK_ERRNOS:
+                return False
+            raise
+        return True
+    finally:
+        for path in (linked, source):
+            if path is not None:
+                with contextlib.suppress(OSError):
+                    path.unlink()
 
 
 def _free_bytes(path: Path) -> int | None:

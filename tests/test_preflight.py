@@ -12,7 +12,10 @@ change, which is precisely the shortcut that let the defect through.
 
 from __future__ import annotations
 
+import errno
+import os
 import shutil
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -22,6 +25,7 @@ import pytest
 from file_ferry.application.preflight import (
     PREFLIGHT_TTL_SECONDS,
     PreflightError,
+    _supports_exclusive_publish,
     recover_abandoned_preflights,
 )
 from file_ferry.application.service import ApplicationService
@@ -390,3 +394,108 @@ def test_a_real_directory_appearing_at_a_planned_path_still_passes(world: World)
     (world.dest / target.parent).mkdir(parents=True, exist_ok=True)
     assert world.preflight(plan.id).status == "passed"
     assert world.approve(plan).status == "approved"
+
+
+# ---- publish capability (#211) ---------------------------------------------
+#
+# Every file is published with `os.link`, which macOS SMB refuses with
+# ENOTSUP. Preflight must find that out before approval, not let the first
+# item fail mid-transfer. Real SMB is unreachable from CI, so the refusing
+# filesystem below is a monkeypatched `os.link`; only the *errno* is the
+# one the primitive actually returns. No test here claims to have touched a
+# real network mount.
+
+
+def _link_raising(code: int) -> Any:
+    def link(src: object, dst: object, **kwargs: object) -> None:
+        raise OSError(code, os.strerror(code), str(dst))
+
+    return link
+
+
+def _probe_leftovers(root: Path) -> list[str]:
+    return sorted(p.name for p in root.iterdir())
+
+
+class TestPublishCapabilityProbe:
+    def test_probe_passes_where_link_works(self, tmp_path: Path) -> None:
+        target = tmp_path / "dest"
+        target.mkdir()
+        assert _supports_exclusive_publish(target) is True
+        assert _probe_leftovers(target) == []
+
+    @pytest.mark.parametrize(
+        "code",
+        [errno.ENOTSUP, errno.EOPNOTSUPP, errno.EPERM, errno.EACCES, errno.ENOSYS, errno.EMLINK],
+        ids=["ENOTSUP", "EOPNOTSUPP", "EPERM", "EACCES", "ENOSYS", "EMLINK"],
+    )
+    def test_probe_detects_a_link_less_filesystem(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, code: int
+    ) -> None:
+        target = tmp_path / "dest"
+        target.mkdir()
+        monkeypatch.setattr(os, "link", _link_raising(code))
+        assert _supports_exclusive_publish(target) is False
+        # The half-created file is cleaned up on the failure path too.
+        assert _probe_leftovers(target) == []
+
+    def test_probe_raises_when_it_cannot_run_at_all(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A read-only or unsearchable root is reported, never read as a pass."""
+        target = tmp_path / "dest"
+        target.mkdir()
+
+        def refuse(*args: object, **kwargs: object) -> tuple[int, str]:
+            raise OSError(errno.EROFS, os.strerror(errno.EROFS))
+
+        monkeypatch.setattr(tempfile, "mkstemp", refuse)
+        with pytest.raises(OSError) as caught:
+            _supports_exclusive_publish(target)
+        assert caught.value.errno == errno.EROFS
+
+
+def test_a_link_less_destination_is_refused_before_approval(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#211's safety net: the destination is named and blocking, up front."""
+    plan = world.plan()
+    monkeypatch.setattr(os, "link", _link_raising(errno.ENOTSUP))
+
+    status = world.preflight(plan.id)
+    assert status.status == "failed"
+    assert status.resolved_binding_path is not None
+    assert any(
+        status.resolved_binding_path in finding and "non-overwriting publish" in finding
+        for finding in status.findings
+    ), status.findings
+    with pytest.raises(TransferPlanError, match="preflight failed"):
+        world.approve(plan)
+    assert _probe_leftovers(world.dest) == []
+
+
+def test_a_local_destination_is_not_flagged_and_collects_no_debris(world: World) -> None:
+    """The converse: a volume that can link is unaffected and left clean."""
+    plan = world.plan()
+    status = world.preflight(plan.id)
+    assert status.status == "passed", status.findings
+    assert not any("non-overwriting publish" in finding for finding in status.findings)
+    assert _probe_leftovers(world.dest) == []
+    assert world.approve(plan).status == "approved"
+
+
+def test_a_destination_the_probe_cannot_test_fails_closed(
+    world: World, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Not being able to test the primitive is not evidence that it works."""
+    plan = world.plan()
+
+    def refuse(*args: object, **kwargs: object) -> tuple[int, str]:
+        raise OSError(errno.EROFS, os.strerror(errno.EROFS))
+
+    monkeypatch.setattr(tempfile, "mkstemp", refuse)
+    status = world.preflight(plan.id)
+    assert status.status == "failed"
+    assert any("could not check whether" in finding for finding in status.findings), status.findings
+    with pytest.raises(TransferPlanError, match="preflight failed"):
+        world.approve(plan)

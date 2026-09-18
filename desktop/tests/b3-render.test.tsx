@@ -7,7 +7,7 @@
  * The two views that fetch (Destinations, Presets) get resolved stubs;
  * Transfers' empty route renders its scan stage, which makes no calls.
  */
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../shared/preload-api.js';
 import type { JobDetail, TransferPlanStatus } from '../shared/ipc-methods.js';
@@ -225,6 +225,29 @@ describe('Transfers (pipeline shell)', () => {
     render(<Transfers />);
     const scanButton = screen.getByRole('button', { name: 'Scan source' });
     expect(scanButton.hasAttribute('disabled')).toBe(true);
+  });
+
+  // A11y-204: the source-type choice is a radiogroup, so it owes the same
+  // contract as SegmentedControl — one Tab stop and arrows that move it.
+  it('gives the source-type radiogroup one Tab stop and arrow selection', async () => {
+    stub({});
+    render(<Transfers />);
+    const group = screen.getByRole('radiogroup', { name: 'Source type' });
+    const radios = (): HTMLElement[] => within(group).getAllByRole('radio');
+    const tabs = (): number[] => radios().map((r) => r.tabIndex);
+    const checked = (): (string | null)[] => radios().map((r) => r.getAttribute('aria-checked'));
+
+    expect(tabs()).toEqual([0, -1]);
+    expect(checked()).toEqual(['true', 'false']);
+
+    fireEvent.keyDown(group, { key: 'ArrowRight' });
+    await waitFor(() => expect(checked()).toEqual(['false', 'true']));
+    expect(tabs()).toEqual([-1, 0]);
+    expect(document.activeElement).toBe(radios()[1]);
+
+    // Past the end wraps back to the first.
+    fireEvent.keyDown(group, { key: 'ArrowRight' });
+    await waitFor(() => expect(checked()).toEqual(['true', 'false']));
   });
 });
 

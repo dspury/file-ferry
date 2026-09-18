@@ -1141,6 +1141,9 @@ class TransferRunner:
         with transaction(self._db_path) as conn:
             items = exec_repo.get_execution_items(conn, execution.id)
         committed = [i for i in items if i.state == "committed"]
+        committed_directories = [
+            i for i in committed if i.source_checksum is None and i.dest_checksum is None
+        ]
         return {
             "schema": 1,
             "kind": "transfer",
@@ -1171,6 +1174,12 @@ class TransferRunner:
             },
             "actual": {
                 "committed": len(committed),
+                # A committed file always carries the checksum that proved it;
+                # a committed directory has nothing to checksum and carries
+                # none. Splitting them stops `committed` (16) reading as a
+                # discrepancy against the file count (15) — #207.
+                "files": len(committed) - len(committed_directories),
+                "directories": len(committed_directories),
                 "skippedIdentical": sum(1 for i in items if i.state == "skipped_identical"),
                 "reused": sum(1 for i in items if i.state == "reused"),
                 "excluded": sum(1 for i in items if i.state == "excluded"),

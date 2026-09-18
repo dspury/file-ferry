@@ -235,6 +235,10 @@ def sample_executions(conn: sqlite3.Connection) -> list[dict[str, Any]]:
                COUNT(i.plan_entry_id) AS ledger_entries,
                COALESCE(SUM(i.bytes_copied), 0) AS bytes_committed,
                COALESCE(SUM(CASE WHEN i.state = 'committed' THEN 1 ELSE 0 END), 0) AS items_committed,
+               COALESCE(SUM(CASE WHEN i.state = 'committed'
+                                  AND i.source_checksum IS NULL
+                                  AND i.dest_checksum IS NULL
+                             THEN 1 ELSE 0 END), 0) AS items_committed_directories,
                COALESCE(SUM(CASE WHEN i.state = 'failed' THEN 1 ELSE 0 END), 0) AS items_failed
         FROM transfer_executions e
         LEFT JOIN transfer_execution_items i ON i.execution_id = e.id
@@ -258,7 +262,11 @@ def sample_executions(conn: sqlite3.Connection) -> list[dict[str, Any]]:
                 "plan_id": r["plan_id"],
                 "state": r["state"],
                 "bytes_committed": r["bytes_committed"],
+                # `committed` counts files and directories; split them so a
+                # byte/file count is not read against a mixed total (#207).
                 "items_committed": r["items_committed"],
+                "files_committed": r["items_committed"] - r["items_committed_directories"],
+                "directories_committed": r["items_committed_directories"],
                 "items_failed": r["items_failed"],
                 "ledger_entries": r["ledger_entries"],
                 "started_at": r["started_at"],

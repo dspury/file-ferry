@@ -27,7 +27,22 @@ everything else — and do **not** mark P7 production-validated.
 - **Disposable targets only.** Every source and destination used here is
   disposable. Nothing in this procedure touches an operator's real media.
 - **Isolated application data.** Run the packaged app with a throwaway
-  `--user-data-dir`; do not audit against the real profile.
+  `--user-data-dir=<path>`; do not audit against the real profile.
+
+  **Use the `=` form.** `--user-data-dir <path>` (space-separated) is parsed
+  as a bare argument, silently ignored, and the app falls through to the real
+  profile at `~/Library/Application Support/ferry/ferry.db` — where a gate
+  would then write destinations, inventories, plans and jobs into the
+  operator's own data with no indication anything was wrong. This was hit
+  during gate 1.
+
+  **Confirm isolation before running any gate:**
+
+  ```sh
+  ls /tmp/d2-appdata/ferry.db    # must exist once the app has started
+  ```
+
+  If that file is absent, the app is using the real profile. Stop.
 
 ## 1. Build the packaged app and record provenance
 
@@ -51,7 +66,7 @@ checkout.
 
 ```sh
 desktop/release/mac-arm64/ferry.app/Contents/MacOS/ferry \
-  --user-data-dir /tmp/d2-appdata
+  --user-data-dir=/tmp/d2-appdata
 ```
 
 Use the Transfer workspace, or the CLI, to run each gate's flow:

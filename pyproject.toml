@@ -91,8 +91,13 @@ ignore = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra -q --strict-markers"
+addopts = "-ra -q --strict-markers -m 'not slow'"
 pythonpath = ["src"]
+markers = [
+    # The 100,000-entry synthetic planning run (D-2 §12.2). It writes 100k
+    # files and takes minutes, so it is opt-in: `pytest -m slow`.
+    "slow: long synthetic runs; excluded by default with -m 'not slow'",
+]
 filterwarnings = [
     # PR #46 fixed #41 by wrapping `created_at` in `_iso()`; PR #54's rewrite
     # silently reverted it, and the resulting DeprecationWarning fired in the

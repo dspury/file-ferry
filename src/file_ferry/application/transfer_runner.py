@@ -47,6 +47,7 @@ import json
 import logging
 import os
 import stat as stat_module
+import sys
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -111,6 +112,60 @@ _PROGRESS_FLUSH_BYTES = 16 * 1024 * 1024
 
 def _now_iso() -> str:
     return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _parse_iso(value: str | None) -> datetime | None:
+    """Parse an ISO-8601 stamp, returning None rather than raising."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def peak_rss_bytes() -> int | None:
+    """This process's peak resident set size in bytes, or None.
+
+    ``ru_maxrss`` is a high-water mark, so reading it once when a run ends is
+    the peak over the whole run, not a momentary sample. macOS reports bytes
+    and Linux kibibytes; Windows has no ``resource`` module and gets None.
+    This is the sidecar process — the one holding every file buffer — and is
+    what §12.2's "peak memory" asks a run to record.
+    """
+    if sys.platform == "win32":
+        return None
+    import resource
+
+    usage = resource.getrusage(resource.RUSAGE_SELF)
+    factor = 1 if sys.platform == "darwin" else 1024
+    return int(usage.ru_maxrss) * factor
+
+
+def _performance_block(execution: Any, committed: list[Any]) -> dict[str, Any]:
+    """The §12.2 performance fields a receipt can honestly carry.
+
+    Duration and sustained (average) throughput come from the run's own
+    start/finish; peak memory is the process high-water mark. The *timeline*
+    — throughput and DB state sampled over time, and the host's peak across
+    both processes — is not something a receipt written at the end can
+    reconstruct; the D-2 collector records that alongside the run.
+    """
+    started = _parse_iso(execution.started_at)
+    finished = datetime.now(UTC)
+    duration = None
+    if started is not None:
+        if started.tzinfo is None:
+            started = started.replace(tzinfo=UTC)
+        duration = (finished - started).total_seconds()
+    bytes_committed = sum(i.bytes_copied for i in committed)
+    rate = bytes_committed / duration if duration and duration > 0 else None
+    return {
+        "durationSeconds": duration,
+        "bytesCommitted": bytes_committed,
+        "bytesPerSecond": rate,
+        "peakRssBytes": peak_rss_bytes(),
+    }
 
 
 class TransferRunnerError(ValueError):
@@ -1140,6 +1195,8 @@ class TransferRunner:
             "finalState": final_state,
             "startedAt": execution.started_at,
             "finishedAt": _now_iso(),
+            # §12.2: duration, sustained (average) throughput, peak RSS.
+            "performance": _performance_block(execution, committed),
         }
 
     def _lineage(self, execution_id: str) -> list[dict[str, str]]:

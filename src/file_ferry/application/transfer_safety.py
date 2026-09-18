@@ -170,7 +170,18 @@ def publish_exclusive(tmp: Path, dest: Path) -> None:
             errno.EEXIST, f"destination already exists: {dest}", str(dest)
         ) from exc
     except OSError as exc:
-        if exc.errno in (errno.EXDEV, errno.EMLINK, errno.ENOSYS, errno.EPERM, errno.EACCES):
+        if exc.errno in (
+            errno.EXDEV,
+            errno.EMLINK,
+            errno.ENOSYS,
+            errno.EPERM,
+            errno.EACCES,
+            # ENOTSUP and EOPNOTSUPP are the same value on Linux and differ
+            # on macOS, where the network filesystem most likely to lack
+            # hard links — SMB — returns ENOTSUP (errno 45).
+            errno.ENOTSUP,
+            errno.EOPNOTSUPP,
+        ):
             # EPERM/EACCES can be a hard-link restriction (some network
             # filesystems, restricted directories) rather than a missing
             # write permission; distinguish only what we can prove.

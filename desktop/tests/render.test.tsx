@@ -14,10 +14,11 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { useState } from 'react';
 
 import { api } from '../shared/preload-api.js';
 import { App } from '../renderer/src/App.js';
-import { Banner, Chip, StatusReadout } from '../renderer/src/components/ui.js';
+import { Banner, Chip, SegmentedControl, StatusReadout } from '../renderer/src/components/ui.js';
 import type { JobDetail, ProjectSummary } from '../shared/ipc-methods.js';
 
 afterEach(() => {
@@ -154,7 +155,11 @@ describe('App shell', () => {
 
     const dock = await screen.findByRole('complementary', { name: 'Active transfer' });
     expect(dock.textContent).toContain('Transferring');
-    fireEvent.click(within(dock).getByRole('button', { name: 'Cancel' }));
+    // A11y-199: Cancel is named against the job it acts on, so a buttons list
+    // never offers a bare "Cancel". The visible word is unchanged.
+    const cancelButton = within(dock).getByRole('button', { name: 'Cancel transfer job-t1' });
+    expect(cancelButton.textContent).toBe('Cancel');
+    fireEvent.click(cancelButton);
     await waitFor(() => expect(cancel).toHaveBeenCalledWith('job-t1'));
   });
 
@@ -275,6 +280,57 @@ describe('design-system primitives', () => {
     expect(screen.getByRole('status')).toBeTruthy();
     rerender(<StatusReadout tone="ok">Idle</StatusReadout>);
     expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  // A11y-201: announcing `radiogroup` promises one Tab stop and arrows that
+  // move selection. This drives the real component through that contract.
+  it('SegmentedControl is one Tab stop and arrows move the selection', () => {
+    const onChange = vi.fn();
+    function Harness() {
+      const [value, setValue] = useState<'all' | 'active' | 'failed'>('all');
+      return (
+        <SegmentedControl
+          label="Filter jobs by state"
+          value={value}
+          options={['all', 'active', 'failed'] as const}
+          onChange={(next) => {
+            onChange(next);
+            setValue(next);
+          }}
+        />
+      );
+    }
+    render(<Harness />);
+    const radios = (): HTMLElement[] => screen.getAllByRole('radio');
+    const checked = (): (string | null)[] => radios().map((r) => r.getAttribute('aria-checked'));
+    const tabs = (): number[] => radios().map((r) => r.tabIndex);
+
+    // One Tab stop: only the selected radio is reachable.
+    expect(tabs()).toEqual([0, -1, -1]);
+    expect(checked()).toEqual(['true', 'false', 'false']);
+
+    // Right moves selection and focus together, wrapping at the end.
+    fireEvent.keyDown(screen.getByRole('radiogroup'), { key: 'ArrowRight' });
+    expect(onChange).toHaveBeenCalledWith('active');
+    expect(checked()).toEqual(['false', 'true', 'false']);
+    expect(tabs()).toEqual([-1, 0, -1]);
+    expect(document.activeElement).toBe(radios()[1]);
+
+    // End jumps to the last option.
+    fireEvent.keyDown(screen.getByRole('radiogroup'), { key: 'End' });
+    expect(onChange).toHaveBeenLastCalledWith('failed');
+    expect(checked()).toEqual(['false', 'false', 'true']);
+
+    // Right past the end wraps to the first.
+    fireEvent.keyDown(screen.getByRole('radiogroup'), { key: 'ArrowRight' });
+    expect(onChange).toHaveBeenLastCalledWith('all');
+    expect(checked()).toEqual(['true', 'false', 'false']);
+
+    // Home jumps back to the first from wherever the selection is.
+    fireEvent.keyDown(screen.getByRole('radiogroup'), { key: 'ArrowLeft' });
+    expect(checked()).toEqual(['false', 'false', 'true']);
+    fireEvent.keyDown(screen.getByRole('radiogroup'), { key: 'Home' });
+    expect(onChange).toHaveBeenLastCalledWith('all');
   });
 });
 

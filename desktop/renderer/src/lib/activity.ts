@@ -189,7 +189,16 @@ export function liveProgress(job: JobDetail, snapshot: JobSnapshot | null): numb
  * for: what you say is what you can click.
  */
 export function jobRowLabel(action: string, job: JobDetail): string {
-  return `${action} ${job.command} ${job.id}`;
+  return jobLabel(action, job.command, job.id);
+}
+
+/**
+ * The `action command id` shape a job's controls are named with, over its
+ * parts. `jobRowLabel` passes the full id; the dock passes the short
+ * reference it displays, so both share the format without copying it.
+ */
+export function jobLabel(action: string, command: string, id: string): string {
+  return `${action} ${command} ${id}`;
 }
 
 /** Receipt export content is non-empty (a successful export has content). */

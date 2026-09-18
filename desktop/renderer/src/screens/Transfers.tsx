@@ -28,6 +28,7 @@ import { useAsync } from '../hooks/useAsync.js';
 import { useJobStream } from '../hooks/useJobStream.js';
 import { navigateTo } from '../views.js';
 import { useRoute } from '../hooks/useRoute.js';
+import { moveIndex } from '../lib/nav.js';
 import {
   Banner,
   Chip,
@@ -260,7 +261,7 @@ function StageTabs({
     if (step === 0) return;
     e.preventDefault();
     const current = enabledIds.indexOf(stage);
-    const next = enabledIds[(current + step + enabledIds.length) % enabledIds.length];
+    const next = enabledIds[moveIndex(current, step, enabledIds.length)];
     if (next === undefined) return;
     onSelect(next);
     // Focus follows the selection, or the ring stays on the tab left behind.

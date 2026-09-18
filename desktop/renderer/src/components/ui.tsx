@@ -14,6 +14,7 @@ import {
   cloneElement,
   isValidElement,
   useId,
+  useRef,
   type JSX,
   type ReactElement,
   type ReactNode,
@@ -21,6 +22,7 @@ import {
 import { IconInbox, IconInfo } from './icons.js';
 import { StateGlyph } from './StateGlyph.js';
 import { splitPathTail } from '../lib/format.js';
+import { radioKeyToIndex, viewIndex } from '../lib/nav.js';
 import type { MeterStatus, StateTone } from '../lib/job-state.js';
 
 /**
@@ -367,11 +369,18 @@ export function StatCard({
 }
 
 /**
- * Mutually-exclusive filter switch.
+ * Mutually-exclusive filter switch (the APG radiogroup pattern).
  *
  * Rendered as a radio group, not a row of buttons: the options are one
  * choice with one answer, and `aria-checked` tells assistive tech which is
  * selected. As buttons they announced identically whether active or not.
+ *
+ * A11y-201: announcing `radiogroup` promises the radiogroup keyboard
+ * contract, so the group implements it — one Tab stop (roving tabindex), all
+ * four arrows moving selection and `onChange`, and Home/End jumping to the
+ * ends. The stage tab bar next door answers only to Left/Right and keeps its
+ * own handler; the two contracts differ, but the wrap arithmetic is shared
+ * through `radioKeyToIndex` / `moveIndex` in `lib/nav.ts`.
  */
 export function SegmentedControl<T extends string>({
   label,
@@ -384,14 +393,34 @@ export function SegmentedControl<T extends string>({
   options: readonly T[];
   onChange: (next: T) => void;
 }): JSX.Element {
+  const groupRef = useRef<HTMLDivElement>(null);
+  const current = viewIndex(value, options);
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>): void => {
+    const next = radioKeyToIndex(current, e.key, options.length);
+    if (next === null) return;
+    // Claim the key even when it maps to the current option, so an arrow or
+    // Home/End inside the group never scrolls the page underneath it.
+    e.preventDefault();
+    if (next === current) return;
+    const option = options[next];
+    if (option === undefined) return;
+    // Selection moves with the arrow, unlike the nav's roving focus.
+    onChange(option);
+    // Focus the button by index; the buttons are keyed by option and re-render
+    // in place, so no attribute-selector escaping of the value is needed.
+    groupRef.current?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus();
+  };
+
   return (
-    <div className="seg" role="radiogroup" aria-label={label}>
+    <div className="seg" role="radiogroup" aria-label={label} ref={groupRef} onKeyDown={onKeyDown}>
       {options.map((option) => (
         <button
           key={option}
           type="button"
           role="radio"
           aria-checked={option === value}
+          tabIndex={option === value ? 0 : -1}
           className={`seg__item${option === value ? ' seg__item--active' : ''}`}
           onClick={() => onChange(option)}
         >

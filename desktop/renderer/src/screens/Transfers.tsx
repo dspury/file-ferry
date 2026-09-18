@@ -28,7 +28,7 @@ import { useAsync } from '../hooks/useAsync.js';
 import { useJobStream } from '../hooks/useJobStream.js';
 import { navigateTo } from '../views.js';
 import { useRoute } from '../hooks/useRoute.js';
-import { moveIndex } from '../lib/nav.js';
+import { moveIndex, radioKeyToIndex } from '../lib/nav.js';
 import {
   Banner,
   Chip,
@@ -305,6 +305,11 @@ function StageTabs({
 
 // ---- scan ------------------------------------------------------------------
 
+const SOURCE_KINDS = [
+  { id: 'folder', label: 'Folder' },
+  { id: 'card', label: 'Camera card' },
+] as const;
+
 function ScanStage({
   inventoryIds,
   card,
@@ -335,6 +340,23 @@ function ScanStage({
   const [inspecting, setInspecting] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [inspected, setInspected] = useState<SourceInspectResult | null>(null);
+  const sourceKindRef = useRef<HTMLDivElement>(null);
+
+  // A11y-204: announcing `radiogroup` promises the same contract
+  // `SegmentedControl` implements — one Tab stop (roving tabindex) and arrows
+  // that move the selection. Reuses the shared `radioKeyToIndex` so the two
+  // cannot drift.
+  const onSourceKindKeyDown = (e: React.KeyboardEvent<HTMLDivElement>): void => {
+    const current = SOURCE_KINDS.findIndex((kind) => kind.id === sourceKind);
+    const next = radioKeyToIndex(current, e.key, SOURCE_KINDS.length);
+    if (next === null) return;
+    e.preventDefault();
+    if (next === current) return;
+    const kind = SOURCE_KINDS[next];
+    if (kind === undefined) return;
+    setPendingKind(kind.id);
+    sourceKindRef.current?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus();
+  };
 
   const pick = async (): Promise<void> => {
     const result = await window.ferry.dialog.pick({ kind: 'directory' });
@@ -381,25 +403,26 @@ function ScanStage({
       flush
     >
       <div className="card__body stack">
-        <div className="row" role="radiogroup" aria-label="Source type">
-          <button
-            type="button"
-            role="radio"
-            aria-checked={sourceKind === 'folder'}
-            className={`btn btn--sm${sourceKind === 'folder' ? ' btn--primary' : ''}`}
-            onClick={() => setPendingKind('folder')}
-          >
-            Folder
-          </button>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={sourceKind === 'card'}
-            className={`btn btn--sm${sourceKind === 'card' ? ' btn--primary' : ''}`}
-            onClick={() => setPendingKind('card')}
-          >
-            Camera card
-          </button>
+        <div
+          className="row"
+          role="radiogroup"
+          aria-label="Source type"
+          ref={sourceKindRef}
+          onKeyDown={onSourceKindKeyDown}
+        >
+          {SOURCE_KINDS.map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              role="radio"
+              aria-checked={sourceKind === id}
+              tabIndex={sourceKind === id ? 0 : -1}
+              className={`btn btn--sm${sourceKind === id ? ' btn--primary' : ''}`}
+              onClick={() => setPendingKind(id)}
+            >
+              {label}
+            </button>
+          ))}
         </div>
         <div className="field-grid">
           <Field label={sourceKind === 'card' ? 'Camera card' : 'Source folder'}>

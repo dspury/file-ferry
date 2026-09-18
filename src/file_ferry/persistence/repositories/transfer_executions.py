@@ -25,6 +25,7 @@ class TransferExecutionRow:
     state: str
     started_at: str
     updated_at: str
+    publish_strategy: str | None = None
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> TransferExecutionRow:
@@ -66,6 +67,7 @@ class TransferExecutionItemRow:
     error: str | None
     warning: str | None
     updated_at: str
+    reservation_path: str | None = None
 
     @classmethod
     def from_row(cls, row: sqlite3.Row) -> TransferExecutionItemRow:
@@ -74,19 +76,20 @@ class TransferExecutionItemRow:
 
 _EXEC_COLUMNS = (
     "id, job_id, plan_id, fingerprint, dest_root, dest_st_dev, binding_json, "
-    "state, started_at, updated_at"
+    "state, started_at, updated_at, publish_strategy"
 )
 
 _ITEM_COLUMNS = (
     "execution_id, plan_entry_id, dest_rel_path, source_path, size, state, "
     "temp_path, source_checksum, dest_checksum, checksum_algo, bytes_copied, "
-    "error, warning, updated_at"
+    "error, warning, updated_at, reservation_path"
 )
 
 
 def insert_execution(conn: sqlite3.Connection, execution: TransferExecutionRow) -> None:
     conn.execute(
-        f"INSERT INTO transfer_executions ({_EXEC_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        f"INSERT INTO transfer_executions ({_EXEC_COLUMNS}) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             execution.id,
             execution.job_id,
@@ -98,6 +101,7 @@ def insert_execution(conn: sqlite3.Connection, execution: TransferExecutionRow) 
             execution.state,
             execution.started_at,
             execution.updated_at,
+            execution.publish_strategy,
         ),
     )
 
@@ -109,18 +113,23 @@ def update_execution_state(
     state: str,
     updated_at: str,
     dest_st_dev: int | None = None,
+    publish_strategy: str | None = None,
 ) -> None:
-    if dest_st_dev is None:
-        conn.execute(
-            "UPDATE transfer_executions SET state = ?, updated_at = ? WHERE id = ?",
-            (state, updated_at, execution_id),
-        )
-    else:
-        conn.execute(
-            "UPDATE transfer_executions SET state = ?, updated_at = ?, dest_st_dev = ? "
-            "WHERE id = ?",
-            (state, updated_at, dest_st_dev, execution_id),
-        )
+    sets = ["state = ?", "updated_at = ?"]
+    params: list[object] = [state, updated_at]
+    if dest_st_dev is not None:
+        sets.append("dest_st_dev = ?")
+        params.append(dest_st_dev)
+    if publish_strategy is not None:
+        # Recorded once, when the destination's primitive is probed. A
+        # later state update that omits it must not clear it.
+        sets.append("publish_strategy = ?")
+        params.append(publish_strategy)
+    params.append(execution_id)
+    conn.execute(
+        f"UPDATE transfer_executions SET {', '.join(sets)} WHERE id = ?",
+        params,
+    )
 
 
 def get_execution(conn: sqlite3.Connection, execution_id: str) -> TransferExecutionRow | None:
@@ -165,7 +174,7 @@ def latest_execution_for_fingerprint(
 def insert_execution_items(conn: sqlite3.Connection, items: list[TransferExecutionItemRow]) -> None:
     conn.executemany(
         f"INSERT INTO transfer_execution_items ({_ITEM_COLUMNS}) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [
             (
                 i.execution_id,
@@ -182,6 +191,7 @@ def insert_execution_items(conn: sqlite3.Connection, items: list[TransferExecuti
                 i.error,
                 i.warning,
                 i.updated_at,
+                i.reservation_path,
             )
             for i in items
         ],
@@ -218,6 +228,8 @@ def update_execution_item(
     state: str | None = None,
     temp_path: str | None = None,
     clear_temp: bool = False,
+    reservation_path: str | None = None,
+    clear_reservation: bool = False,
     source_checksum: str | None = None,
     dest_checksum: str | None = None,
     checksum_algo: str | None = None,
@@ -232,9 +244,10 @@ def update_execution_item(
     ``clear_temp`` exists because ``temp_path`` is nullable and a value
     of ``None`` must mean "leave alone" for every optional field — the
     runner clears the temp explicitly once the copy it tracked is done.
-    ``clear_error`` is the same idea for ``error``: a resume re-arming a
-    previously failed item has to drop the stale reason, or the receipt
-    reports an error for an item that went on to succeed.
+    ``clear_reservation`` is the same for the fallback's reserved final
+    name. ``clear_error`` is the same idea for ``error``: a resume
+    re-arming a previously failed item has to drop the stale reason, or
+    the receipt reports an error for an item that went on to succeed.
     """
     sets: list[str] = []
     params: list[object] = []
@@ -246,6 +259,11 @@ def update_execution_item(
     elif temp_path is not None:
         sets.append("temp_path = ?")
         params.append(temp_path)
+    if clear_reservation:
+        sets.append("reservation_path = NULL")
+    elif reservation_path is not None:
+        sets.append("reservation_path = ?")
+        params.append(reservation_path)
     if source_checksum is not None:
         sets.append("source_checksum = ?")
         params.append(source_checksum)

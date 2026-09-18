@@ -138,6 +138,59 @@ As Gate 1, with the already-mounted share as destination. Additionally
 record the **network mount protocol** (SMB / NFS / AFP) and the link type.
 Record any OS-blocked I/O exception explicitly.
 
+#### Gate 2 re-run — publishing to a link-less share (#211)
+
+The first run of this gate **FAILED**: every file to the SMB share failed
+at the first item with `os.link` → `ENOTSUP`, which left the job
+`needs_attention`. The engine now probes the publish primitive per
+destination and, where link is refused, publishes by reserving the final
+name (`O_CREAT | O_EXCL`) and renaming the verified temporary over that
+own reservation. The choice is recorded in the receipt as
+`publication.strategy` (`link` or `reserve_rename`).
+
+Expected differences from the failed run:
+
+- the transfer should now **complete**, not stop at the first file;
+- under `reserve_rename`, a **zero-byte placeholder exists at each
+  destination path while its file is copied** — a client opening the path
+  mid-copy sees an empty file, not "no file". This is the approved cost,
+  not a fault;
+- if the destination cannot be probed at all (read-only, unsearchable),
+  preflight still refuses before approval;
+- a crash mid-copy leaves a zero-byte reservation that restart recovery
+  removes before re-arming the item.
+
+Steps:
+
+1. Same setup as Gate 1: disposable external source drive (opaque),
+   already-mounted share as destination.
+2. Build and record provenance as in §1. This run must be on a build that
+   contains #211; record the commit and shasums.
+3. Confirm isolation (`ls /tmp/d2-appdata/ferry.db` after start).
+4. Restart the sidecar before timing.
+5. Run the same source → share transfer to completion; record the same
+   five Gate 1 tables.
+6. Read `publication.strategy` from the receipt. On an SMB share it must be
+   `reserve_rename`; `link` means the share supports hard links (record
+   that) or the probe did not run.
+7. **Observability check:** while a large file is copying, open its
+   destination path from a second client; confirm it exists at zero bytes
+   and later becomes the complete file.
+8. **Crash-recovery check (only if authorized):** kill the sidecar during a
+   copy; on restart confirm no zero-byte file is left for that item and the
+   item is re-armed and completed.
+9. Independent verification: hash every file after completion; record the
+   tally.
+
+Pass criteria: the same source that passed to a local volume completes to
+the share with an independent hash walk confirming every file;
+`publication.strategy == "reserve_rename"`; no `.ferry-part` temp files
+remain at the destination; and, if run, the crash-recovery check leaves no
+zero-byte leftover.
+
+Do not record `PASS` from a CI or monkeypatched run — only this
+real-hardware run counts.
+
 ### Gate 3 — populated destination with overlaps, two sequential source drives
 
 1. Pre-populate the destination with files that **overlap** the source names,

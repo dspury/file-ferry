@@ -25,11 +25,11 @@ import pytest
 from file_ferry.application.preflight import (
     PREFLIGHT_TTL_SECONDS,
     PreflightError,
-    _supports_exclusive_publish,
     recover_abandoned_preflights,
 )
 from file_ferry.application.service import ApplicationService
 from file_ferry.application.transfer_plan import TransferPlanError
+from file_ferry.application.transfer_safety import PublishStrategy, publish_strategy_for
 from file_ferry.persistence.connection import transaction
 from file_ferry.service.protocol import (
     InventoryCreateParams,
@@ -399,11 +399,12 @@ def test_a_real_directory_appearing_at_a_planned_path_still_passes(world: World)
 # ---- publish capability (#211) ---------------------------------------------
 #
 # Every file is published with `os.link`, which macOS SMB refuses with
-# ENOTSUP. Preflight must find that out before approval, not let the first
-# item fail mid-transfer. Real SMB is unreachable from CI, so the refusing
-# filesystem below is a monkeypatched `os.link`; only the *errno* is the
-# one the primitive actually returns. No test here claims to have touched a
-# real network mount.
+# ENOTSUP. That no longer refuses the destination — it selects the
+# reserve-then-rename fallback — but a root the primitive cannot even be
+# tested against still blocks. Real SMB is unreachable from CI, so the
+# refusing filesystem below is a monkeypatched `os.link`; only the *errno*
+# is the one the primitive actually returns. No test here claims to have
+# touched a real network mount.
 
 
 def _link_raising(code: int) -> Any:
@@ -418,10 +419,10 @@ def _probe_leftovers(root: Path) -> list[str]:
 
 
 class TestPublishCapabilityProbe:
-    def test_probe_passes_where_link_works(self, tmp_path: Path) -> None:
+    def test_probe_chooses_link_where_link_works(self, tmp_path: Path) -> None:
         target = tmp_path / "dest"
         target.mkdir()
-        assert _supports_exclusive_publish(target) is True
+        assert publish_strategy_for(target) is PublishStrategy.LINK
         assert _probe_leftovers(target) == []
 
     @pytest.mark.parametrize(
@@ -429,14 +430,14 @@ class TestPublishCapabilityProbe:
         [errno.ENOTSUP, errno.EOPNOTSUPP, errno.EPERM, errno.EACCES, errno.ENOSYS, errno.EMLINK],
         ids=["ENOTSUP", "EOPNOTSUPP", "EPERM", "EACCES", "ENOSYS", "EMLINK"],
     )
-    def test_probe_detects_a_link_less_filesystem(
+    def test_probe_chooses_the_fallback_on_a_link_less_filesystem(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, code: int
     ) -> None:
         target = tmp_path / "dest"
         target.mkdir()
         monkeypatch.setattr(os, "link", _link_raising(code))
-        assert _supports_exclusive_publish(target) is False
-        # The half-created file is cleaned up on the failure path too.
+        assert publish_strategy_for(target) is PublishStrategy.RESERVE_RENAME
+        # The half-created file is cleaned up on the refusal path too.
         assert _probe_leftovers(target) == []
 
     def test_probe_raises_when_it_cannot_run_at_all(
@@ -451,27 +452,26 @@ class TestPublishCapabilityProbe:
 
         monkeypatch.setattr(tempfile, "mkstemp", refuse)
         with pytest.raises(OSError) as caught:
-            _supports_exclusive_publish(target)
+            publish_strategy_for(target)
         assert caught.value.errno == errno.EROFS
 
 
-def test_a_link_less_destination_is_refused_before_approval(
+def test_a_link_less_destination_is_approved_for_the_fallback(
     world: World, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """#211's safety net: the destination is named and blocking, up front."""
+    """#211: a link-less destination is published, not refused.
+
+    This is the reversal of #215's refusal: the same probe that blocked
+    now selects reserve-then-rename, so approval must pass and the probe
+    must leave nothing behind.
+    """
     plan = world.plan()
     monkeypatch.setattr(os, "link", _link_raising(errno.ENOTSUP))
 
     status = world.preflight(plan.id)
-    assert status.status == "failed"
-    assert status.resolved_binding_path is not None
-    assert any(
-        status.resolved_binding_path in finding and "non-overwriting publish" in finding
-        for finding in status.findings
-    ), status.findings
-    with pytest.raises(TransferPlanError, match="preflight failed"):
-        world.approve(plan)
+    assert status.status == "passed", status.findings
     assert _probe_leftovers(world.dest) == []
+    assert world.approve(plan).status == "approved"
 
 
 def test_a_local_destination_is_not_flagged_and_collects_no_debris(world: World) -> None:
@@ -479,7 +479,6 @@ def test_a_local_destination_is_not_flagged_and_collects_no_debris(world: World)
     plan = world.plan()
     status = world.preflight(plan.id)
     assert status.status == "passed", status.findings
-    assert not any("non-overwriting publish" in finding for finding in status.findings)
     assert _probe_leftovers(world.dest) == []
     assert world.approve(plan).status == "approved"
 

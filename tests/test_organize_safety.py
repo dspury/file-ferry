@@ -26,12 +26,15 @@ from file_ferry.application.sources import SourceService
 from file_ferry.application.transfer_safety import (
     DestinationExistsError,
     PublicationUnsupportedError,
+    PublishStrategy,
     SourceChangedError,
     UnsafeDestinationError,
+    _Cancelled,
     copy_file_verified,
     existing_destination_collisions,
     publish_exclusive,
     render_destination,
+    reserve_destination,
     validate_relpath,
 )
 from file_ferry.service.protocol import (
@@ -303,6 +306,101 @@ class TestVerifiedCopy:
         assert not isinstance(caught.value, PublicationUnsupportedError)
         assert caught.value.errno == errno.EIO
         assert not tmp.exists()
+
+
+class TestReserveRenameFallback:
+    """#211: the fallback for a filesystem that refuses hard links.
+
+    CI cannot reach a real link-less filesystem, so the fallback is
+    exercised directly (``strategy=RESERVE_RENAME``) and — where selection
+    is the point — by monkeypatching ``os.link`` to the errno macOS SMB
+    returns. Only the errno is real; no test here claims a network mount.
+    """
+
+    def test_it_publishes_the_file_and_leaves_nothing_behind(self, tmp_path: Path) -> None:
+        src = tmp_path / "src.bin"
+        src.write_bytes(b"payload" * 4096)
+        dest = tmp_path / "dest.bin"
+
+        verification = copy_file_verified(src, dest, strategy=PublishStrategy.RESERVE_RENAME)
+
+        assert dest.read_bytes() == src.read_bytes()
+        assert verification.source_checksum == verification.dest_checksum
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["dest.bin", "src.bin"]
+
+    def test_publish_renames_over_its_own_reservation(self, tmp_path: Path) -> None:
+        tmp = tmp_path / "stage.ferry-part"
+        tmp.write_bytes(b"data")
+        dest = tmp_path / "dest.bin"
+        reserve_destination(dest)
+        assert dest.stat().st_size == 0, "the reservation is the zero-byte placeholder"
+
+        publish_exclusive(tmp, dest, strategy=PublishStrategy.RESERVE_RENAME)
+
+        assert dest.read_bytes() == b"data"
+        assert not tmp.exists()
+
+    @pytest.mark.parametrize("strategy", list(PublishStrategy), ids=lambda s: s.value)
+    def test_both_strategies_report_an_existing_destination(
+        self, tmp_path: Path, strategy: PublishStrategy
+    ) -> None:
+        """A caller must not be able to tell which publish path ran."""
+        src = tmp_path / "src.bin"
+        src.write_bytes(b"new bytes")
+        dest = tmp_path / "dest.bin"
+        dest.write_bytes(b"existing")
+
+        with pytest.raises(DestinationExistsError):
+            copy_file_verified(src, dest, strategy=strategy)
+
+        assert dest.read_bytes() == b"existing"
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["dest.bin", "src.bin"]
+
+    def test_a_failure_after_the_reservation_removes_it(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """The reservation is owned state: a later failure must not leak it."""
+        src = tmp_path / "src.bin"
+        src.write_bytes(b"payload")
+        dest = tmp_path / "dest.bin"
+
+        def refuse(*args: object, **kwargs: object) -> None:
+            raise OSError(errno.EIO, "Input/output error")
+
+        monkeypatch.setattr(os, "rename", refuse)
+        with pytest.raises(OSError):
+            copy_file_verified(src, dest, strategy=PublishStrategy.RESERVE_RENAME)
+        assert not dest.exists(), "the zero-byte reservation was cleaned up"
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["src.bin"]
+
+    @pytest.mark.parametrize("strategy", list(PublishStrategy), ids=lambda s: s.value)
+    def test_a_foreign_temp_is_never_deleted(
+        self, tmp_path: Path, strategy: PublishStrategy
+    ) -> None:
+        """The caller's temp name is theirs; O_EXCL refuses, it does not clobber."""
+        src = tmp_path / "src.bin"
+        src.write_bytes(b"payload")
+        dest = tmp_path / "dest.bin"
+        foreign = tmp_path / "claimed.ferry-part"
+        foreign.write_bytes(b"someone else's work")
+
+        with pytest.raises(FileExistsError):
+            copy_file_verified(src, dest, tmp_path=foreign, strategy=strategy)
+
+        assert foreign.read_bytes() == b"someone else's work"
+        assert not dest.exists(), "the reservation is released when the temp cannot open"
+
+    def test_a_cancellation_after_the_reservation_removes_it(self, tmp_path: Path) -> None:
+        src = tmp_path / "src.bin"
+        src.write_bytes(b"payload" * 1024)
+        dest = tmp_path / "dest.bin"
+
+        with pytest.raises(_Cancelled):
+            copy_file_verified(
+                src, dest, strategy=PublishStrategy.RESERVE_RENAME, cancel_check=lambda: True
+            )
+        assert not dest.exists()
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["src.bin"]
 
 
 class TestScanErrorsFailClosed:

@@ -62,7 +62,9 @@ from file_ferry.application.replicas import compute_checksum
 from file_ferry.application.scheduler import JobScheduler
 from file_ferry.application.transfer_safety import (
     TEMP_SUFFIX,
+    PublishStrategy,
     copy_file_verified,
+    publish_strategy_for,
     render_destination,
 )
 from file_ferry.application.transfer_safety import (
@@ -506,6 +508,15 @@ class TransferRunner:
         Reservations are acquired in one transaction together with the
         item rows, so a job can never observe a half-reserved plan.
         """
+        # Chosen once for the whole destination, by probing the primitive
+        # rather than trusting the probe preflight ran (§7.1: anything
+        # checked there can change a second later). Stored on the
+        # execution so a resume uses the same strategy and the receipt can
+        # name it.
+        try:
+            strategy = publish_strategy_for(dest_root)
+        except OSError as exc:
+            return [f"ferry could not determine how to publish to {dest_root}: {exc}"]
         now = _now_iso()
         entries = self._all_entries(plan.id)
         items = [
@@ -551,6 +562,7 @@ class TransferRunner:
                 state="running",
                 updated_at=now,
                 dest_st_dev=st_dev,
+                publish_strategy=strategy.value,
             )
             conn.execute(
                 "UPDATE transfer_executions SET dest_root = ?, binding_json = ? WHERE id = ?",
@@ -578,7 +590,10 @@ class TransferRunner:
 
         Window 1 — temporary written, unpublished: discard *this job's*
         recorded partial (and only that; a foreign ``.ferry-part`` is
-        never touched) and mark the item pending again.
+        never touched) and mark the item pending again. Under the
+        reserve-then-rename fallback the recorded *reservation* at the
+        final name is this job's state too: a zero-byte placeholder is
+        removed, a non-empty file is decided like window 2.
 
         Window 2 — published, not committed: a full checksum decides.
         Equal commits the item as verified reuse; unequal fails it and
@@ -610,6 +625,16 @@ class TransferRunner:
                     except OSError as exc:
                         problems.append(f"this job's partial {tmp} could not be removed: {exc}")
                         continue
+                if item.reservation_path:
+                    settled, problem = self._reconcile_reservation(execution, plan, item)
+                    if problem is not None:
+                        problems.append(problem)
+                        continue
+                    if settled:
+                        # The reservation held this transfer's own finished
+                        # output and was committed, or refused; either way
+                        # it must not also be re-armed as pending.
+                        continue
                 with transaction(self._db_path) as conn:
                     exec_repo.update_execution_item(
                         conn,
@@ -617,6 +642,7 @@ class TransferRunner:
                         item.plan_entry_id,
                         state="pending",
                         clear_temp=True,
+                        clear_reservation=True,
                         updated_at=now,
                     )
             elif item.state == "failed":
@@ -627,47 +653,90 @@ class TransferRunner:
                         item.plan_entry_id,
                         state="pending",
                         clear_temp=True,
+                        clear_reservation=True,
                         clear_error=True,
                         updated_at=now,
                     )
             elif item.state == "published":
-                entry = self._entry(execution.plan_id, item.plan_entry_id)
-                if entry is None:  # pragma: no cover - immutable plans
-                    problems.append(f"plan entry {item.plan_entry_id} vanished")
-                    continue
-                source = Path(entry.source_path)
                 dest = Path(execution.dest_root).joinpath(*PurePosixPath(item.dest_rel_path).parts)
-                try:
-                    source_sum = compute_checksum(source, plan.checksum_algo)
-                    dest_sum = compute_checksum(dest, plan.checksum_algo)
-                except OSError as exc:
-                    problems.append(
-                        f"published-but-uncommitted {item.dest_rel_path} could not "
-                        f"be verified: {exc}"
-                    )
-                    self._fail_item(execution.id, item.plan_entry_id, str(exc))
-                    continue
-                if source_sum == dest_sum:
-                    with transaction(self._db_path) as conn:
-                        exec_repo.update_execution_item(
-                            conn,
-                            execution.id,
-                            item.plan_entry_id,
-                            state="committed",
-                            source_checksum=source_sum,
-                            dest_checksum=dest_sum,
-                            checksum_algo=plan.checksum_algo,
-                            warning="verified after an interruption; not re-copied",
-                            updated_at=now,
-                        )
-                else:
-                    reason = (
-                        "published output no longer matches its source after an "
-                        "interruption; refusing to overwrite — replan"
-                    )
-                    self._fail_item(execution.id, item.plan_entry_id, reason)
-                    problems.append(f"{item.dest_rel_path}: {reason}")
+                problem = self._verify_interrupted_output(execution, plan, item, dest)
+                if problem is not None:
+                    problems.append(problem)
         return problems
+
+    def _reconcile_reservation(
+        self, execution: TransferExecutionRow, plan: TransferPlanRow, item: TransferExecutionItemRow
+    ) -> tuple[bool, str | None]:
+        """Reconcile the final name a crash left reserved under the fallback.
+
+        Returns ``(settled, problem)``. A zero-byte placeholder is ours
+        and is removed — ``settled`` stays false so the item is re-armed
+        and copied again. A non-empty file means the rename ran but the
+        commit did not land, so it is decided by a full checksum exactly
+        as window 2 decides: ``settled`` true and a problem only when the
+        bytes are not this transfer's output.
+        """
+        path = item.reservation_path
+        if not path:
+            return False, None
+        dest = Path(path)
+        st = _lstat(dest)
+        if st is None:
+            return False, None
+        if st.st_size == 0:
+            try:
+                dest.unlink()
+            except OSError as exc:
+                return False, f"this job's reservation {dest} could not be removed: {exc}"
+            return False, None
+        return True, self._verify_interrupted_output(execution, plan, item, dest)
+
+    def _verify_interrupted_output(
+        self,
+        execution: TransferExecutionRow,
+        plan: TransferPlanRow,
+        item: TransferExecutionItemRow,
+        dest: Path,
+    ) -> str | None:
+        """Decide a complete-looking output left by an interruption (window 2).
+
+        Equal to the source commits it as verified reuse; unequal fails
+        the item and the job, because neither re-copying over the name nor
+        guessing is acceptable. Returns a problem string only for the
+        refusal or an unreadable file.
+        """
+        entry = self._entry(execution.plan_id, item.plan_entry_id)
+        if entry is None:  # pragma: no cover - immutable plans
+            return f"plan entry {item.plan_entry_id} vanished"
+        source = Path(entry.source_path)
+        try:
+            source_sum = compute_checksum(source, plan.checksum_algo)
+            dest_sum = compute_checksum(dest, plan.checksum_algo)
+        except OSError as exc:
+            self._fail_item(execution.id, item.plan_entry_id, str(exc))
+            return f"published-but-uncommitted {item.dest_rel_path} could not be verified: {exc}"
+        if source_sum == dest_sum:
+            with transaction(self._db_path) as conn:
+                exec_repo.update_execution_item(
+                    conn,
+                    execution.id,
+                    item.plan_entry_id,
+                    state="committed",
+                    clear_temp=True,
+                    clear_reservation=True,
+                    source_checksum=source_sum,
+                    dest_checksum=dest_sum,
+                    checksum_algo=plan.checksum_algo,
+                    warning="verified after an interruption; not re-copied",
+                    updated_at=_now_iso(),
+                )
+            return None
+        reason = (
+            "published output no longer matches its source after an "
+            "interruption; refusing to overwrite — replan"
+        )
+        self._fail_item(execution.id, item.plan_entry_id, reason)
+        return f"{item.dest_rel_path}: {reason}"
 
     # ------------------------------------------------------------------
     # per-item execution
@@ -733,6 +802,12 @@ class TransferRunner:
         if tmp.exists():
             # Our own recorded name; only this execution writes here.
             tmp.unlink()
+        strategy = _strategy_of(execution)
+        # Under the fallback the final name is reserved *before* the bytes
+        # move. Record it before creating it, the way the temp is, so a
+        # crash can be reconciled from the ledger alone rather than from a
+        # name only memory knew.
+        reservation = str(dest) if strategy is PublishStrategy.RESERVE_RENAME else None
         with transaction(self._db_path) as conn:
             exec_repo.update_execution_item(
                 conn,
@@ -740,6 +815,7 @@ class TransferRunner:
                 item.plan_entry_id,
                 state="copying",
                 temp_path=str(tmp),
+                reservation_path=reservation,
                 updated_at=_now_iso(),
             )
         try:
@@ -750,11 +826,12 @@ class TransferRunner:
                 on_progress=self._progress_reporter(scheduler, job, execution, item),
                 cancel_check=lambda: scheduler.should_cancel(job.id),
                 tmp_path=tmp,
+                strategy=strategy,
             )
         except _CopyCancelled as exc:
             # Cancellation is not a failure: the item returns to pending
-            # (its temp is already gone; the copier cleans it) and the
-            # receipt reads as a deliberate stop.
+            # (its temp and any reservation are already gone; the copier
+            # cleans both) and the receipt reads as a deliberate stop.
             with transaction(self._db_path) as conn:
                 exec_repo.update_execution_item(
                     conn,
@@ -762,6 +839,7 @@ class TransferRunner:
                     item.plan_entry_id,
                     state="pending",
                     clear_temp=True,
+                    clear_reservation=True,
                     updated_at=_now_iso(),
                 )
             raise TransferCancelledError(str(exc) or "cancelled during copy") from exc
@@ -773,6 +851,7 @@ class TransferRunner:
                     item.plan_entry_id,
                     state="failed",
                     clear_temp=True,
+                    clear_reservation=True,
                     error=f"copy failed: {exc}"[:2000],
                     updated_at=_now_iso(),
                 )
@@ -796,6 +875,7 @@ class TransferRunner:
                 item.plan_entry_id,
                 state="committed",
                 clear_temp=True,
+                clear_reservation=True,
                 source_checksum=verification.source_checksum,
                 dest_checksum=verification.dest_checksum,
                 checksum_algo=verification.checksum_algo,
@@ -995,6 +1075,7 @@ class TransferRunner:
                 plan_entry_id,
                 state="failed",
                 clear_temp=True,
+                clear_reservation=True,
                 error=error[:2000],
                 updated_at=_now_iso(),
             )
@@ -1012,6 +1093,7 @@ class TransferRunner:
                         item.plan_entry_id,
                         state="failed",
                         clear_temp=True,
+                        clear_reservation=True,
                         error=text,
                         updated_at=now,
                     )
@@ -1163,6 +1245,10 @@ class TransferRunner:
             "projectId": plan.project_id,
             "conflictPolicy": plan.conflict_policy,
             "checksumAlgo": plan.checksum_algo,
+            # How publication happened, and — when it was the weaker
+            # fallback — what that cost. A fallback-published destination
+            # must be identifiable from the record alone (#211).
+            "publication": _publication_block(execution),
             "expected": {
                 "totalFiles": plan.total_files,
                 "totalBytes": plan.total_bytes,
@@ -1362,6 +1448,49 @@ def _lstat(path: Path) -> os.stat_result | None:
         return os.lstat(path)
     except OSError:
         return None
+
+
+def _strategy_of(execution: TransferExecutionRow) -> PublishStrategy:
+    """The publish strategy recorded for this execution; ``LINK`` if unset."""
+    if execution.publish_strategy:
+        try:
+            return PublishStrategy(execution.publish_strategy)
+        except ValueError:  # pragma: no cover - only a corrupt row
+            _log.warning(
+                "execution %s has unknown publish strategy %r; using link",
+                execution.id,
+                execution.publish_strategy,
+            )
+    return PublishStrategy.LINK
+
+
+def _publication_block(execution: TransferExecutionRow) -> dict[str, Any]:
+    """The receipt's record of how files were made visible (#211).
+
+    Names the strategy so a destination published via the fallback is
+    identifiable after the fact, and repeats the fallback's costs so an
+    operator does not have to read the source to learn them.
+    """
+    strategy = _strategy_of(execution)
+    if strategy is PublishStrategy.RESERVE_RENAME:
+        return {
+            "strategy": strategy.value,
+            "note": (
+                "published by reserving the final name (O_EXCL) and renaming the "
+                "verified temporary over that reservation, because this destination's "
+                "filesystem refuses hard links. A zero-byte placeholder existed at each "
+                "destination path while its file was copied; a narrow race remains "
+                "between reserving and renaming, and rename atomicity is "
+                "server-dependent on a network share."
+            ),
+        }
+    return {
+        "strategy": strategy.value,
+        "note": (
+            "published by atomic hard link: nothing existed at a destination path "
+            "until the file was whole"
+        ),
+    }
 
 
 __all__ = [

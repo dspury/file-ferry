@@ -24,9 +24,7 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,json,md,yaml,yml}\"",
     "build:sidecar": "bash ../scripts/build-sidecar.sh",
     "package:mac": "npm run build:sidecar && npm run build && electron-builder --mac --config build/electron-builder.yml",
-    "package:mac:local": "npm run build:sidecar && npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false bash ../scripts/package-mac-local.sh",
-    "package:win": "npm run build && electron-builder --win --config build/electron-builder.yml",
-    "package:linux": "npm run build && electron-builder --linux --config build/electron-builder.yml"
+    "package:mac:local": "npm run build:sidecar && npm run build && CSC_IDENTITY_AUTO_DISCOVERY=false bash ../scripts/package-mac-local.sh"
   },
   "dependencies": {
     "@fontsource-variable/archivo": "^5.3.0",

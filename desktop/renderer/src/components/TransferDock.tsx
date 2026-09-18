@@ -14,7 +14,8 @@ import type { JSX } from 'react';
 import { Progress } from './ui.js';
 import { IconTransfer } from './icons.js';
 import { jobMeterStatus } from '../lib/job-state.js';
-import { dockCounters, dockPercent, dockStateLabel } from '../lib/dock.js';
+import { jobLabel } from '../lib/activity.js';
+import { dockCounters, dockPercent, dockJobRef, dockStateLabel } from '../lib/dock.js';
 import type { JobDetail, JobSnapshot } from '../../../shared/ipc-methods.js';
 
 export function TransferDock({
@@ -43,7 +44,7 @@ export function TransferDock({
       <div className="dock__identity">
         <span className="dock__state">{dockStateLabel(job.state)}</span>
         <span className="dock__title">
-          {more > 0 ? `Transfer · +${more} more` : `Transfer · ${job.id.slice(0, 8)}`}
+          {more > 0 ? `Transfer · +${more} more` : `Transfer · ${dockJobRef(job)}`}
         </span>
       </div>
       <div className="dock__track">
@@ -59,7 +60,17 @@ export function TransferDock({
         <button type="button" className="btn" onClick={onView}>
           View
         </button>
-        <button type="button" className="btn" onClick={onCancel} disabled={cancelling}>
+        {/* The visible word stays "Cancel" — the dock's context is on screen.
+            The accessible name carries the job, at the same short reference
+            the title shows, so the button is never bare "Cancel" in a
+            controls list. Uses the Activity table's `jobLabel` format. */}
+        <button
+          type="button"
+          className="btn"
+          onClick={onCancel}
+          disabled={cancelling}
+          aria-label={jobLabel('Cancel', job.command, dockJobRef(job))}
+        >
           {cancelling ? 'Cancelling…' : 'Cancel'}
         </button>
       </div>

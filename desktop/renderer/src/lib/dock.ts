@@ -38,6 +38,21 @@ export function activeTransfers(
     .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0));
 }
 
+/**
+ * The short job reference the dock shows in its title, and that its Cancel is
+ * named with.
+ *
+ * The full id is a 36-character UUID; the Activity table names its row
+ * controls with the whole thing because a table can hold many rows of the
+ * same command and only the full id is guaranteed unique there. The dock
+ * names exactly one leading transfer at a time, so the first 8 characters are
+ * ample, and they are already what the title displays — the accessible name
+ * and the visible reference agree.
+ */
+export function dockJobRef(job: JobDetail): string {
+  return job.id.slice(0, 8);
+}
+
 /** The dock's state micro-label. */
 export function dockStateLabel(state: string): string {
   switch (state) {

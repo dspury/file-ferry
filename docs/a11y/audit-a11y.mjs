@@ -222,9 +222,32 @@ async function domAudit() {
         glyphHidden: c.querySelector('svg')?.getAttribute('aria-hidden'),
       })),
       banners: [...document.querySelectorAll('.banner')].map((b) => ({
-        cls: b.className, role: attr(b, 'role'), label: txt(b.querySelector('.banner__label') || { textContent: '' }),
+        cls: b.className, tone: (b.className.match(/banner--(\\w+)/) || [])[1] || null,
+        role: attr(b, 'role'), ariaLive: attr(b, 'aria-live'),
+        label: txt(b.querySelector('.banner__label') || { textContent: '' }),
         text: txt(b), glyphHidden: b.querySelector('svg')?.getAttribute('aria-hidden'),
       })),
+      radios: [...document.querySelectorAll('[role=radiogroup]')].map((g) => ({
+        label: attr(g, 'aria-label'),
+        // #201 is the SegmentedControl; any other radiogroup is a separate
+        // hand-rolled instance (#204).
+        seg: g.classList.contains('seg'),
+        items: [...g.querySelectorAll('[role=radio]')].map((r) => ({
+          name: txt(r), tabIndex: r.tabIndex, checked: attr(r, 'aria-checked'),
+        })),
+      })),
+      dock: (() => {
+        const d = document.querySelector('.dock');
+        if (!d) return null;
+        const cancel = [...d.querySelectorAll('button')].find((b) =>
+          /^Cancel/.test((b.getAttribute('aria-label') || b.textContent || '').trim()),
+        );
+        return {
+          label: attr(d, 'aria-label'),
+          live: !!(attr(d, 'aria-live') || ['status', 'alert', 'log'].includes(attr(d, 'role'))),
+          cancelName: cancel ? cancel.getAttribute('aria-label') || cancel.textContent.trim() : null,
+        };
+      })(),
       tables: [...document.querySelectorAll('table')].map((t) => ({
         label: attr(t, 'aria-label'),
         headers: [...t.querySelectorAll('thead th')].map((th) => ({ text: txt(th), scope: attr(th, 'scope'), id: attr(th, 'id') })),
@@ -239,9 +262,41 @@ async function domAudit() {
   })()`);
 }
 
+/**
+ * The filed C-1 defects (#198, #199, #200, #201) plus #204, checked from the
+ * DOM on each route. Each returns a note while the defect is present, so a
+ * re-run shows what is fixed and what is still open. (#198 and #200 are
+ * deliberately left open; #204 was found by this check.)
+ */
+function findingsFor(routeState) {
+  const d = routeState.dom;
+  const out = [];
+  if (d.dock && !d.dock.live) {
+    out.push({ id: 198, note: 'dock present but not a live region (appearance/clear not announced)' });
+  }
+  if (d.dock && /^(Cancel|Cancelling…)$/.test(d.dock.cancelName ?? '')) {
+    out.push({ id: 199, note: `dock Cancel named "${d.dock.cancelName}"` });
+  }
+  const nonLive = d.banners.filter((b) => b.tone !== 'danger' && !b.role && !b.ariaLive);
+  if (nonLive.length > 0) {
+    out.push({ id: 200, note: `${nonLive.length} non-danger banner(s) with no live semantics` });
+  }
+  for (const g of d.radios) {
+    const tabbable = g.items.filter((r) => r.tabIndex === 0).length;
+    if (g.items.length > 1 && tabbable !== 1) {
+      // #201 is the SegmentedControl; #204 is any other hand-rolled radiogroup.
+      out.push({
+        id: g.seg ? 201 : 204,
+        note: `radiogroup "${g.label}" has ${tabbable} tabbable radios (want 1)`,
+      });
+    }
+  }
+  return out;
+}
+
 const report = {};
+const findings = {};
 for (const route of ROUTES) {
-  const path = route.hash.split('?')[0];
   if (mode !== 'all' && !mode.includes(route.name)) continue;
   await evalJs(`window.location.hash = ${JSON.stringify(route.hash)}`);
   await sleep(1600);
@@ -250,10 +305,16 @@ for (const route of ROUTES) {
   const dom = await domAudit();
   const ax = await axTree();
   const focusStops = await tabTraversal();
-  report[route.name] = { hash: route.hash, dom, ax, focusStops };
+  const routeFindings = findingsFor({ dom });
+  report[route.name] = { hash: route.hash, dom, ax, focusStops, findings: routeFindings };
+  if (routeFindings.length > 0) findings[route.name] = routeFindings;
   writeFileSync(`${outDir}/${route.name}.json`, JSON.stringify(report[route.name], null, 2));
-  console.error(`audited ${route.name}: ${ax.length} ax nodes, ${focusStops.length} focus stops`);
+  console.error(
+    `audited ${route.name}: ${ax.length} ax nodes, ${focusStops.length} focus stops` +
+      (routeFindings.length > 0 ? `, findings: ${routeFindings.map((f) => '#' + f.id).join(' ')}` : ', no findings'),
+  );
 }
+writeFileSync(`${outDir}/findings.json`, JSON.stringify(findings, null, 2));
 
 // ---- interaction probes ----------------------------------------------------
 async function navArrows() {

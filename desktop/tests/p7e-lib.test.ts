@@ -3,7 +3,7 @@
  * diagnostics, destructive confirm). These run in node without React/DOM.
  */
 import { describe, expect, it } from 'vitest';
-import { viewIndex, moveIndex, keyToAction } from '../renderer/src/lib/nav.js';
+import { viewIndex, moveIndex, keyToAction, radioKeyToIndex } from '../renderer/src/lib/nav.js';
 import { windowForScroll, clampScroll } from '../renderer/src/lib/virtualize.js';
 import { buildReportText, canCopy, diagnosticFileName } from '../renderer/src/lib/diagnostics.js';
 import { confirmEnabled, normalizePhrase } from '../renderer/src/lib/confirm.js';
@@ -33,6 +33,38 @@ describe('nav', () => {
     // Modifier keys disable nav.
     expect(keyToAction('ArrowDown', true)).toBe('none');
     expect(keyToAction('ArrowDown', false, true)).toBe('none');
+  });
+
+  // A11y-201: the radiogroup roving pattern. All four arrows step (a radio
+  // group has no reading direction), Home/End jump, and the ends wrap.
+  describe('radioKeyToIndex', () => {
+    it('steps forward on Right and Down, wrapping past the end', () => {
+      expect(radioKeyToIndex(1, 'ArrowRight', 3)).toBe(2);
+      expect(radioKeyToIndex(2, 'ArrowRight', 3)).toBe(0);
+      expect(radioKeyToIndex(2, 'ArrowDown', 3)).toBe(0);
+    });
+
+    it('steps backward on Left and Up, wrapping before the start', () => {
+      expect(radioKeyToIndex(1, 'ArrowLeft', 3)).toBe(0);
+      expect(radioKeyToIndex(0, 'ArrowLeft', 3)).toBe(2);
+      expect(radioKeyToIndex(0, 'ArrowUp', 3)).toBe(2);
+    });
+
+    it('jumps to the ends on Home and End', () => {
+      expect(radioKeyToIndex(2, 'Home', 5)).toBe(0);
+      expect(radioKeyToIndex(0, 'End', 5)).toBe(4);
+    });
+
+    it('leaves other keys to the browser', () => {
+      expect(radioKeyToIndex(1, 'Tab', 3)).toBeNull();
+      expect(radioKeyToIndex(1, 'a', 3)).toBeNull();
+      expect(radioKeyToIndex(1, 'Enter', 3)).toBeNull();
+    });
+
+    it('returns null for an empty group rather than a bogus index', () => {
+      expect(radioKeyToIndex(0, 'ArrowRight', 0)).toBeNull();
+      expect(radioKeyToIndex(0, 'Home', 0)).toBeNull();
+    });
   });
 });
 

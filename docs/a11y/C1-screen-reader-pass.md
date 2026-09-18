@@ -7,6 +7,12 @@ This is the written record for C-1. It is an **accessibility-tree and keyboard
 audit**, not a VoiceOver session. See "Method and limits" before drawing
 conclusions from it.
 
+**Follow-up pass (2026-09-17, this PR):** #199 and #201 were fixed and the
+harness was re-run — both stop being reported. #198 and #200 are deliberately
+left open: they are live-region announcements that only matter with speech, and
+the operator has decided speech is not a concern. The re-run surfaced a second
+instance of the same radiogroup gap outside `SegmentedControl`; filed #204.
+
 ---
 
 ## Method and limits
@@ -78,7 +84,7 @@ Settings.
   selectable tab; an unreached one as disabled. The writing stage's hidden
   text survives in the accessible name: `Copy (writes to disk)`.
 
-### Transfer dock — FAIL
+### Transfer dock — #198 open, #199 FIXED
 
 - The dock is `<aside class="dock" aria-label="Active transfer">`, AX role
   `complementary`, name "Active transfer".
@@ -86,9 +92,11 @@ Settings.
   `role="alert"`. When a transfer starts (dock appears) or settles (dock
   clears), nothing is announced; verified by adding a running job (dock
   present) and removing it (dock unmounts, no live region reports it). Filed
-  #198.
-- **Cancel is announced as bare "Cancel"** — unlike the Activity table, which
-  uses `jobRowLabel` to say `Cancel transfer <id>`. Filed #199.
+  #198 — **left open** (speech-only).
+- **Cancel names the job** — the button's accessible name is now
+  `Cancel transfer <short-id>` (visible text unchanged: "Cancel"), so a
+  buttons list no longer offers a bare "Cancel". Fixed in this PR; see
+  "Follow-up pass re-run" below.
 - The progress meter is present in the tree
   (`progressbar "Transfer progress for <id>"`); the dock's `View` button is
   named.
@@ -135,28 +143,45 @@ Settings.
   on-accent override works.
 - The skip link is the first Tab stop and moves focus to `main#content`.
 
-### Additional checks — PASS / observation
+### Additional checks — #201 FIXED, #204 filed
 
 - Heading outline is `h1` per screen, `h2` per panel — no skipped ranks.
 - The sidecar readout is `role="status"` with
   `live: polite, atomic: true, relevant: additions text`.
-- The Activity filter is `role="radiogroup"` with named radios and the search
-  box is `searchbox "Search jobs"` — but the group has **no roving tabindex
-  and no Arrow keys** (all five radios are `tabindex 0`), which contradicts
-  the announced role. Filed #201.
+- The Activity filter (`SegmentedControl`) is `role="radiogroup"`: it now has
+  the keyboard contract its role promises — **one Tab stop**, all four arrows
+  and Home/End move selection (verified: `all → active` on Right, `finished`
+  on End, `all` on Home), and the search box is `searchbox "Search jobs"`.
+  Fixed in this PR (#201).
+- The re-run found a **second radiogroup with the same gap**: the Scan
+  "Source type" choice (`Transfers.tsx`) is a hand-rolled
+  `role="radiogroup"` with two `tabindex 0` radios and no arrow keys. It is
+  not a `SegmentedControl` call site, so #201 did not cover it. Filed #204 —
+  open, not fixed.
 
 ---
 
 ## Defects filed
 
-| issue | summary |
-| --- | --- |
-| #198 | transfer dock is not a live region; appearance and clearing are not announced |
-| #199 | dock Cancel is announced as bare "Cancel" |
-| #200 | non-danger banners are not announced when they appear (WCAG 4.1.3) |
-| #201 | segmented filter announces `radiogroup` but has no roving tabindex or arrow keys |
+| issue | summary | status |
+| --- | --- | --- |
+| #198 | transfer dock is not a live region; appearance and clearing are not announced | **open** — speech-only, deprioritised |
+| #199 | dock Cancel is announced as bare "Cancel" | **fixed in this PR** |
+| #200 | non-danger banners are not announced when they appear (WCAG 4.1.3) | **open** — speech-only, deprioritised |
+| #201 | segmented filter announces `radiogroup` but has no roving tabindex or arrow keys | **fixed in this PR** |
+| #204 | Scan "Source type" radiogroup has the same gap as #201 | open — found by the re-run |
 
-None of these were fixed in this pass.
+### Follow-up pass re-run (2026-09-17, this PR)
+
+`docs/a11y/audit-a11y.mjs` re-run against the fixed renderer:
+
+- **Activity Tab stops: 22 → 18.** The five filter radios are now one stop.
+- Arrows move the filter selection (`all → active → … → finished`, wrapping)
+  and Home/End jump; the roving `tabindex` follows the selection.
+- The dock Cancel's AX name is `Cancel transfer a11y-doc` (was `Cancel`).
+- Still reported, as intended: **#198** (dock not live) and **#200**
+  (non-danger banner); **#204** on the Transfer scan route only.
+- **#199 and #201 no longer reported.**
 
 ## Not covered by this pass
 

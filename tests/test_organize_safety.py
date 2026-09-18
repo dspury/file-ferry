@@ -15,6 +15,7 @@ desktop UI is downstream of it.
 
 from __future__ import annotations
 
+import errno
 import os
 from pathlib import Path
 
@@ -24,6 +25,7 @@ from file_ferry.application.organize import OrganizeError, OrganizeService
 from file_ferry.application.sources import SourceService
 from file_ferry.application.transfer_safety import (
     DestinationExistsError,
+    PublicationUnsupportedError,
     SourceChangedError,
     UnsafeDestinationError,
     copy_file_verified,
@@ -248,6 +250,58 @@ class TestVerifiedCopy:
             publish_exclusive(tmp, dest)
         assert dest.read_bytes() == b"existing"
         # The temp sibling is cleaned up either way.
+        assert not tmp.exists()
+
+    @pytest.mark.parametrize(
+        "code",
+        [errno.ENOTSUP, errno.EOPNOTSUPP],
+        ids=["ENOTSUP", "EOPNOTSUPP"],
+    )
+    def test_publish_exclusive_reports_a_link_less_filesystem(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, code: int
+    ) -> None:
+        """#212: the errno an SMB destination actually returns must be translated.
+
+        A network filesystem that cannot hard-link is the exact case this
+        translation exists for, yet macOS SMB returns ENOTSUP — which the
+        list omitted — so the operator saw a raw `OSError` naming an
+        internal temp path. The observed errno is ENOTSUP; EOPNOTSUPP is
+        the same value on Linux and a different one on macOS, so both are
+        pinned.
+        """
+        tmp = tmp_path / "tmp.ferry-part"
+        tmp.write_bytes(b"data")
+        dest = tmp_path / "dest.bin"
+
+        def refuse(src: object, dst: object, **kwargs: object) -> None:
+            raise OSError(code, "Operation not supported", str(dst))
+
+        monkeypatch.setattr(os, "link", refuse)
+        with pytest.raises(PublicationUnsupportedError):
+            publish_exclusive(tmp, dest)
+        # Cleanup still happens; the temp is never left at the destination.
+        assert not tmp.exists()
+
+    def test_publish_exclusive_leaves_other_link_errors_raw(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Only "cannot publish" errnos are translated; a real fault is not.
+
+        EIO is not a filesystem-capability answer, and swallowing it as
+        "unsupported" would hide a failing disk behind a tidy message.
+        """
+        tmp = tmp_path / "tmp.ferry-part"
+        tmp.write_bytes(b"data")
+        dest = tmp_path / "dest.bin"
+
+        def fail(src: object, dst: object, **kwargs: object) -> None:
+            raise OSError(errno.EIO, "Input/output error", str(dst))
+
+        monkeypatch.setattr(os, "link", fail)
+        with pytest.raises(OSError) as caught:
+            publish_exclusive(tmp, dest)
+        assert not isinstance(caught.value, PublicationUnsupportedError)
+        assert caught.value.errno == errno.EIO
         assert not tmp.exists()
 
 

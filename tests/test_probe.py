@@ -575,3 +575,31 @@ class TestIsSystemArtifact:
 
         root = tmp_path / ".staging"
         assert not is_system_artifact(root / "clip.mov", root)
+
+
+def test_extract_timecode_reads_a_tmcd_data_stream():
+    """Sony XAVC keeps start timecode on a separate `tmcd` stream."""
+    from file_ferry.probe import _extract_timecode
+
+    raw = {
+        "format": {"tags": {"major_brand": "XAVC"}},
+        "streams": [
+            {"codec_type": "video", "disposition": {"default": 1}, "tags": {}},
+            {"codec_type": "audio", "tags": {}},
+            {"codec_type": "data", "codec_tag_string": "tmcd",
+             "tags": {"timecode": "11:22:01:12"}},
+        ],
+    }
+    assert _extract_timecode(raw) == "11:22:01:12"
+
+
+def test_extract_timecode_prefers_container_then_video_stream():
+    from file_ferry.probe import _extract_timecode
+
+    assert _extract_timecode({"format": {"tags": {"TIMECODE": "01:00:00:00"}},
+                              "streams": [{"codec_type": "data", "tags": {"timecode": "02:00:00:00"}}]}) == "01:00:00:00"
+    assert _extract_timecode({"format": {}, "streams": [
+        {"codec_type": "data", "tags": {"timecode": "02:00:00:00"}},
+        {"codec_type": "video", "tags": {"timecode": "03:00:00:00"}},
+    ]}) == "03:00:00:00"
+    assert _extract_timecode({"format": {}, "streams": [{"codec_type": "video"}]}) is None

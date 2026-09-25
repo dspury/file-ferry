@@ -201,20 +201,93 @@ def _probe_output_metadata(output: Path) -> tuple[int, int, float]:
         return (0, 0, 0.0)
 
 
+BACKENDS = ("auto", "avfoundation", "ffmpeg")
+
+
+def resolve_backend(request: ProxyRequest) -> tuple[str, str | None]:
+    """Which backend runs this request: (backend, why-not-avfoundation or None).
+
+    An explicit backend is honoured as given. "auto" defers to
+    FERRY_PROXY_BACKEND when it is set, then prefers AVFoundation on macOS for
+    ProRes output — ffmpeg cannot hardware-decode H.264 4:2:2 10-bit, the
+    media engine can — and uses ffmpeg everywhere else.
+    """
+    import os
+
+    choice = request.backend.lower()
+    if choice == "auto":
+        choice = os.environ.get("FERRY_PROXY_BACKEND", "auto").lower() or "auto"
+    if choice not in BACKENDS:
+        raise ProxyError(
+            request.source_path, f"unknown proxy backend {choice!r}; one of {BACKENDS}"
+        )
+    if choice != "auto":
+        return choice, None
+    from file_ferry import avfoundation
+
+    ok, why = avfoundation.available(request.codec)
+    return ("avfoundation", None) if ok else ("ffmpeg", why)
+
+
+def _generate_avfoundation(request: ProxyRequest, source: Path, output: Path) -> ProxyResult:
+    from file_ferry import avfoundation
+
+    timecode = request.probe.timecode if request.probe else None
+    try:
+        done = avfoundation.generate(
+            source,
+            output,
+            codec=request.codec,
+            target_height=request.target_height,
+            timecode=timecode,
+        )
+    except avfoundation.AVFoundationError as e:
+        raise ProxyError(source, f"AVFoundation: {e}") from e
+    if not output.is_file() or output.stat().st_size == 0:
+        output.unlink(missing_ok=True)
+        raise ProxyError(source, "AVFoundation helper exited 0 but produced no output")
+    return ProxyResult(
+        source_path=str(source),
+        proxy_path=str(output),
+        codec=request.codec,
+        width=int(done.get("width", 0)),
+        height=int(done.get("height", 0)),
+        file_size_bytes=output.stat().st_size,
+        duration_seconds=float(done.get("duration_seconds", 0.0)),
+        generated_at=datetime.now(UTC),
+        backend="avfoundation",
+    )
+
+
 def generate_proxy(
     request: ProxyRequest,
     ffmpeg_path: str | None = None,
 ) -> ProxyResult:
-    """Generate a single proxy file via ffmpeg.
+    """Generate a single proxy file, on the backend `resolve_backend` picks.
 
     Raises ProxyError if source doesn't exist, output's parent dir can't be
-    created, ffmpeg isn't found, or ffmpeg returns non-zero.
+    created, or the backend fails. When "auto" chose AVFoundation and it
+    fails, the ffmpeg backend is tried once and the result's `note` says why.
     """
     source = Path(request.source_path)
     output = Path(request.output_path)
 
     if not source.is_file():
         raise ProxyError(source, "not a file or does not exist")
+
+    backend, _why = resolve_backend(request)
+    fallback_note: str | None = None
+    if backend == "avfoundation":
+        try:
+            output.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            raise ProxyError(source, f"cannot create output directory {output.parent}: {e}") from e
+        try:
+            return _generate_avfoundation(request, source, output)
+        except ProxyError as e:
+            if request.backend.lower() == "avfoundation":
+                raise
+            fallback_note = f"AVFoundation failed, used ffmpeg: {e.reason}"
 
     fp = ffmpeg_path or find_ffmpeg()
 
@@ -257,6 +330,8 @@ def generate_proxy(
         file_size_bytes=output.stat().st_size,
         duration_seconds=duration,
         generated_at=datetime.now(UTC),
+        backend="ffmpeg",
+        note=fallback_note,
     )
 
 
@@ -364,6 +439,7 @@ def generate_proxies(
                 codec=cfg.proxy_codec,
                 target_height=cfg.proxy_height,
                 probe=probe,
+                backend=cfg.proxy_backend,
             )
 
             # Reject RAW codecs that stock ffmpeg cannot decode.

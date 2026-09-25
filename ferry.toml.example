@@ -15,6 +15,11 @@
 # Proxy generation defaults (used by the proxy command and the TUI).
 proxy_codec = "ProRes422Proxy"  # ProRes variant
 proxy_height = 1080             # target height (aspect preserved)
+# auto | avfoundation | ffmpeg. "auto" uses AVFoundation on macOS (hardware
+# decode + the ProRes engine; needed for H.264 4:2:2 10-bit such as Sony XAVC
+# S 4:2:2, which ffmpeg can only decode in software) and ffmpeg elsewhere.
+# FERRY_PROXY_BACKEND overrides "auto".
+proxy_backend = "auto"
 
 # Checksum algorithm for verification.
 # Options: xxhash (default, ~10x faster) | sha256

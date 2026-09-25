@@ -51,7 +51,7 @@ def load_config(path: Path | None = None) -> FerryConfig:
             # extra="forbid" policy does not reject the leftover key.
             proxy_sub = data.pop("proxy", None)
             if isinstance(proxy_sub, dict):
-                for key in ("proxy_codec", "proxy_height"):
+                for key in ("proxy_codec", "proxy_height", "proxy_backend"):
                     if key in proxy_sub:
                         data.setdefault(key, proxy_sub[key])
 
@@ -80,6 +80,7 @@ def save_config(config: FerryConfig, path: Path) -> None:
     values = {
         ("", "proxy_codec"): q(config.proxy_codec),
         ("", "proxy_height"): str(config.proxy_height),
+        ("", "proxy_backend"): q(config.proxy_backend),
         ("", "checksum_algo"): q(config.checksum_algo.value),
         ("", "resolve_path"): q(config.resolve_path) if config.resolve_path else None,
         ("", "ffmpeg_path"): q(config.ffmpeg_path) if config.ffmpeg_path else None,

@@ -103,7 +103,7 @@ Each capability runs standalone or as part of the `run` pipeline. Step order in 
 | ---------------- | ------------------------------------------------------------------------------------------------------------------- |
 | `probe`          | Run `ffprobe` on every file in a folder; capture codec, resolution, frame rate, color, audio, duration, size, mtime |
 | `organize`       | Re-arrange files into a structured layout, preserving the source's folder shape (cards/scenes/takes)                |
-| `proxy`          | Generate ProRes 422 Proxy (or any ProRes variant) at 1080p via `ffmpeg`; aspect-preserving; skips non-video         |
+| `proxy`          | Generate ProRes 422 Proxy (or any ProRes variant) at 1080p; aspect-preserving; keeps source timecode; skips non-video. On macOS it uses AVFoundation (hardware decode + ProRes engine), elsewhere `ffmpeg` — see `proxy_backend` |
 | `resolve create` | Create a DaVinci Resolve project programmatically; falls back to a JSON manifest if Resolve isn't running           |
 | `verify`         | Checksum a folder; on rerun, report what changed (added/modified/missing) — designed for cron                       |
 | `log`            | Query the audit log (text or JSON)                                                                                  |

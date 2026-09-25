@@ -137,6 +137,9 @@ class ProxyRequest(BaseModel):
     codec: str = "ProRes422Proxy"
     target_height: int = 1080
     probe: MediaProbe | None = None  # optional probe data for correct ffmpeg flags
+    # "auto": AVFoundation on macOS when its helper is available, else ffmpeg.
+    # FERRY_PROXY_BACKEND overrides "auto" (the test suite pins "ffmpeg").
+    backend: str = "auto"
 
 
 class ProxyResult(BaseModel):
@@ -152,6 +155,10 @@ class ProxyResult(BaseModel):
     file_size_bytes: int
     duration_seconds: float
     generated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    # Which backend made the file, and why it is not the one "auto" preferred
+    # when it fell back — a proxy's provenance, never a silent substitution.
+    backend: str = "ffmpeg"
+    note: str | None = None
 
 
 class ProxyFailure(BaseModel):
@@ -256,6 +263,7 @@ class FerryConfig(BaseModel):
     organize: OrganizeConfig = Field(default_factory=OrganizeConfig)
     proxy_codec: str = "ProRes422Proxy"
     proxy_height: int = 1080
+    proxy_backend: str = "auto"  # auto | avfoundation | ffmpeg
     checksum_algo: ChecksumAlgo = ChecksumAlgo.XXHASH
     resolve_path: str | None = None  # None = auto-detect
     ffmpeg_path: str | None = None  # None = auto-detect (PATH lookup)
@@ -275,6 +283,7 @@ class FerryConfig(BaseModel):
             f":organize_conflict={self.organize.on_conflict}"
             f":proxy_codec={self.proxy_codec}"
             f":proxy_height={self.proxy_height}"
+            f":proxy_backend={self.proxy_backend}"
             f":checksum_algo={self.checksum_algo.value}"
         )
         return hashlib.sha256(sig.encode()).hexdigest()[:16]

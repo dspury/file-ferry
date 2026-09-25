@@ -187,19 +187,28 @@ def _is_vfr(avg: float | None, rfr: float | None) -> bool:
 def _extract_timecode(raw: dict[str, Any]) -> str | None:
     """Extract timecode from parsed ffprobe JSON.
 
-    Checks:
-    - format.tags.timecode (or TIMEcode)
-    - video stream disposition.timecode
+    Checks, in order:
+    - format.tags.timecode (QuickTime/MOV containers)
+    - the timecode tag on the video stream
+    - the timecode tag on any other stream — Sony XAVC (FX3, FX6, a7S III)
+      and most broadcast cameras keep it on a separate `tmcd` data stream,
+      and that is the only place those originals carry it.
+
+    The previous version read `stream.disposition.timecode`, which ffprobe
+    never populates with a timecode (disposition values are 0/1 flags), so
+    every Sony original probed with no timecode and every proxy made from
+    one lost its source timecode.
     """
-    tags: dict[str, Any] = (raw.get("format") or {}).get("tags") or {}
-    tc = tags.get("timecode") or tags.get("TIMEcode")
-    if tc:
-        return str(tc)
-    for stream in raw.get("streams") or []:
-        if stream.get("codec_type") == "video":
-            stream_timecode: Any = stream.get("disposition", {}).get("timecode")
-            if stream_timecode:
-                return str(stream_timecode)
+    tags: dict[str, Any] = {
+        k.lower(): v for k, v in ((raw.get("format") or {}).get("tags") or {}).items()
+    }
+    if tags.get("timecode"):
+        return str(tags["timecode"])
+    streams = sorted(raw.get("streams") or [], key=lambda s: s.get("codec_type") != "video")
+    for stream in streams:
+        stream_tags = {k.lower(): v for k, v in (stream.get("tags") or {}).items()}
+        if stream_tags.get("timecode"):
+            return str(stream_tags["timecode"])
     return None
 
 

@@ -184,6 +184,9 @@ func run() async throws -> [String: Any] {
     let videoIn = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
     videoIn.expectsMediaDataInRealTime = false
     videoIn.transform = transform
+    // The source's own timescale: the writer default rounded 119.88 fps
+    // (1001/120000 s frames) to a track that reads as 120 fps.
+    videoIn.mediaTimeScale = try await video.load(.naturalTimeScale)
     guard writer.canAdd(videoIn) else { throw Failure(message: "writer refused the video input") }
     writer.add(videoIn)
     var pumps = [Pump(videoOut, videoIn, "video")]

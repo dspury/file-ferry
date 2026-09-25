@@ -199,7 +199,9 @@ def _extract_timecode(raw: dict[str, Any]) -> str | None:
     every Sony original probed with no timecode and every proxy made from
     one lost its source timecode.
     """
-    tags: dict[str, Any] = {k.lower(): v for k, v in ((raw.get("format") or {}).get("tags") or {}).items()}
+    tags: dict[str, Any] = {
+        k.lower(): v for k, v in ((raw.get("format") or {}).get("tags") or {}).items()
+    }
     if tags.get("timecode"):
         return str(tags["timecode"])
     streams = sorted(raw.get("streams") or [], key=lambda s: s.get("codec_type") != "video")

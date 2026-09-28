@@ -358,6 +358,25 @@ class ApplicationService:
                 stale_preflights,
             )
         self._register_scheduler_runners()
+        # §6.4 / A21: a job left in `running` or `verifying` by a crashed
+        # process stays there forever. Nothing else transitions it, so the
+        # dispatcher never picks it up and its path reservations are held for
+        # good. The recovery exists and is exercised over RPC (`job.recover`),
+        # but nothing called it at startup -- the only way to reconcile was for
+        # a client to ask. That is the same class of problem as the abandoned
+        # scans and preflights above, reconciled here for exactly that reason.
+        #
+        # Must run after `_register_scheduler_runners()`: `job_recover()`
+        # reaches the transfer runner, and that accessor raises until the
+        # runners are registered. Must run before the dispatcher starts, so
+        # reconciliation happens on a quiescent scheduler.
+        recovered_jobs = self.job_recover()
+        if recovered_jobs:
+            LOGGER.warning(
+                "marked %d job(s) needs_attention after a restart: %s",
+                len(recovered_jobs),
+                recovered_jobs,
+            )
         # Plan §6.4 / §5.1: a sidecar-internal dispatcher picks up
         # jobs that have moved into the queued state. Without this,
         # nothing triggers the registered runners -- the renderer can

@@ -242,6 +242,90 @@ class TestSchedulerDrivenTransitions:
         assert seen == ["needs_attention"]
 
 
+class TestBootstrapRecoversCrashedJobs:
+    def test_restart_moves_a_crashed_running_job_to_needs_attention(self, tmp_path: Path) -> None:
+        """#218: a job left ``running`` by a crashed process is recovered at startup.
+
+        ``job.recover`` existed and was tested, but only a client asking for it
+        ever ran it. So after a crash the job sat in ``running`` forever: the
+        dispatcher only picks up ``queued``, nothing else transitions it, and
+        its path reservations were held for good.
+
+        This asserts the recovery happens because the *service restarted* --
+        not because anything asked.
+        """
+        db_path = tmp_path / "restart.db"
+        app_dir = tmp_path / "app"
+        config_path = tmp_path / "config.toml"
+
+        first = ApplicationService(db_path=db_path, app_data_dir=app_dir, config_path=config_path)
+        first.bootstrap()
+        # Stop the dispatcher: reaching `queued` is its entire trigger, and
+        # this test is about what a restart does, not about dispatch. Same
+        # reasoning as the `service` fixture in this file.
+        assert first._dispatcher is not None
+        first._dispatcher.stop()
+
+        project_id = _project(first, tmp_path)
+        job_id = first.job_create(
+            CreateJobParams(projectId=project_id, command="offload", totalSteps=3)
+        ).id
+        for src, dst in (
+            ("planned", "awaiting_review"),
+            ("awaiting_review", "queued"),
+            ("queued", "running"),
+        ):
+            first.job_transition(JobTransitionParams(id=job_id, fromState=src, toState=dst))
+        assert first.job_snapshot(job_id).state == "running"
+
+        # No close()/shutdown() on `first` -- that is the point. This is
+        # exactly the state a crashed process leaves behind.
+        second = ApplicationService(db_path=db_path, app_data_dir=app_dir, config_path=config_path)
+        second.bootstrap()
+        try:
+            assert second._dispatcher is not None
+            second._dispatcher.stop()
+            assert second.job_snapshot(job_id).state == "needs_attention"
+        finally:
+            second.close()
+
+    def test_recovery_is_a_noop_on_a_clean_restart(self, tmp_path: Path) -> None:
+        """Bootstrap must not disturb jobs in states that are legitimately live."""
+        db_path = tmp_path / "clean.db"
+        app_dir = tmp_path / "app"
+        config_path = tmp_path / "config.toml"
+
+        first = ApplicationService(db_path=db_path, app_data_dir=app_dir, config_path=config_path)
+        first.bootstrap()
+        assert first._dispatcher is not None
+        first._dispatcher.stop()
+        project_id = _project(first, tmp_path)
+        queued_id = first.job_create(
+            CreateJobParams(projectId=project_id, command="offload", totalSteps=3)
+        ).id
+        first.job_transition(
+            JobTransitionParams(id=queued_id, fromState="planned", toState="awaiting_review")
+        )
+        first.job_transition(
+            JobTransitionParams(id=queued_id, fromState="awaiting_review", toState="queued")
+        )
+
+        second = ApplicationService(db_path=db_path, app_data_dir=app_dir, config_path=config_path)
+        second.bootstrap()
+        try:
+            # Stop this service's dispatcher too. A `queued` job is exactly
+            # what the dispatcher is for, so leaving it live would claim the
+            # job and move it to `running` -- correct behaviour, but it would
+            # mask what this test is checking.
+            assert second._dispatcher is not None
+            second._dispatcher.stop()
+            # `queued` is a live state. Recovery must leave it alone, or it
+            # would strand every job that had not yet been picked up.
+            assert second.job_snapshot(queued_id).state == "queued"
+        finally:
+            second.close()
+
+
 class TestWiredServerEmitsFrames:
     def test_subscribe_then_transition_writes_an_event_frame(self, tmp_path: Path) -> None:
         """End to end over stdio: the wiring installs the sink, so a

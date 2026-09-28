@@ -54,16 +54,14 @@ class TestDoctor:
         assert "install" in result.output.lower()
 
     def test_reports_explicit_backend_as_requiring_ffmpeg(
-        self, runner: CliRunner, tmp_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+        self, runner: CliRunner, tmp_db: Path, tmp_path: Path
     ) -> None:
-        # --config takes a path to a TOML file, not key=value. The backend is
-        # promoted out of the [proxy] sub-table by load_config.
-        # COLUMNS is set wide because the output is a rich table, and at
-        # CliRunner's default width the cell text wraps mid-phrase -- so
-        # "ffmpeg is required" is not a contiguous substring of the output.
-        monkeypatch.setenv("COLUMNS", "200")
+        # Top-level key, not `[proxy] backend`. load_config promotes the
+        # full names ("proxy_codec", "proxy_height", "proxy_backend") out of
+        # the [proxy] sub-table, so `backend = "ffmpeg"` there is silently
+        # ignored and the config leaves the backend on "auto".
         config = tmp_path / "ferry.toml"
-        config.write_text('[proxy]\nbackend = "ffmpeg"\n', encoding="utf-8")
+        config.write_text('proxy_backend = "ffmpeg"\n', encoding="utf-8")
         with patch("file_ferry.cli.find_ffmpeg", return_value="/usr/bin/ffmpeg"):
             result = runner.invoke(main, ["--db", str(tmp_db), "--config", str(config), "doctor"])
         assert result.exit_code == 0

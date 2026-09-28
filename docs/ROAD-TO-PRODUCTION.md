@@ -26,8 +26,29 @@ app looks or whether it boots. Run it.
 
 Merged from the UI spec: R-1 (#186), R-2 (#185), R-3 (#172), R-4 (#177),
 R-5 and R-6 (#174), R-7 (#192), R-8 (#171). **Track A is complete.**
-Track B's remaining items are B-3 (#101, verify and close) and B-4b
-(#149, held on `@typescript-eslint`). Track C waits on this landing.
+
+**Track B is complete as of 2026-09-28.** B-3 (#101) closed 2026-09-15 with the
+rem-scale evidence in its closing comment. B-4b (#149) is no longer held open:
+GitHub closed it 2026-09-25 with no state reason set, and its last comment is
+Dependabot standing down on "version 7.x.x" rather than the peer-dependency
+record this section asked for. Track B-4b's premise is therefore unresolved —
+TypeScript 7 still sits outside `@typescript-eslint`'s peer range, so nothing
+here authorises the bump. If the bump is wanted, that is a fresh decision, not
+a resumption of this one.
+
+**Track C is partly done** (see below); **Track D is the open track.**
+
+Open items, verified against the tracker 2026-09-28:
+
+| issue | what |
+| --- | --- |
+| #95 | a11y: no screen-reader pass against the reskin |
+| #198 | a11y: transfer dock is not a live region |
+| #200 | a11y: non-danger banners are not announced |
+| #218 | a crashed transfer is never recovered |
+| #219 | d2_metrics.py crashes on first tick against real data |
+| #121 | dependabot grouping produces unmergeable PRs |
+| #224 | open PR, currently CONFLICTING |
 
 ---
 
@@ -107,7 +128,7 @@ Vite 8 warns about it. Adding it changes how every `.js` in the package is
 interpreted — verify the Electron main process and preload still load, both
 unpackaged and packaged. Not a one-line change.
 
-## B-3 — #101: close it
+## B-3 — #101: close it — DONE 2026-09-15
 
 Every `--fs-*` token is already `rem` on main (`styles.css:192-198`), and
 #162 pins the scale. The issue is resolved in fact. Verify text-only zoom
@@ -165,7 +186,15 @@ fixes into the dependency bump, and do not reach for `--legacy-peer-deps`.
 is reported by the new plugin (prove the replacement works, do not assume
 it); the stale config comment is corrected.
 
-## B-4b — TypeScript 7 (#149): hold, and say why
+## B-4b — TypeScript 7 (#149): SUPERSEDED — issue auto-closed 2026-09-25
+
+> **Status update, 2026-09-28.** The instruction below — "Leave #149 open" —
+> was overtaken by events. GitHub closed the issue on 2026-09-25 with no state
+> reason, and the only comment on it is Dependabot withdrawing its version
+> notice. The blocking fact recorded here is still true (`typescript-eslint`
+> peers `<6.1.0`; TypeScript 7 is outside it), but the issue no longer
+> represents an open decision. Keep this section as the record of why the bump
+> was held, not as live work.
 
 **Blocked upstream, genuinely.** `@typescript-eslint` 8.70.0 — the latest —
 peers `typescript >=4.8.4 <6.1.0`. TypeScript 7 is outside it, and

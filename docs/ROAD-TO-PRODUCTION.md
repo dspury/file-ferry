@@ -36,19 +36,18 @@ TypeScript 7 still sits outside `@typescript-eslint`'s peer range, so nothing
 here authorises the bump. If the bump is wanted, that is a fresh decision, not
 a resumption of this one.
 
-**Track C is partly done** (see below); **Track D is the open track.**
+**Track C is closed** (see below — D declined screen-reader support 2026-09-28);
+**Track D is the open track.**
 
 Open items, verified against the tracker 2026-09-28:
 
 | issue | what |
 | --- | --- |
-| #95 | a11y: no screen-reader pass against the reskin |
-| #198 | a11y: transfer dock is not a live region |
-| #200 | a11y: non-danger banners are not announced |
-| #218 | a crashed transfer is never recovered |
+| #218 | a crashed transfer is never recovered — fix in PR #228 |
 | #219 | d2_metrics.py crashes on first tick against real data |
 | #121 | dependabot grouping produces unmergeable PRs |
 | #224 | open PR, currently CONFLICTING |
+| #227 | ffmpeg is only discovered when a transfer needs it; nothing checks at first run |
 
 ---
 
@@ -263,27 +262,40 @@ stated reason; no `OffloadRunner` reference remains.
 
 ---
 
-# Track C — accessibility · PARTLY DONE
+# Track C — accessibility · CLOSED 2026-09-28
 
-**The operator declined the VoiceOver run**, on the grounds that ferry is a
-single-operator studio tool rather than a product shipped to an audience —
-and this document's "should gate a release" framing assumed an external
-release it is not having.
+**D confirmed on 2026-09-28: ferry does not need a screen reader.** The operator
+declined the VoiceOver run because ferry is a single-operator studio tool rather
+than a product shipped to an audience — and this document's "should gate a
+release" framing assumed an external release it is not having.
 
-What was done instead is a **markup and keyboard audit** over CDP
-(Chromium's full accessibility tree, DOM/ARIA, real key events, computed
-focus rings). That is evidence about markup, not about what a screen reader
-says — a distinction the record itself makes, correctly.
+The gap was left open pending a decision. The decision is now **no**, so #95,
+#198, and #200 are closed as not planned. This section is a record, not a
+backlog.
 
-**It found four real defects, so the exercise paid for itself even without
-speech.** Two of them are not screen-reader-only concerns:
+**What the audit was still worth.** The C-1 markup and keyboard audit ran over
+CDP and found four defects. The two that were **not** screen-reader-specific
+were the valuable ones, and both are closed:
 
 | | | |
 | --- | --- | --- |
-| #198 | dock is not a live region — appearance and clearing unannounced | a11y |
-| #199 | dock Cancel announced as bare "Cancel" | **destructive action, ambiguous label** |
-| #200 | non-danger banners not announced on appearance (WCAG 4.1.3) | a11y |
-| #201 | segmented filter claims `radiogroup` but has no roving tabindex or arrow keys | **costs five Tab stops for any keyboard user** |
+| #198 | dock is not a live region — appearance and clearing unannounced | a11y — **closed, not planned** |
+| #199 | dock Cancel announced as bare "Cancel" | **destructive action, ambiguous label** — closed |
+| #200 | non-danger banners not announced on appearance (WCAG 4.1.3) | a11y — **closed, not planned** |
+| #201 | segmented filter claims `radiogroup` but has no roving tabindex or arrow keys | **costs five Tab stops for any keyboard user** — closed |
+
+So the exercise paid for itself on keyboard and labelling grounds with speech
+outright excluded. #199 and #201 in particular were never about screen readers:
+an ambiguous label on a destructive action, and a keyboard-navigation cost borne
+by every user.
+
+`docs/a11y/C1-screen-reader-pass.md` and the re-runnable harness at
+`docs/a11y/audit-a11y.mjs` stay in the tree. If ferry ever ships outside the
+studio, this reopens — that record is what makes re-opening it cheap.
+
+The one honest caveat: `role="status"` and live regions are near-free and are
+good markup, but a live region is only ever *consumed* by a screen reader. With
+no screen reader in the picture there is no user-facing benefit to adding them.
 
 ## C-1 — #95: the record · DONE — #202
 

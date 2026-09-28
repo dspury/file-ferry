@@ -61,9 +61,7 @@ class TestDoctor:
         config = tmp_path / "ferry.toml"
         config.write_text('[proxy]\nbackend = "ffmpeg"\n', encoding="utf-8")
         with patch("file_ferry.cli.find_ffmpeg", return_value="/usr/bin/ffmpeg"):
-            result = runner.invoke(
-                main, ["--db", str(tmp_db), "--config", str(config), "doctor"]
-            )
+            result = runner.invoke(main, ["--db", str(tmp_db), "--config", str(config), "doctor"])
         assert result.exit_code == 0
         assert "ffmpeg is required" in result.output
 

@@ -243,9 +243,7 @@ class TestSchedulerDrivenTransitions:
 
 
 class TestBootstrapRecoversCrashedJobs:
-    def test_restart_moves_a_crashed_running_job_to_needs_attention(
-        self, tmp_path: Path
-    ) -> None:
+    def test_restart_moves_a_crashed_running_job_to_needs_attention(self, tmp_path: Path) -> None:
         """#218: a job left ``running`` by a crashed process is recovered at startup.
 
         ``job.recover`` existed and was tested, but only a client asking for it

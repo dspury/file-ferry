@@ -152,9 +152,11 @@ def doctor(ctx: click.Context) -> None:
     table.add_column("check", style="bold")
     table.add_column("result")
 
+    missing = False
     try:
         ffmpeg = find_ffmpeg(cfg)
-    except ProxyError as exc:
+    except ProxyError:
+        missing = True
         if sys.platform == "darwin":
             install = "brew install ffmpeg"
         elif sys.platform.startswith("linux"):
@@ -191,9 +193,7 @@ def doctor(ctx: click.Context) -> None:
 
     console.print(table)
 
-    try:
-        find_ffmpeg(cfg)
-    except ProxyError:
+    if missing:
         # Nonzero so this is usable in a script or a preflight gate. The
         # message is scoped deliberately: under `auto` on macOS some media
         # still proxies without ffmpeg, so this is not "ferry cannot work".

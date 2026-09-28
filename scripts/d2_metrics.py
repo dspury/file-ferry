@@ -253,9 +253,12 @@ def sample_executions(conn: sqlite3.Connection) -> list[dict[str, Any]]:
         if started is not None:
             updated = _parse(r["updated_at"]) or started
             if r["state"] in {"succeeded", "failed", "cancelled", "needs_attention"}:
-                duration = (updated - started).total_seconds()
+                # _parse returns epoch seconds, so the subtraction is already
+                # in seconds. Calling .total_seconds() on a float raised
+                # AttributeError on the first real sample (#219).
+                duration = updated - started
             else:
-                duration = (time.time() - started).total_seconds()
+                duration = time.time() - started
         out.append(
             {
                 "id": r["id"],

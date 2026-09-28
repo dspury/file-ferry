@@ -11,6 +11,8 @@ import hashlib
 import importlib.util
 import json
 import sqlite3
+import time
+from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
 
@@ -257,10 +259,6 @@ def test_sample_executions_computes_running_duration(tmp_path: Path) -> None:
     The second branch had the same `.total_seconds()` on a float; this pins it
     so a fix to one branch cannot leave the other broken.
     """
-    import time
-
-    from datetime import UTC, datetime
-
     conn = _executions_db(tmp_path)
     started = time.time() - 5
     stamp = datetime.fromtimestamp(started, tz=UTC).isoformat()

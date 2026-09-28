@@ -260,9 +260,7 @@ class TestBootstrapRecoversCrashedJobs:
         app_dir = tmp_path / "app"
         config_path = tmp_path / "config.toml"
 
-        first = ApplicationService(
-            db_path=db_path, app_data_dir=app_dir, config_path=config_path
-        )
+        first = ApplicationService(db_path=db_path, app_data_dir=app_dir, config_path=config_path)
         first.bootstrap()
         # Stop the dispatcher: reaching `queued` is its entire trigger, and
         # this test is about what a restart does, not about dispatch. Same
@@ -284,9 +282,7 @@ class TestBootstrapRecoversCrashedJobs:
 
         # No close()/shutdown() on `first` -- that is the point. This is
         # exactly the state a crashed process leaves behind.
-        second = ApplicationService(
-            db_path=db_path, app_data_dir=app_dir, config_path=config_path
-        )
+        second = ApplicationService(db_path=db_path, app_data_dir=app_dir, config_path=config_path)
         second.bootstrap()
         try:
             assert second._dispatcher is not None
@@ -301,9 +297,7 @@ class TestBootstrapRecoversCrashedJobs:
         app_dir = tmp_path / "app"
         config_path = tmp_path / "config.toml"
 
-        first = ApplicationService(
-            db_path=db_path, app_data_dir=app_dir, config_path=config_path
-        )
+        first = ApplicationService(db_path=db_path, app_data_dir=app_dir, config_path=config_path)
         first.bootstrap()
         assert first._dispatcher is not None
         first._dispatcher.stop()
@@ -318,9 +312,7 @@ class TestBootstrapRecoversCrashedJobs:
             JobTransitionParams(id=queued_id, fromState="awaiting_review", toState="queued")
         )
 
-        second = ApplicationService(
-            db_path=db_path, app_data_dir=app_dir, config_path=config_path
-        )
+        second = ApplicationService(db_path=db_path, app_data_dir=app_dir, config_path=config_path)
         second.bootstrap()
         try:
             # Stop this service's dispatcher too. A `queued` job is exactly

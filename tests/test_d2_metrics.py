@@ -11,6 +11,8 @@ import hashlib
 import importlib.util
 import json
 import sqlite3
+import time
+from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
 
@@ -201,3 +203,86 @@ def test_independent_walk_matches_and_flags(tmp_path: Path) -> None:
 @pytest.mark.parametrize("_", [0])
 def test_collector_self_test_passes(_: int) -> None:
     assert metrics.self_test() == 0
+
+
+def _executions_db(tmp_path: Path) -> sqlite3.Connection:
+    """A minimal transfer_executions/items schema shaped like the real one.
+
+    The self-test never inserted a row with a non-null ``started_at``, so
+    ``sample_executions`` returned before reaching the duration arithmetic and
+    the collector's own test could not see #219. This builds exactly the
+    columns that query reads.
+    """
+    conn = sqlite3.connect(tmp_path / "d2.db")
+    # `_connect_ro` sets this in the real path; sample_executions indexes rows
+    # by column name, so a plain connection returns tuples and fails on
+    # r["started_at"] before reaching anything under test.
+    conn.row_factory = sqlite3.Row
+    conn.execute(
+        "CREATE TABLE transfer_executions ("
+        "id TEXT PRIMARY KEY, plan_id TEXT, state TEXT,"
+        " started_at TEXT, updated_at TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE transfer_execution_items ("
+        "execution_id TEXT, plan_entry_id TEXT, bytes_copied INTEGER,"
+        " state TEXT, source_checksum TEXT, dest_checksum TEXT)"
+    )
+    return conn
+
+
+def test_sample_executions_computes_duration_for_a_finished_execution(tmp_path: Path) -> None:
+    """A finished execution gets a real duration, not an AttributeError.
+
+    This is the path that crashed: `_parse` returns epoch seconds, and the
+    collector called `.total_seconds()` on the subtraction.
+    """
+    conn = _executions_db(tmp_path)
+    conn.execute(
+        "INSERT INTO transfer_executions VALUES (?, ?, ?, ?, ?)",
+        ("e1", "p1", "succeeded", "2026-09-01T00:00:00+00:00", "2026-09-01T00:00:30+00:00"),
+    )
+    conn.execute(
+        "INSERT INTO transfer_execution_items VALUES (?, ?, ?, ?, ?, ?)",
+        ("e1", "entry1", 100, "committed", "a", "a"),
+    )
+    conn.commit()
+
+    samples = metrics.sample_executions(conn)
+    assert len(samples) == 1
+    assert samples[0]["duration_seconds"] == pytest.approx(30.0, abs=0.5)
+
+
+def test_sample_executions_computes_running_duration(tmp_path: Path) -> None:
+    """An in-flight execution measures against now.
+
+    The second branch had the same `.total_seconds()` on a float; this pins it
+    so a fix to one branch cannot leave the other broken.
+    """
+    conn = _executions_db(tmp_path)
+    started = time.time() - 5
+    stamp = datetime.fromtimestamp(started, tz=UTC).isoformat()
+    conn.execute(
+        "INSERT INTO transfer_executions VALUES (?, ?, ?, ?, NULL)",
+        ("e2", "p1", "running", stamp),
+    )
+    conn.commit()
+
+    samples = metrics.sample_executions(conn)
+    assert len(samples) == 1
+    duration = samples[0]["duration_seconds"]
+    assert duration is not None
+    assert 4.0 < duration < 60.0
+
+
+def test_sample_executions_tolerates_a_null_started_at(tmp_path: Path) -> None:
+    """Never-started executions stay null rather than raising."""
+    conn = _executions_db(tmp_path)
+    conn.execute(
+        "INSERT INTO transfer_executions VALUES (?, ?, ?, NULL, NULL)",
+        ("e3", "p1", "queued"),
+    )
+    conn.commit()
+
+    samples = metrics.sample_executions(conn)
+    assert samples[0]["duration_seconds"] is None

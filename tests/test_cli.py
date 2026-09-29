@@ -27,6 +27,47 @@ def _invoke_with_db(runner: CliRunner, args: list[str], db: Path) -> object:
     return runner.invoke(main, ["--db", str(db), *args])
 
 
+class TestDoctor:
+    """`ferry doctor` surfaces a missing ffmpeg before a transfer does (#227)."""
+
+    def test_reports_ffmpeg_when_present(self, runner: CliRunner, tmp_db: Path) -> None:
+        with patch("file_ferry.cli.find_ffmpeg", return_value="/usr/bin/ffmpeg"):
+            result = runner.invoke(main, ["--db", str(tmp_db), "doctor"])
+        assert result.exit_code == 0
+        assert "ffmpeg" in result.output
+        assert "/usr/bin/ffmpeg" in result.output
+
+    def test_missing_ffmpeg_exits_nonzero_with_install_hint(
+        self, runner: CliRunner, tmp_db: Path
+    ) -> None:
+        from file_ferry.proxy import ProxyError
+
+        def _missing(_config: object = None) -> str:
+            raise ProxyError(Path("ffmpeg"), "binary not found on PATH")
+
+        with patch("file_ferry.cli.find_ffmpeg", _missing):
+            result = runner.invoke(main, ["--db", str(tmp_db), "doctor"])
+        # Nonzero so it is usable as a preflight gate in a script.
+        assert result.exit_code == 1
+        # The point of the command: name the install, not just the absence.
+        assert "ffmpeg" in result.output
+        assert "install" in result.output.lower()
+
+    def test_reports_explicit_backend_as_requiring_ffmpeg(
+        self, runner: CliRunner, tmp_db: Path, tmp_path: Path
+    ) -> None:
+        # Top-level key, not `[proxy] backend`. load_config promotes the
+        # full names ("proxy_codec", "proxy_height", "proxy_backend") out of
+        # the [proxy] sub-table, so `backend = "ffmpeg"` there is silently
+        # ignored and the config leaves the backend on "auto".
+        config = tmp_path / "ferry.toml"
+        config.write_text('proxy_backend = "ffmpeg"\n', encoding="utf-8")
+        with patch("file_ferry.cli.find_ffmpeg", return_value="/usr/bin/ffmpeg"):
+            result = runner.invoke(main, ["--db", str(tmp_db), "--config", str(config), "doctor"])
+        assert result.exit_code == 0
+        assert "ffmpeg is required" in result.output
+
+
 # ---------------------------------------------------------------------------
 # Top-level: --version, --help
 # ---------------------------------------------------------------------------

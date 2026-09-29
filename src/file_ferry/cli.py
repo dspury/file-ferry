@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -33,7 +34,7 @@ from file_ferry.models import FerryConfig, ResolveProjectSpec
 from file_ferry.organize import organize_path
 from file_ferry.paths import default_db_path, legacy_db_is_shadowed, legacy_db_path
 from file_ferry.probe import probe_path
-from file_ferry.proxy import generate_proxies
+from file_ferry.proxy import ProxyError, find_ffmpeg, generate_proxies
 from file_ferry.verify import verify_folder
 
 
@@ -133,6 +134,74 @@ def _get_config(ctx: click.Context) -> FerryConfig:
     """Get the loaded FerryConfig from the Click context."""
     cfg: FerryConfig = ctx.obj["config"]
     return cfg
+
+
+@main.command()
+@click.pass_context
+def doctor(ctx: click.Context) -> None:
+    """Check the environment ferry needs, before a transfer finds out for you.
+
+    ffmpeg is resolved lazily today, so a missing install is discovered by the
+    first transfer that needs transcoding -- minutes in, with "broken tool" as
+    the only available conclusion. This surfaces it up front (#227).
+    """
+    cfg: FerryConfig = _get_config(ctx)
+    console = Console()
+
+    table = Table(title="ferry doctor", show_header=False, box=None)
+    table.add_column("check", style="bold")
+    table.add_column("result")
+
+    missing = False
+    try:
+        ffmpeg = find_ffmpeg(cfg)
+    except ProxyError:
+        missing = True
+        if sys.platform == "darwin":
+            install = "brew install ffmpeg"
+        elif sys.platform.startswith("linux"):
+            install = "sudo apt install ffmpeg   # or your distro's equivalent"
+        else:
+            install = "see https://ffmpeg.org/download.html"
+        table.add_row(
+            "ffmpeg",
+            f"[red]not found[/red] -- install with: {install}",
+        )
+        table.add_row(
+            "  or set",
+            "[dim]ffmpeg_path in your config to point at a binary[/dim]",
+        )
+    else:
+        source = "config.ffmpeg_path" if cfg.ffmpeg_path else "PATH"
+        table.add_row("ffmpeg", f"[green]found[/green] {ffmpeg} [dim](via {source})[/dim]")
+
+    backend = cfg.proxy_backend
+    if backend == "auto":
+        table.add_row(
+            "proxy backend",
+            "[dim]auto -- AVFoundation handles ProRes and H.264 4:2:2 10-bit on "
+            "macOS; ffmpeg covers everything else[/dim]",
+        )
+    else:
+        table.add_row(
+            "proxy backend",
+            f"[yellow]{backend}[/yellow] [dim]-- ffmpeg is required[/dim]",
+        )
+
+    db_path: Path = ctx.obj["db_path"]
+    table.add_row("database", str(db_path))
+
+    console.print(table)
+
+    if missing:
+        # Nonzero so this is usable in a script or a preflight gate. The
+        # message is scoped deliberately: under `auto` on macOS some media
+        # still proxies without ffmpeg, so this is not "ferry cannot work".
+        console.print(
+            "[yellow]ffmpeg is missing.[/yellow] Proxies AVFoundation cannot "
+            "handle will fail until it is installed."
+        )
+        ctx.exit(1)
 
 
 # ---------------------------------------------------------------------------

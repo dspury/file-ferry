@@ -135,8 +135,7 @@ These are grouped, and each has its own subcommands:
 `ferry doctor` is worth knowing about: it reports a missing `ffmpeg` up front
 rather than halfway through a transfer.
 
-`resolve` has three subcommands: `resolve create` (above), `resolve instead`
-and `resolve runtime`.
+`resolve` takes one subcommand, `create` (shown in the table above).
 
 Run `ferry <command> --help` for subcommands and flags. Example output:
 

@@ -36,18 +36,21 @@ TypeScript 7 still sits outside `@typescript-eslint`'s peer range, so nothing
 here authorises the bump. If the bump is wanted, that is a fresh decision, not
 a resumption of this one.
 
-**Track C is closed** (see below — D declined screen-reader support 2026-09-28);
-**Track D is the open track.**
+**Track C is closed** (see below — D declined screen-reader support 2026-09-28
+and reaffirmed it 2026-10-05); **Track D is the open track.**
 
-Open items, verified against the tracker 2026-09-28:
+Open items, verified against the tracker 2026-10-05 — **all closed**:
 
-| issue | what |
-| --- | --- |
-| #218 | a crashed transfer is never recovered — fix in PR #228 |
-| #219 | d2_metrics.py crashes on first tick against real data |
-| #121 | dependabot grouping produces unmergeable PRs |
-| #224 | open PR, currently CONFLICTING |
-| #227 | ffmpeg is only discovered when a transfer needs it; nothing checks at first run |
+| issue | what | resolution |
+| --- | --- | --- |
+| #218 | a crashed transfer is never recovered | fixed — PR #228, merged 2026-09-28 |
+| #219 | d2_metrics.py crashes on first tick against real data | fixed — PR #231, merged 2026-09-29 |
+| #121 | dependabot grouping produces unmergeable PRs | closed — #226 disabled version updates |
+| #224 | dependabot dev-minor-and-patch PR, was CONFLICTING | closed, not merged; superseded by #226 |
+| #227 | ffmpeg is only discovered when a transfer needs it | fixed — `ferry doctor`, PR #230, merged 2026-09-29 |
+
+The tracker currently has **no open issues**. The one open PR is #232
+(docs: document the commands the CLI actually has), mergeable, docs only.
 
 ---
 
@@ -290,8 +293,22 @@ an ambiguous label on a destructive action, and a keyboard-navigation cost borne
 by every user.
 
 `docs/a11y/C1-screen-reader-pass.md` and the re-runnable harness at
-`docs/a11y/audit-a11y.mjs` stay in the tree. If ferry ever ships outside the
-studio, this reopens — that record is what makes re-opening it cheap.
+`docs/a11y/audit-a11y.mjs` stay in the tree, so the record of what was and was
+not tested survives.
+
+**Reaffirmed 2026-10-05 — do not re-open this on the strength of the OSS
+decision.** ferry is going out as a public open source product, and an earlier
+draft of this line said that shipping outside the studio would reopen Track C.
+That was wrong, and it was wrong in a way worth recording: the reason given for
+closing was "a single-operator studio tool rather than a product shipped to an
+audience", and the audience has now changed while the decision has not.
+
+D was asked directly whether making ferry public OSS should reverse the
+screen-reader decision, and declined: **no screen-reader support, stated
+plainly, not as an oversight.** A public audience is not by itself a reason to
+add a speech pass to a tool whose users are post-production operators who
+drive it by keyboard. #95, #198 and #200 stay `NOT_PLANNED` and are not to be
+reopened without a new, explicit ask from D.
 
 The one honest caveat: `role="status"` and live regions are near-free and are
 good markup, but a live region is only ever *consumed* by a screen reader. With
@@ -313,11 +330,24 @@ Not covered, and named as such: VoiceOver speech (the central gap), Windows
 (#148), forced-colours and zoom, the typed-move dialog in a live flow, the
 sidecar-unreachable path, and the packaged build.
 
-**#95 stays open** — the speech pass it asks for has not happened. The
-record says what was and was not tested, which is the point.
+**#95 is closed as `NOT_PLANNED`** (2026-09-28), not open. The speech pass it
+asked for has not happened and is not going to; see the reaffirmation above.
+The record says what was and was not tested, which was the point of keeping it.
 
-**The four defects are filed, not fixed**, which was the instruction. Fixing
-them is a separate scoped item and is not required by anything downstream.
+**Of the four defects, two were fixed and two were closed as not planned.**
+This line said "filed, not fixed", which was true when written and stopped
+being true on 2026-09-18:
+
+| issue | disposition |
+| --- | --- |
+| #199 | **fixed** — `COMPLETED` 2026-09-18 |
+| #201 | **fixed** — `COMPLETED` 2026-09-18 |
+| #198 | closed `NOT_PLANNED` — live region, only consumed by a screen reader |
+| #200 | closed `NOT_PLANNED` — same reasoning, WCAG 4.1.3 |
+
+The two that survived the "no screen reader" reasoning are the two that were
+never about screen readers in the first place, which is the argument for
+running the audit on a narrower question than the one that motivated it.
 
 ## C-2 — #148: Windows verification · BLOCKED ON A PRODUCT QUESTION
 

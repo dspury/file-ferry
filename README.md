@@ -309,7 +309,13 @@ Longer-term ideas (not yet scheduled):
 
 ## Contributing
 
-Open source under the MIT license. Issues and PRs welcome on [GitHub](https://github.com/dspury/file-ferry).
+Open source under the MIT license. Issues and PRs welcome on
+[GitHub](https://github.com/dspury/file-ferry).
+
+Before you start, please read **[`CONTRIBUTING.md`](./CONTRIBUTING.md)** — it
+covers setup, the exact gates CI runs, what state the project is actually in
+(the Python engine is mature; the desktop app is not yet
+production-validated), and the scope decisions that are already settled.
 
 Development setup:
 
@@ -326,6 +332,20 @@ mypy src
 ```
 
 Full specification: [`SPEC.md`](./SPEC.md).
+
+### Project governance
+
+| | |
+| --- | --- |
+| Contributing guide | [`CONTRIBUTING.md`](./CONTRIBUTING.md) |
+| Code of conduct | [`CODE_OF_CONDUCT.md`](./CODE_OF_CONDUCT.md) |
+| Security policy | [`SECURITY.md`](./SECURITY.md) — report privately, do not open a public issue |
+| Licence | MIT — [`LICENSE`](./LICENSE) |
+
+Accessibility: the desktop app's keyboard and labelling work is complete and
+maintained. **Screen-reader support has been explicitly declined by the
+maintainer** and is out of scope — that is a decision, not an oversight, and
+issues requesting a VoiceOver or NVDA pass will be closed without discussion.
 
 ---
 

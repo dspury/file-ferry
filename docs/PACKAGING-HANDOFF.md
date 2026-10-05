@@ -65,7 +65,7 @@ The packaging pipeline exists and has succeeded before —
 sidecar at `desktop/sidecar/arm64/ferry-service` (17 MB) still runs and responds
 to `--help`.
 
-- `desktop/build/electron-builder.yml` — appId, dmg targets for arm64 + x64,
+- `desktop/build/electron-builder.yml` — appId, dmg target for arm64,
   hardened runtime, entitlements, `asarUnpack` for the renderer,
   `extraResources` copying the sidecar
 - `scripts/build-sidecar.sh` + `scripts/sidecar.spec` — PyInstaller freeze

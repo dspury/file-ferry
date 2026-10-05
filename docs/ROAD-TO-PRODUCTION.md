@@ -336,11 +336,51 @@ produced a working artifact for.
 removed from `electron-builder.yml`, along with the `package:win` /
 `package:linux` scripts (#203), and #148 closes with them.
 
-**Still open, same class of problem:** `mac` declares `arch: [arm64, x64]`,
-and #167 already recorded that the x64 slice "builds without a sidecar"
-because only arm64 is frozen. Either freeze an x64 sidecar or drop the arch
-— a declared arch that produces an engine-less bundle is the same defect
-that just cost two platforms.
+**Still open, same class of problem — LOUD instead of silent, then resolved
+(2026-10-05).**
+`mac` declares `arch: [arm64, x64]`, and #167 already recorded that the x64
+slice "builds without a sidecar" because only arm64 is frozen. That is the
+same defect that just cost two platforms in #203: a declared target that
+produces a bundle missing the thing that makes it work.
+
+It was worse than "not built". **electron-builder does not fail on a missing
+`extraResources` source** — it logs `file source doesn't exist` and exits 0.
+Reproduced 2026-10-05: an x64 `ferry.app` with no
+`Contents/Resources/sidecar/`, packaging exit 0, dead on first launch at
+`sidecar executable not found in packaged resources`. An engine-less x64
+`ferry-0.0.0.dmg` had already been produced this way on 2026-09-18 and was
+sitting in `desktop/release/`.
+
+**Fixed as a silent failure.** `desktop/scripts/check-sidecars.ts` now runs in
+`package:mac`, `package:mac:local` and `scripts/package-release.sh`, and exits
+non-zero naming every declared arch that lacks a usable sidecar. It also reads
+the Mach-O header, so a sidecar frozen for the wrong architecture is caught
+rather than stamped into `release.ts` as a build that lies about itself.
+Covered by `tests/check-sidecars.test.ts`; see `docs/RELEASE.md`.
+
+**The x64 decision is made: DROPPED (2026-10-05).** The guard is in place and
+`electron-builder.yml` now declares `arch: [arm64]` only, so `package:mac`
+passes. The reasoning, since it is a product call and worth keeping:
+
+- **Freezing x64 was not free.** No x86_64 CPython >= 3.10 exists in the `uv` /
+  python-build-standalone catalogue for macOS (the newest is 3.9, and the
+  project requires >= 3.11), so the cheap Rosetta route is closed. The
+  remaining options were the python.org universal2 installer driven under
+  `arch -x86_64`, conda-forge `osx-64`, or a real Intel machine — none of
+  which is worth a release gate.
+- **Dropping it costs Intel users nothing they can use.** The unpackaged dev
+  path never touches the frozen sidecar; it uses the workspace virtualenv
+  (`resolveSidecarCommand` takes its `isPackaged: false` branch). An Intel
+  contributor can clone, `npm ci`, `npm run build` and run the app today. The
+  only thing lost is a prebuilt Intel DMG.
+- **This is the same call as #203.** Windows and Linux were dropped as targets
+  for the same reason. A declared target that cannot be produced is worse than
+  an absent one, because it looks like support.
+
+Restoring x64 means freezing an x64 sidecar first. The config comment records
+the options. Note the guard reads the Mach-O header, so a universal2 or x64
+binary dropped into `sidecar/x64/` must actually be x64 — an arm64 binary
+there is rejected.
 
 ---
 

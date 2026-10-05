@@ -109,7 +109,35 @@ Each capability runs standalone or as part of the `run` pipeline. Step order in 
 | `log`            | Query the audit log (text or JSON)                                                                                  |
 | `run`            | Orchestrate any combination of the above as a pipeline                                                              |
 
-Run `ferry <command> --help` for the full flag list. Example output:
+### Everything else the CLI can do
+
+The table above is the media-ops pipeline. The CLI also exposes a set of
+application services — durable jobs, transfer planning, inventory, and so on.
+These are grouped, and each has its own subcommands:
+
+| Command       | What it does                                              |
+| ------------- | --------------------------------------------------------- |
+| `doctor`      | Check the environment `ferry` needs, before a transfer finds out for you |
+| `preflight`   | Plan preflight (vNext application services)                |
+| `transfer`    | Verified transfer execution (vNext application services)   |
+| `jobs`        | Durable job management (vNext application services)        |
+| `plan`        | Transfer plans (vNext application services)                |
+| `inventory`   | Source inventories (vNext application services)            |
+| `source`      | Source inspection (vNext application services)             |
+| `destination` | Saved destinations (vNext application services)            |
+| `intake`      | Intake planning (vNext application services)               |
+| `project`     | Manage projects (vNext application services)               |
+| `receipt`     | Receipt export (vNext application services)                |
+| `reconcile`   | Project reconciliation (vNext application services)        |
+| `preset`      | Immutable preset revisions (vNext application services)    |
+| `tui`         | Launch the interactive TUI (alternative to subcommands)    |
+
+`ferry doctor` is worth knowing about: it reports a missing `ffmpeg` up front
+rather than halfway through a transfer.
+
+`resolve` takes one subcommand, `create` (shown in the table above).
+
+Run `ferry <command> --help` for subcommands and flags. Example output:
 
 ```
 $ ferry run ./raw/ --organize --proxy --resolve-project --verify --project-name "Episode-12"

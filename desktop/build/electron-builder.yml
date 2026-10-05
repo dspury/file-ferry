@@ -29,9 +29,24 @@ mac:
   category: public.app-category.video
   target:
     - target: dmg
+      # arm64 only. The x64 slice was dropped 2026-10-05: it was declared
+      # here but never built, and electron-builder does not fail on a
+      # missing `sidecar/${arch}` — it exits 0 and ships a bundle with no
+      # engine in it, which dies on launch. See docs/RELEASE.md and
+      # desktop/scripts/check-sidecars.ts, which now fails the build rather
+      # than letting that recur.
+      #
+      # Nothing is lost for Intel users: the unpackaged dev path runs the
+      # workspace virtualenv, not a frozen sidecar (see
+      # electron/sidecar-command.ts), so `npm run dev` and `npm start` work
+      # on an Intel Mac today. They just do not get a prebuilt DMG.
+      #
+      # To restore it, freeze an x64 sidecar first. There is no x86_64
+      # CPython >= 3.11 in the uv / python-build-standalone catalogue, so this
+      # needs the python.org universal2 interpreter under `arch -x86_64`,
+      # conda-forge osx-64, or an actual Intel machine.
       arch:
         - arm64
-        - x64
   hardenedRuntime: true
   gatekeeperAssess: false
   entitlements: build/entitlements.mac.plist

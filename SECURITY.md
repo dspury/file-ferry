@@ -1,10 +1,36 @@
 # Security and secret handling
 
+## Reporting a vulnerability
+
+**Report privately. Do not open a public issue for a security problem.**
+
+ferry handles local media paths, file contents, and an audit database. If you
+have found something that lets one local user read or write another user's
+data, escape a sandbox boundary, or execute code through a crafted media file
+or project, report it to the maintainer directly at **security@dspury.com**.
+
+Please include: what you found, how to reproduce it, the affected version
+(`ferry --version`, or `app.diagnostics` for the packaged app), and your
+platform. You should get an acknowledgement within a few days. If you need
+the report to stay quiet while it is investigated, say so and it will.
+
+Note that the maintainer is a single person, so a realistic response time is
+"eventually" rather than "within 24 hours" for non-critical reports. Reports
+of credential exposure or data loss are treated as urgent.
+
+Once a fix is ready, please keep the details private until it is released so
+that users have a version to upgrade to. Credit will be given in the release
+notes unless you would rather not be named.
+
+Everything else — bugs, packaging questions, feature requests — belongs in a
+public issue or a discussion. This section is only for things that should not
+be public yet.
+
+## Secret scanning
+
 Live credentials, private keys, bearer values, recovery material, and
 secret-bearing production exports do not belong in this repository, whether it
 is private or public.
-
-## Secret scanning
 
 Install Gitleaks and run:
 

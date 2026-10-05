@@ -36,18 +36,21 @@ TypeScript 7 still sits outside `@typescript-eslint`'s peer range, so nothing
 here authorises the bump. If the bump is wanted, that is a fresh decision, not
 a resumption of this one.
 
-**Track C is closed** (see below — D declined screen-reader support 2026-09-28);
-**Track D is the open track.**
+**Track C is closed** (see below — D declined screen-reader support 2026-09-28
+and reaffirmed it 2026-10-05); **Track D is the open track.**
 
-Open items, verified against the tracker 2026-09-28:
+Open items, verified against the tracker 2026-10-05 — **all closed**:
 
-| issue | what |
-| --- | --- |
-| #218 | a crashed transfer is never recovered — fix in PR #228 |
-| #219 | d2_metrics.py crashes on first tick against real data |
-| #121 | dependabot grouping produces unmergeable PRs |
-| #224 | open PR, currently CONFLICTING |
-| #227 | ffmpeg is only discovered when a transfer needs it; nothing checks at first run |
+| issue | what | resolution |
+| --- | --- | --- |
+| #218 | a crashed transfer is never recovered | fixed — PR #228, merged 2026-09-28 |
+| #219 | d2_metrics.py crashes on first tick against real data | fixed — PR #231, merged 2026-09-29 |
+| #121 | dependabot grouping produces unmergeable PRs | closed — #226 disabled version updates |
+| #224 | dependabot dev-minor-and-patch PR, was CONFLICTING | closed, not merged; superseded by #226 |
+| #227 | ffmpeg is only discovered when a transfer needs it | fixed — `ferry doctor`, PR #230, merged 2026-09-29 |
+
+The tracker currently has **no open issues**. The one open PR is #232
+(docs: document the commands the CLI actually has), mergeable, docs only.
 
 ---
 
@@ -290,8 +293,22 @@ an ambiguous label on a destructive action, and a keyboard-navigation cost borne
 by every user.
 
 `docs/a11y/C1-screen-reader-pass.md` and the re-runnable harness at
-`docs/a11y/audit-a11y.mjs` stay in the tree. If ferry ever ships outside the
-studio, this reopens — that record is what makes re-opening it cheap.
+`docs/a11y/audit-a11y.mjs` stay in the tree, so the record of what was and was
+not tested survives.
+
+**Reaffirmed 2026-10-05 — do not re-open this on the strength of the OSS
+decision.** ferry is going out as a public open source product, and an earlier
+draft of this line said that shipping outside the studio would reopen Track C.
+That was wrong, and it was wrong in a way worth recording: the reason given for
+closing was "a single-operator studio tool rather than a product shipped to an
+audience", and the audience has now changed while the decision has not.
+
+D was asked directly whether making ferry public OSS should reverse the
+screen-reader decision, and declined: **no screen-reader support, stated
+plainly, not as an oversight.** A public audience is not by itself a reason to
+add a speech pass to a tool whose users are post-production operators who
+drive it by keyboard. #95, #198 and #200 stay `NOT_PLANNED` and are not to be
+reopened without a new, explicit ask from D.
 
 The one honest caveat: `role="status"` and live regions are near-free and are
 good markup, but a live region is only ever *consumed* by a screen reader. With
@@ -313,11 +330,24 @@ Not covered, and named as such: VoiceOver speech (the central gap), Windows
 (#148), forced-colours and zoom, the typed-move dialog in a live flow, the
 sidecar-unreachable path, and the packaged build.
 
-**#95 stays open** — the speech pass it asks for has not happened. The
-record says what was and was not tested, which is the point.
+**#95 is closed as `NOT_PLANNED`** (2026-09-28), not open. The speech pass it
+asked for has not happened and is not going to; see the reaffirmation above.
+The record says what was and was not tested, which was the point of keeping it.
 
-**The four defects are filed, not fixed**, which was the instruction. Fixing
-them is a separate scoped item and is not required by anything downstream.
+**Of the four defects, two were fixed and two were closed as not planned.**
+This line said "filed, not fixed", which was true when written and stopped
+being true on 2026-09-18:
+
+| issue | disposition |
+| --- | --- |
+| #199 | **fixed** — `COMPLETED` 2026-09-18 |
+| #201 | **fixed** — `COMPLETED` 2026-09-18 |
+| #198 | closed `NOT_PLANNED` — live region, only consumed by a screen reader |
+| #200 | closed `NOT_PLANNED` — same reasoning, WCAG 4.1.3 |
+
+The two that survived the "no screen reader" reasoning are the two that were
+never about screen readers in the first place, which is the argument for
+running the audit on a narrower question than the one that motivated it.
 
 ## C-2 — #148: Windows verification · BLOCKED ON A PRODUCT QUESTION
 
@@ -336,11 +366,42 @@ produced a working artifact for.
 removed from `electron-builder.yml`, along with the `package:win` /
 `package:linux` scripts (#203), and #148 closes with them.
 
-**Still open, same class of problem:** `mac` declares `arch: [arm64, x64]`,
-and #167 already recorded that the x64 slice "builds without a sidecar"
-because only arm64 is frozen. Either freeze an x64 sidecar or drop the arch
-— a declared arch that produces an engine-less bundle is the same defect
-that just cost two platforms.
+**Still open, same class of problem — now LOUD instead of silent (2026-10-05).**
+`mac` declares `arch: [arm64, x64]`, and #167 already recorded that the x64
+slice "builds without a sidecar" because only arm64 is frozen. That is the
+same defect that just cost two platforms in #203: a declared target that
+produces a bundle missing the thing that makes it work.
+
+It was worse than "not built". **electron-builder does not fail on a missing
+`extraResources` source** — it logs `file source doesn't exist` and exits 0.
+Reproduced 2026-10-05: an x64 `ferry.app` with no
+`Contents/Resources/sidecar/`, packaging exit 0, dead on first launch at
+`sidecar executable not found in packaged resources`. An engine-less x64
+`ferry-0.0.0.dmg` had already been produced this way on 2026-09-18 and was
+sitting in `desktop/release/`.
+
+**Fixed as a silent failure.** `desktop/scripts/check-sidecars.ts` now runs in
+`package:mac`, `package:mac:local` and `scripts/package-release.sh`, and exits
+non-zero naming every declared arch that lacks a usable sidecar. It also reads
+the Mach-O header, so a sidecar frozen for the wrong architecture is caught
+rather than stamped into `release.ts` as a build that lies about itself.
+Covered by `tests/check-sidecars.test.ts`; see `docs/RELEASE.md`.
+
+**The x64 decision is still open.** The guard makes it fail loudly instead of
+shipping quietly, which is the half that was a correctness bug. Whether to
+*build* x64 or *drop* it is a product call and has not been made. Constraints
+measured 2026-10-05, for whoever takes it:
+
+- Freezing x64 on this arm64 host is not free. No x86_64 CPython >= 3.10
+  exists in the `uv` / python-build-standalone catalogue for macOS (the newest
+  is 3.9, and the project requires >= 3.11), so the cheap Rosetta route is
+  out. The remaining options are the python.org universal2 installer driven
+  under `arch -x86_64`, conda-forge `osx-64`, or an actual Intel machine.
+- The unpackaged dev path does **not** need the frozen sidecar — it uses the
+  workspace virtualenv (`resolveSidecarCommand` takes its `isPackaged: false`
+  branch). So dropping x64 from the *packaged* target does not stop an Intel
+  contributor building and running the app from source. It only means no
+  prebuilt Intel DMG.
 
 ---
 

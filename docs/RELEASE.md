@@ -13,13 +13,46 @@ ARCH=arm64 PLATFORM=mac scripts/package-release.sh
 `scripts/package-release.sh`:
 1. Freezes the Python sidecar into `desktop/sidecar/{arch}/ferry-service`
    (PyInstaller onefile) — the same `build:sidecar` used by `package:*`.
-2. Stamps release provenance (version, git commit, build time, arch) into
+2. Checks that **every** arch `build/electron-builder.yml` declares has a
+   usable sidecar of that architecture (`node scripts/check-sidecars.ts`).
+3. Stamps release provenance (version, git commit, build time, arch) into
    `desktop/shared/release.ts` via `scripts/stamp-release.js`. The runtime
    surfaces it through `app.diagnostics`, so a diagnostic report identifies
    the exact build.
-3. Builds the renderer/main/preload.
-4. Packages with electron-builder (macOS DMG by default; `PLATFORM=win` /
+4. Builds the renderer/main/preload.
+5. Packages with electron-builder (macOS DMG by default; `PLATFORM=win` /
    `PLATFORM=linux` for the others).
+
+## The sidecar guard
+
+`scripts/check-sidecars.ts` runs on every packaging path and **fails the
+build** when a declared arch has no usable sidecar. It is not optional, and it
+exists because the alternative is silent:
+
+`extraResources.from: 'sidecar/${arch}'` does not fail when that directory is
+missing. electron-builder logs one informational line and exits 0:
+
+```
+• file source doesn't exist  from=.../desktop/sidecar/x64
+=== PACKAGE EXIT 0 ===
+```
+
+The bundle it produces has no `Contents/Resources/sidecar/` at all, and
+`electron/sidecar-command.ts` throws `sidecar executable not found in packaged
+resources` on first launch. It installs, it opens, it is dead. Reproduced
+2026-10-05; an engine-less `ferry-0.0.0.dmg` (x64) had already been produced
+this way on 2026-09-18.
+
+The guard also reads the Mach-O header and rejects a sidecar frozen for the
+wrong architecture, which is the failure `ARCH=x64` used to produce: the stamp
+recorded x64 while `build:sidecar` defaulted to `$(uname -m)`. `ARCH` is now
+threaded through, and a build that reports the wrong arch in its own
+diagnostics fails instead.
+
+The same "declared but never built" class of defect is why Windows and Linux
+were removed as targets in #203. `scripts/verify-packaged.sh` checks the same
+property after the fact, on a path you pass by hand; the guard is the
+pre-flight half. Run both.
 
 ## Validate a packaged build
 
@@ -62,6 +95,11 @@ Do not call the app stable until all are true:
 
 - Full automated matrix green on the supported macOS architectures
   (pytest, desktop typecheck/lint/tests/build, gitleaks).
+- `node scripts/check-sidecars.ts` passes: every arch the release config
+  declares has a matching frozen sidecar. It runs automatically in
+  `package:mac`, `package:mac:local` and `package-release.sh`; a green
+  package step implies it, but it is listed because "every declared arch was
+  actually built" is exactly the claim a green build has been getting wrong.
 - Migration, package, and clean-app-data tests pass from a released prior DB.
 - Real-media suite passes on at least two storage configurations.
 - A prolonged offload/proxy soak completes with no orphaned jobs, stale

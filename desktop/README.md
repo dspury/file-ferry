@@ -56,7 +56,7 @@ development sidecar is launched by `electron/main.ts` as
 
 ```bash
 npm run build:sidecar  # freeze the Python sidecar (needs PyInstaller in .venv)
-npm run package:mac    # macOS DMG (arm64 + x64)
+npm run package:mac    # macOS DMG (arm64)
 ```
 
 `package:*` runs `build:sidecar` first, so the frozen sidecar is always

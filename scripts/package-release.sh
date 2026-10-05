@@ -25,6 +25,13 @@ case "$ARCH" in
   x86_64) ARCH="x64" ;;
   aarch64|arm64) ARCH="arm64" ;;
 esac
+# Exported so `npm run build:sidecar` and the provenance stamp below both see
+# the same value. It was not exported before: `build:sidecar` runs with no
+# argument and defaults to `$(uname -m)`, so `ARCH=x64 scripts/package-release.sh`
+# froze an arm64 sidecar and stamped `arch=x64` into release.ts. The sidecar
+# guard now reads the Mach-O header and refuses that combination, but the two
+# steps should not have been able to disagree in the first place.
+export ARCH
 PLATFORM="${PLATFORM:-mac}"
 VERSION="$(node -p "require('./package.json').version")"
 COMMIT="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
@@ -32,6 +39,9 @@ BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 echo "==> freezing sidecar (arch=$ARCH)"
 npm run build:sidecar
+
+echo "==> checking every declared arch has a usable sidecar"
+node scripts/check-sidecars.ts
 
 echo "==> stamping release provenance"
 MM_VERSION="$VERSION" MM_COMMIT="$COMMIT" MM_BUILD_TIME="$BUILD_TIME" MM_ARCH="$ARCH" \

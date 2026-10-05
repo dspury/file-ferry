@@ -37,8 +37,20 @@ test is the frozen binary, not `python -m file_ferry.service`.
 
 DMGs were also produced (`ferry-0.0.0-arm64.dmg`); the pilot ran the `.app`
 directly. The x64 DMG in the same build was produced **without** a sidecar
-(`sidecar/x64` does not exist), which is expected on an arm64-only host and is
-not exercised here.
+(`sidecar/x64` does not exist). This pilot did not exercise it.
+
+> **Correction, 2026-10-05.** The original text here called the missing x64
+> sidecar "expected on an arm64-only host" and said a release build must
+> produce both sidecars. Both were wrong, and this is a validation record, so
+> the mislabelling is worth correcting rather than leaving. It was never
+> expected: electron-builder does not fail on a missing
+> `extraResources: sidecar/${arch}` source — it logs
+> `file source doesn't exist` and exits 0. The x64 DMG was a bundle with no
+> engine in it, dead on first launch, and it was a **release-gate failure**,
+> not out of scope. The declaration has since been removed rather than
+> satisfied: `electron-builder.yml` is arm64-only as of 2026-10-05, and
+> `desktop/scripts/check-sidecars.ts` now fails any build that declares an
+> arch it has no sidecar for. See `docs/RELEASE.md`.
 
 ---
 
@@ -251,9 +263,11 @@ not belong in a validation change):
    definition note in §12.3's receipt documentation, and possibly a separate
    `directories` count. Not filed as an engine bug; flagged here.
 2. **The x64 DMG in an arm64-host build carries no sidecar** (`sidecar/x64`
-   absent, electron-builder logs "file source doesn't exist"). Expected for a
-   single-arch build and out of scope for this pilot; a release build must
-   build both sidecars. Pre-existing packaging behaviour, not exercised here.
+   absent, electron-builder logs "file source doesn't exist"). This was
+   recorded as expected and out of scope; **it was not** — it was a release
+   gate failure, see the correction above. `x64` is no longer declared at all
+   as of 2026-10-05, and `desktop/scripts/check-sidecars.ts` now fails the
+   build on a declared-but-unbuilt arch.
 
 ## Limitations / not run
 

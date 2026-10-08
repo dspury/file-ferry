@@ -105,3 +105,92 @@ ffmpeg_path = "/opt/homebrew/bin/ffmpeg"
         path.write_text('checksum_algo = "not-a-real-algo"\n')
         with pytest.raises(ValueError):
             load_config(path)
+
+
+class TestProxySubTable:
+    """The [proxy] convenience sub-table must not bypass extra='forbid'.
+
+    Regression cover for #236: the loader popped the whole table before
+    validating, so unrecognized keys were discarded and a typo silently
+    kept the default instead of erroring.
+    """
+
+    def test_recognized_subtable_keys_promoted(self, tmp_path: Path) -> None:
+        path = tmp_path / "ferry.toml"
+        path.write_text(
+            """
+[proxy]
+proxy_codec = "H264"
+proxy_height = 720
+proxy_backend = "ffmpeg"
+"""
+        )
+        cfg = load_config(path)
+        assert cfg.proxy_codec == "H264"
+        assert cfg.proxy_height == 720
+        assert cfg.proxy_backend == "ffmpeg"
+
+    def test_typo_under_proxy_rejected(self, tmp_path: Path) -> None:
+        # The reported defect: this used to load with proxy_height=1080.
+        path = tmp_path / "ferry.toml"
+        path.write_text("[proxy]\nheigth = 720\n")
+        with pytest.raises(ValueError):
+            load_config(path)
+
+    def test_unprefixed_backend_under_proxy_rejected(self, tmp_path: Path) -> None:
+        # `backend` reads as though it works; the model wants proxy_backend.
+        path = tmp_path / "ferry.toml"
+        path.write_text('[proxy]\nbackend = "ffmpeg"\n')
+        with pytest.raises(ValueError):
+            load_config(path)
+
+    def test_arbitrary_key_under_proxy_rejected(self, tmp_path: Path) -> None:
+        path = tmp_path / "ferry.toml"
+        path.write_text("[proxy]\nnonsense = 1\n")
+        with pytest.raises(ValueError):
+            load_config(path)
+
+    def test_top_level_key_under_proxy_rejected(self, tmp_path: Path) -> None:
+        # `organize` is a real field, but not under [proxy].
+        path = tmp_path / "ferry.toml"
+        path.write_text("[proxy]\norganize = 1\n")
+        with pytest.raises(ValueError):
+            load_config(path)
+
+    def test_error_names_the_offending_key(self, tmp_path: Path) -> None:
+        # A rejection that does not say which key is half a diagnostic.
+        from pydantic import ValidationError
+
+        path = tmp_path / "ferry.toml"
+        path.write_text('[proxy]\nbackend = "ffmpeg"\n')
+        with pytest.raises(ValidationError) as excinfo:
+            load_config(path)
+        locs = [str(loc) for err in excinfo.value.errors() for loc in err["loc"]]
+        assert any("backend" in loc for loc in locs), locs
+
+    def test_scalar_proxy_rejected(self, tmp_path: Path) -> None:
+        # `proxy = 5` was popped and discarded for the same reason.
+        path = tmp_path / "ferry.toml"
+        path.write_text("proxy = 5\n")
+        with pytest.raises(ValueError):
+            load_config(path)
+
+    def test_empty_proxy_table_is_fine(self, tmp_path: Path) -> None:
+        path = tmp_path / "ferry.toml"
+        path.write_text("[proxy]\n")
+        cfg = load_config(path)
+        assert cfg.proxy_height == 1080
+        assert cfg.proxy_backend == "auto"
+
+    def test_top_level_and_subtable_combine(self, tmp_path: Path) -> None:
+        path = tmp_path / "ferry.toml"
+        path.write_text(
+            """
+proxy_height = 720
+[proxy]
+proxy_backend = "ffmpeg"
+"""
+        )
+        cfg = load_config(path)
+        assert cfg.proxy_height == 720
+        assert cfg.proxy_backend == "ffmpeg"

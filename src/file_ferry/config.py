@@ -49,11 +49,27 @@ def load_config(path: Path | None = None) -> FerryConfig:
             # proxy settings. Promote recognized keys to the top level (where
             # the model expects them) and pop the table so Pydantic's
             # extra="forbid" policy does not reject the leftover key.
+            #
+            # Unrecognized keys are handed back under a dotted "proxy.<key>"
+            # name instead of being dropped. Popping the table hid them from
+            # model_validate, so extra="forbid" never saw them and a typo
+            # like `[proxy] heigth = 720` silently kept the default height
+            # with no diagnostic (#236). Re-injecting them lets the same
+            # policy that rejects a top-level typo reject these too, and the
+            # dotted loc names the offending key.
             proxy_sub = data.pop("proxy", None)
             if isinstance(proxy_sub, dict):
-                for key in ("proxy_codec", "proxy_height", "proxy_backend"):
+                promoted = ("proxy_codec", "proxy_height", "proxy_backend")
+                for key in promoted:
                     if key in proxy_sub:
                         data.setdefault(key, proxy_sub[key])
+                for key, value in proxy_sub.items():
+                    if key not in promoted:
+                        data[f"proxy.{key}"] = value
+            elif proxy_sub is not None:
+                # Not a sub-table at all (`proxy = 5`). The key was already
+                # popped, so hand it back rather than discarding it silently.
+                data["proxy"] = proxy_sub
 
             return FerryConfig.model_validate(data)
 

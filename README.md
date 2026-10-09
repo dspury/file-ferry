@@ -217,6 +217,11 @@ checksum_algo = "xxhash"
 
 See [`ferry.toml.example`](./ferry.toml.example) for the full reference.
 
+**Unknown keys are rejected.** A typo like `proxy_heigth = 720` (or
+`[proxy] heigth = 720`) fails at startup naming the offending key, rather than
+being ignored while `ferry` silently uses its default. This is deliberate — a
+setting you meant to change and did not is worse than a loud failure.
+
 ### Upgrading from media-mate (v0.2.x)
 
 v0.3.0 renamed the project, and with it every path it reads. Nothing is migrated
